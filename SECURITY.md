@@ -1,45 +1,57 @@
-# 安全策略
+# Security Policy
 
-## 支持范围
+## Supported Versions
 
-NorixorTrans 仍处于 `0.x` 开发阶段。安全修复以默认分支的最新代码为目标；旧的
-开发构建和历史压缩包通常不会单独维护。请先在最新版本上确认问题，但不要为了
-复现而扩大数据访问、绕过站点权限或暴露真实凭据。
+NorixorTrans is still in the `0.x` development phase. Security fixes target the
+latest code on the default branch; older development builds and historical
+archives are generally not maintained separately. Please confirm the issue on
+the latest version first, but do not expand data access, bypass site
+permissions, or expose real credentials merely to reproduce it.
 
-## 私下报告漏洞
+## Reporting a Vulnerability Privately
 
-请不要为尚未修复的漏洞创建公开 issue，也不要在公开讨论中粘贴 API Key、
-Cookie、认证头、用户文本、完整字幕、Provider 原始响应或可直接利用的细节。
+Do not open a public issue for an unpatched vulnerability. Do not paste API
+keys, cookies, authentication headers, user text, complete subtitles, raw
+Provider responses, or directly exploitable details into public discussions.
 
-优先通过 GitHub 仓库的 **Security** 页面选择 **Report a vulnerability**，使用
-Private Vulnerability Reporting 提交报告。如果该入口暂不可用，请创建一个不含
-敏感细节的普通 issue，请求维护者提供私下联系渠道。
+Use **Report a vulnerability** on the GitHub repository's **Security** page to
+submit a report through Private Vulnerability Reporting. If that option is
+temporarily unavailable, open a regular issue without sensitive details and
+ask the maintainers for a private contact channel.
 
-报告应尽量包含：
+A useful report should include, where possible:
 
-- 受影响的版本、提交或构建标识；
-- 影响范围和现实攻击场景；
-- 最小复现步骤或最小化测试页面；
-- 预期行为与实际行为；
-- 已知缓解方式；
-- 在不泄露用户数据前提下所需的日志或截图。
+- The affected version, commit, or build identifier;
+- The impact and a realistic attack scenario;
+- Minimal reproduction steps or a minimal test page;
+- Expected and actual behavior;
+- Any known mitigation;
+- Only the logs or screenshots needed to investigate without exposing user
+  data.
 
-不要在未经授权的真实账户、付费服务或第三方系统上进行测试。请使用自有账户、
-合成文本和最小权限环境；不要执行拒绝服务、批量抓取、社工或破坏性操作。
+Do not test against real accounts, paid services, or third-party systems
+without authorization. Use accounts you control, synthetic text, and a
+least-privilege environment. Do not perform denial-of-service testing, bulk
+scraping, social engineering, or destructive actions.
 
-维护者会先确认报告是否可复现和是否属于本项目，随后协调修复与披露。响应时间
-会受问题复杂度和维护者可用时间影响，本策略不承诺固定 SLA。修复公开前，请为
-维护者保留合理的协调时间。
+The maintainers will first determine whether the report is reproducible and in
+scope, then coordinate remediation and disclosure. Response times depend on
+the issue's complexity and maintainer availability; this policy does not
+promise a fixed SLA. Please allow reasonable time for coordination before
+public disclosure.
 
-## 安全范围
+## Security Scope
 
-以下问题通常属于安全报告范围：
+The following issues are generally in scope for a security report:
 
-- API Key、认证信息或用户翻译文本泄露；
-- 扩展权限、消息协议、页面隔离或 Shadow DOM 边界被绕过；
-- 远程代码执行、Manifest V3 约束绕过或供应链风险；
-- 跨站点字幕、缓存或设置数据错误归属；
-- OCR 截图、模型下载校验或本地处理承诺被绕过。
+- Exposure of API keys, authentication data, or user translation text;
+- Bypasses of extension permissions, messaging protocols, page isolation, or
+  Shadow DOM boundaries;
+- Remote code execution, Manifest V3 policy bypasses, or supply-chain risks;
+- Incorrect cross-site ownership of subtitles, cached data, or settings;
+- Bypasses of OCR screenshot protections, model download verification, or
+  local-processing guarantees.
 
-普通功能缺陷、翻译质量、站点选择器失效和不含安全影响的兼容性问题，请使用
-公开 issue，并遵循[贡献指南](./CONTRIBUTING.md)。
+For ordinary functional defects, translation-quality problems, broken site
+selectors, or compatibility issues without a security impact, use a public
+issue and follow the [contribution guidelines](./CONTRIBUTING.md).
