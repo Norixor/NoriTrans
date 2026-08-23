@@ -1,0 +1,51 @@
+{
+  "id": "zdf",
+  "version": 1,
+  "name": "ZDF",
+  "parser": "dom",
+  "priority": 52,
+  "match": {
+    "hostnameSuffixes": ["zdf.de"],
+    "urlRules": [
+      { "hostnameSuffixes": ["zdf.de"], "pathnamePrefixes": ["/play/"] }
+    ]
+  },
+  "selectors": {
+    "video": "video",
+    "captions": [
+      ".zdfplayer-captions",
+      ".zdfplayer-subtitle",
+      "[class*='caption-text']",
+      "[class*='subtitle']",
+      ".vjs-text-track-display",
+      ".captions"
+    ],
+    "nativeCaptions": [
+      ".zdfplayer-captions",
+      ".zdfplayer-subtitle",
+      ".vjs-text-track-display"
+    ]
+  },
+  "capture": {
+    "formats": ["vtt", "ttml"],
+    "allowedHostnameSuffixes": ["zdf.de"],
+    "urlPatterns": [
+      ".vtt",
+      ".webvtt",
+      ".xml",
+      ".ttml",
+      "/mtt/",
+      "/subtitles",
+      "/captions",
+      "untertit"
+    ],
+    "completeFilePatterns": [
+      ".vtt",
+      ".webvtt",
+      "/mtt/",
+      "/subtitles",
+      "/captions",
+      "untertit"
+    ]
+  }
+}

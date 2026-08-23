@@ -1,0 +1,967 @@
+<!doctype html>
+<html lang="__MSG_documentLanguage__">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="wxt.open_in_tab" content="true" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="theme-color"
+      content="#f6f3ed"
+      media="(prefers-color-scheme: light)"
+    />
+    <meta
+      name="theme-color"
+      content="#1c1a17"
+      media="(prefers-color-scheme: dark)"
+    />
+    <title>__MSG_optionsTitle__ · __MSG_extensionName__</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main class="settings-shell">
+      <aside class="settings-sidebar">
+        <header class="page-header">
+          <p class="eyebrow">__MSG_extensionName__</p>
+          <h1>__MSG_optionsTitle__</h1>
+          <p>__MSG_optionsDescription__</p>
+        </header>
+
+        <nav aria-label="__MSG_optionsTitle__">
+          <div
+            class="settings-tabs"
+            role="tablist"
+            aria-label="__MSG_optionsTitle__"
+          >
+            <button
+              id="provider-settings-tab"
+              class="settings-tab"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              aria-controls="provider-settings-panel"
+              tabindex="-1"
+            >
+              __MSG_settingsTabProvider__
+            </button>
+            <button
+              id="page-settings-tab"
+              class="settings-tab"
+              type="button"
+              role="tab"
+              aria-selected="true"
+              aria-controls="page-settings-panel"
+            >
+              __MSG_settingsTabPage__
+            </button>
+            <button
+              id="video-settings-tab"
+              class="settings-tab"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              aria-controls="video-settings-panel"
+              tabindex="-1"
+            >
+              __MSG_settingsTabVideo__
+            </button>
+            <button
+              id="profiles-settings-tab"
+              class="settings-tab"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              aria-controls="profiles-settings-panel"
+              tabindex="-1"
+            >
+              __MSG_settingsTabProfiles__
+            </button>
+            <button
+              id="image-settings-tab"
+              class="settings-tab"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              aria-controls="image-settings-panel"
+              tabindex="-1"
+            >
+              __MSG_settingsTabImage__
+            </button>
+            <button
+              id="ocr-runtimes-tab"
+              class="settings-tab"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              aria-controls="ocr-runtimes-panel"
+              tabindex="-1"
+            >
+              __MSG_settingsTabOcrRuntimes__
+            </button>
+            <button
+              id="visibility-settings-tab"
+              class="settings-tab"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              aria-controls="visibility-settings-panel"
+              tabindex="-1"
+            >
+              __MSG_settingsTabVisibility__
+            </button>
+          </div>
+        </nav>
+      </aside>
+
+      <form id="settings-form">
+        <section class="translation-settings" aria-label="__MSG_optionsTitle__">
+          <section
+            id="provider-settings-panel"
+            class="settings-section tab-panel"
+            role="tabpanel"
+            aria-labelledby="provider-settings-tab"
+            tabindex="0"
+            hidden
+          >
+            <div class="section-heading">
+              <div>
+                <h2 id="provider-heading">__MSG_providerSettings__</h2>
+                <p>__MSG_providerSettingsDescription__</p>
+              </div>
+            </div>
+
+            <div class="privacy-note" role="note">
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                width="20"
+                height="20"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  d="M12 3 5 6v5c0 4.6 2.9 8.1 7 10 4.1-1.9 7-5.4 7-10V6l-7-3Z"
+                />
+                <path d="m9 12 2 2 4-4" />
+              </svg>
+              <p>__MSG_providerPrivacyNotice__</p>
+            </div>
+
+            <div class="form-grid two-columns">
+              <label class="field-label" for="fast-provider">
+                <span>__MSG_fastProvider__</span>
+                <select id="fast-provider" name="fast-provider">
+                  <option value="chrome-local">
+                    __MSG_providerChromeLocal__
+                  </option>
+                  <option value="openai-compatible">
+                    __MSG_providerOpenAiCompatible__
+                  </option>
+                </select>
+              </label>
+              <label class="field-label" for="ai-provider">
+                <span>__MSG_aiProvider__</span>
+                <select id="ai-provider" name="ai-provider" disabled>
+                  <option value="openai-compatible">
+                    __MSG_providerOpenAiCompatible__
+                  </option>
+                </select>
+              </label>
+            </div>
+
+            <div class="form-grid provider-fields">
+              <label class="field-label" for="base-url">
+                <span>__MSG_baseUrl__</span>
+                <input
+                  id="base-url"
+                  name="base-url"
+                  type="url"
+                  inputmode="url"
+                  autocomplete="url"
+                  maxlength="2048"
+                  required
+                  placeholder="__MSG_baseUrlPlaceholder__"
+                />
+              </label>
+              <label class="field-label" for="api-key">
+                <span>__MSG_apiKey__</span>
+                <input
+                  id="api-key"
+                  name="api-key"
+                  type="password"
+                  autocomplete="off"
+                  maxlength="10000"
+                  spellcheck="false"
+                  placeholder="__MSG_apiKeyPlaceholder__"
+                />
+                <small>__MSG_apiKeyHelp__</small>
+              </label>
+              <label class="field-label" for="model">
+                <span>__MSG_model__</span>
+                <input
+                  id="model"
+                  name="model"
+                  type="text"
+                  autocomplete="off"
+                  maxlength="256"
+                  spellcheck="false"
+                  required
+                />
+              </label>
+              <label class="field-label" for="timeout">
+                <span>__MSG_timeoutSeconds__</span>
+                <input
+                  id="timeout"
+                  name="timeout"
+                  type="number"
+                  inputmode="numeric"
+                  autocomplete="off"
+                  min="5"
+                  max="180"
+                  step="1"
+                  required
+                />
+              </label>
+              <label class="field-label provider-prompt" for="system-prompt">
+                <span>__MSG_systemPrompt__</span>
+                <textarea
+                  id="system-prompt"
+                  name="system-prompt"
+                  rows="5"
+                  autocomplete="off"
+                  spellcheck="false"
+                  maxlength="20000"
+                  required
+                ></textarea>
+              </label>
+            </div>
+
+            <div class="inline-actions">
+              <button
+                id="test-connection"
+                class="button button-secondary"
+                type="button"
+              >
+                __MSG_testConnection__
+              </button>
+              <span
+                id="test-message"
+                class="feedback"
+                aria-live="polite"
+              ></span>
+            </div>
+            <details
+              id="connection-diagnostic"
+              class="connection-diagnostic"
+              hidden
+            >
+              <summary>__MSG_connectionDetails__</summary>
+              <pre id="connection-diagnostic-text"></pre>
+            </details>
+
+            <section class="data-section" aria-labelledby="data-heading">
+              <div class="section-heading">
+                <div>
+                  <h2 id="data-heading">__MSG_localData__</h2>
+                  <p>__MSG_localDataDescription__</p>
+                </div>
+              </div>
+              <div class="data-action-grid">
+                <div class="data-action">
+                  <div>
+                    <strong>__MSG_cacheTitle__</strong>
+                    <p>__MSG_cacheDescription__</p>
+                  </div>
+                  <button
+                    id="clear-cache"
+                    class="button button-secondary"
+                    type="button"
+                  >
+                    __MSG_clearCache__
+                  </button>
+                </div>
+                <div class="data-action">
+                  <div>
+                    <strong>__MSG_credentialsTitle__</strong>
+                    <p>__MSG_credentialsDescription__</p>
+                  </div>
+                  <button
+                    id="clear-credentials"
+                    class="button button-danger"
+                    type="button"
+                  >
+                    __MSG_clearCredentials__
+                  </button>
+                </div>
+              </div>
+            </section>
+          </section>
+
+          <section
+            id="page-settings-panel"
+            class="settings-section tab-panel"
+            role="tabpanel"
+            aria-labelledby="page-settings-tab"
+            tabindex="0"
+          >
+            <div class="section-heading section-heading-with-control">
+              <div>
+                <h2>__MSG_pageSettings__</h2>
+                <p>__MSG_pageSettingsDescription__</p>
+              </div>
+              <label class="switch-label" for="page-auto-translate">
+                <input
+                  id="page-auto-translate"
+                  name="page-auto-translate"
+                  type="checkbox"
+                />
+                <span aria-hidden="true"></span>
+                <b>__MSG_pageAutoTranslate__</b>
+              </label>
+            </div>
+
+            <p class="section-note">__MSG_pageAutoTranslateDescription__</p>
+            <div class="auto-translate-site-rules">
+              <div class="auto-translate-site-heading">
+                <div>
+                  <h3>__MSG_autoTranslateSitesTitle__</h3>
+                  <p>__MSG_autoTranslateSitesDescription__</p>
+                </div>
+                <span id="auto-translate-site-count" class="profile-count"
+                  >0</span
+                >
+              </div>
+              <p id="auto-translate-site-empty" class="profile-empty">
+                __MSG_autoTranslateSitesEmpty__
+              </p>
+              <ul
+                id="auto-translate-site-list"
+                class="auto-translate-site-list"
+                aria-label="__MSG_autoTranslateSitesTitle__"
+              ></ul>
+            </div>
+            <div class="toggle-option selection-translation-option">
+              <label class="switch-label" for="selection-translation-enabled">
+                <input
+                  id="selection-translation-enabled"
+                  name="selection-translation-enabled"
+                  type="checkbox"
+                  aria-describedby="selection-translation-description"
+                />
+                <span aria-hidden="true"></span>
+                <b>__MSG_selectionTranslationEnabled__</b>
+              </label>
+              <p id="selection-translation-description">
+                __MSG_selectionTranslationDescription__
+              </p>
+            </div>
+            <div class="form-grid two-columns">
+              <label class="field-label" for="page-source-language">
+                <span>__MSG_sourceLanguage__</span>
+                <select
+                  id="page-source-language"
+                  name="page-source-language"
+                ></select>
+              </label>
+              <label class="field-label" for="page-target-language">
+                <span>__MSG_targetLanguage__</span>
+                <select
+                  id="page-target-language"
+                  name="page-target-language"
+                ></select>
+              </label>
+              <label class="field-label" for="page-mode">
+                <span>__MSG_translationMode__</span>
+                <select id="page-mode" name="page-mode">
+                  <option value="fast">__MSG_modeFast__</option>
+                  <option value="ai">__MSG_modeAi__</option>
+                </select>
+              </label>
+              <label class="field-label" for="selection-translation-mode">
+                <span>__MSG_selectionTranslationMode__</span>
+                <select
+                  id="selection-translation-mode"
+                  name="selection-translation-mode"
+                >
+                  <option value="fast">__MSG_modeFast__</option>
+                  <option value="ai">__MSG_modeAi__</option>
+                </select>
+              </label>
+              <label class="field-label" for="page-response-mode">
+                <span>__MSG_aiResponseMode__</span>
+                <select id="page-response-mode" name="page-response-mode">
+                  <option value="stream">__MSG_responseModeStream__</option>
+                  <option value="batch">__MSG_responseModeBatch__</option>
+                </select>
+              </label>
+              <label class="field-label" for="page-display-mode">
+                <span>__MSG_displayMode__</span>
+                <select id="page-display-mode" name="page-display-mode">
+                  <option value="translated">__MSG_pageDisplayReplace__</option>
+                  <option value="bilingual">__MSG_pageDisplayAppend__</option>
+                </select>
+              </label>
+            </div>
+          </section>
+
+          <section
+            id="ocr-runtimes-panel"
+            class="settings-section tab-panel"
+            role="tabpanel"
+            aria-labelledby="ocr-runtimes-tab"
+            tabindex="0"
+            hidden
+          >
+            <div class="section-heading runtime-heading">
+              <div>
+                <h2>__MSG_ocrRuntimesTitle__</h2>
+                <p>__MSG_ocrRuntimesDescription__</p>
+              </div>
+              <button
+                id="ocr-runtime-download-all"
+                class="button button-primary"
+                type="button"
+                disabled
+              >
+                __MSG_ocrRuntimeDownloadAll__
+              </button>
+            </div>
+
+            <div class="runtime-local-note" role="note">
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                width="20"
+                height="20"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  d="M12 3 5 6v5c0 4.6 2.9 8.1 7 10 4.1-1.9 7-5.4 7-10V6l-7-3Z"
+                />
+                <path d="M9 12h6M12 9v6" />
+              </svg>
+              <p>__MSG_ocrRuntimesLocalNotice__</p>
+            </div>
+
+            <div class="runtime-list-shell">
+              <div class="runtime-list-labels" aria-hidden="true">
+                <span>__MSG_ocrRuntimeLanguage__</span>
+                <span>__MSG_ocrRuntimeStatus__</span>
+                <span>__MSG_ocrRuntimeAction__</span>
+              </div>
+              <ul
+                id="ocr-runtime-list"
+                class="runtime-list"
+                aria-busy="true"
+                hidden
+              ></ul>
+              <p
+                id="ocr-runtime-loading"
+                class="runtime-placeholder"
+                role="status"
+              >
+                __MSG_ocrRuntimesLoading__
+              </p>
+              <p id="ocr-runtime-empty" class="runtime-placeholder" hidden>
+                __MSG_ocrRuntimesEmpty__
+              </p>
+            </div>
+            <p
+              id="ocr-runtime-message"
+              class="feedback runtime-feedback"
+              role="status"
+              aria-live="polite"
+            ></p>
+          </section>
+
+          <section
+            id="image-settings-panel"
+            class="settings-section tab-panel"
+            role="tabpanel"
+            aria-labelledby="image-settings-tab"
+            tabindex="0"
+            hidden
+          >
+            <div class="section-heading section-heading-with-control">
+              <div>
+                <h2>__MSG_imageTranslationSettings__</h2>
+                <p>__MSG_imageTranslationSettingsDescription__</p>
+              </div>
+              <label class="switch-label" for="image-translation-enabled">
+                <input
+                  id="image-translation-enabled"
+                  name="image-translation-enabled"
+                  type="checkbox"
+                />
+                <span aria-hidden="true"></span>
+                <b>__MSG_imageTranslationEnabled__</b>
+              </label>
+            </div>
+            <div class="privacy-note" role="note">
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                width="20"
+                height="20"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  d="M12 3 5 6v5c0 4.6 2.9 8.1 7 10 4.1-1.9 7-5.4 7-10V6l-7-3Z"
+                />
+                <path d="m9 12 2 2 4-4" />
+              </svg>
+              <p>__MSG_imageTranslationPrivacy__</p>
+            </div>
+            <div class="form-grid two-columns">
+              <label class="field-label" for="image-source-language">
+                <span>__MSG_sourceLanguage__</span>
+                <select
+                  id="image-source-language"
+                  name="image-source-language"
+                ></select>
+              </label>
+              <label class="field-label" for="image-target-language">
+                <span>__MSG_targetLanguage__</span>
+                <select
+                  id="image-target-language"
+                  name="image-target-language"
+                ></select>
+              </label>
+              <label class="field-label" for="image-mode">
+                <span>__MSG_translationMode__</span>
+                <select id="image-mode" name="image-mode">
+                  <option value="fast">__MSG_modeFast__</option>
+                  <option value="ai">__MSG_modeAi__</option>
+                </select>
+              </label>
+              <label class="field-label" for="image-display-mode">
+                <span>__MSG_displayMode__</span>
+                <select id="image-display-mode" name="image-display-mode">
+                  <option value="translated">__MSG_displayTranslated__</option>
+                  <option value="bilingual">__MSG_displayBilingual__</option>
+                </select>
+              </label>
+              <label
+                class="field-label provider-prompt"
+                for="image-model-override"
+              >
+                <span>__MSG_imageModelOverride__</span>
+                <input
+                  id="image-model-override"
+                  name="image-model-override"
+                  type="text"
+                  maxlength="256"
+                  autocomplete="off"
+                  spellcheck="false"
+                  placeholder="__MSG_imageModelInherit__"
+                />
+                <small>__MSG_imageModelOverrideHelp__</small>
+              </label>
+            </div>
+          </section>
+
+          <section
+            id="video-settings-panel"
+            class="settings-section tab-panel"
+            role="tabpanel"
+            aria-labelledby="video-settings-tab"
+            tabindex="0"
+            hidden
+          >
+            <div class="section-heading section-heading-with-control">
+              <div>
+                <h2 id="subtitle-heading">__MSG_subtitleSettings__</h2>
+                <p>__MSG_subtitleSettingsDescription__</p>
+              </div>
+              <label class="switch-label" for="subtitle-enabled">
+                <input
+                  id="subtitle-enabled"
+                  name="subtitle-enabled"
+                  type="checkbox"
+                />
+                <span aria-hidden="true"></span>
+                <b>__MSG_subtitleEnabled__</b>
+              </label>
+            </div>
+
+            <div class="form-grid two-columns">
+              <label class="field-label" for="subtitle-source-language">
+                <span>__MSG_subtitleSourceLanguage__</span>
+                <select
+                  id="subtitle-source-language"
+                  name="subtitle-source-language"
+                ></select>
+              </label>
+              <label class="field-label" for="subtitle-target-language">
+                <span>__MSG_subtitleTargetLanguage__</span>
+                <select
+                  id="subtitle-target-language"
+                  name="subtitle-target-language"
+                ></select>
+              </label>
+              <label class="field-label" for="subtitle-mode">
+                <span>__MSG_subtitleTranslationMode__</span>
+                <select id="subtitle-mode" name="subtitle-mode">
+                  <option value="fast">__MSG_modeFast__</option>
+                  <option value="ai">__MSG_modeAi__</option>
+                </select>
+              </label>
+              <label class="field-label" for="subtitle-response-mode">
+                <span>__MSG_aiResponseMode__</span>
+                <select
+                  id="subtitle-response-mode"
+                  name="subtitle-response-mode"
+                >
+                  <option value="stream">__MSG_responseModeStream__</option>
+                  <option value="batch">__MSG_responseModeBatch__</option>
+                </select>
+              </label>
+              <label class="field-label" for="subtitle-display-mode">
+                <span>__MSG_subtitleDisplayMode__</span>
+                <select id="subtitle-display-mode" name="subtitle-display-mode">
+                  <option value="translated">__MSG_displayTranslated__</option>
+                  <option value="bilingual">__MSG_displayBilingual__</option>
+                  <option value="original">__MSG_displayOriginal__</option>
+                </select>
+              </label>
+              <label class="field-label" for="subtitle-position">
+                <span>__MSG_subtitlePosition__</span>
+                <select
+                  id="subtitle-position"
+                  name="subtitle-position"
+                  aria-describedby="subtitle-drag-hint"
+                >
+                  <option value="top">__MSG_subtitlePositionTop__</option>
+                  <option value="center">__MSG_subtitlePositionCenter__</option>
+                  <option value="bottom">__MSG_subtitlePositionBottom__</option>
+                  <option value="custom">__MSG_subtitlePositionCustom__</option>
+                </select>
+                <small id="subtitle-drag-hint">__MSG_subtitleDragHint__</small>
+              </label>
+              <div class="toggle-field">
+                <label class="switch-label" for="subtitle-hide-native">
+                  <input
+                    id="subtitle-hide-native"
+                    name="subtitle-hide-native"
+                    type="checkbox"
+                  />
+                  <span aria-hidden="true"></span>
+                  <b>__MSG_subtitleHideNative__</b>
+                </label>
+              </div>
+              <label class="field-label range-field" for="subtitle-font-scale">
+                <span
+                  >__MSG_subtitleFontSize__
+                  <output id="font-scale-value"></output
+                ></span>
+                <input
+                  id="subtitle-font-scale"
+                  name="subtitle-font-scale"
+                  type="range"
+                  min="0.75"
+                  max="1.8"
+                  step="0.05"
+                />
+              </label>
+              <label
+                class="field-label range-field"
+                for="subtitle-background-opacity"
+              >
+                <span
+                  >__MSG_subtitleBackground__
+                  <output id="background-opacity-value"></output
+                ></span>
+                <input
+                  id="subtitle-background-opacity"
+                  name="subtitle-background-opacity"
+                  type="range"
+                  min="0.3"
+                  max="0.95"
+                  step="0.05"
+                />
+              </label>
+            </div>
+
+            <section
+              class="ocr-settings"
+              aria-labelledby="ocr-settings-heading"
+            >
+              <div>
+                <h3 id="ocr-settings-heading">__MSG_ocrExperimentalTitle__</h3>
+                <p>__MSG_ocrExperimentalDescription__</p>
+              </div>
+              <div class="ocr-actions">
+                <label class="switch-label" for="ocr-enabled">
+                  <input id="ocr-enabled" name="ocr-enabled" type="checkbox" />
+                  <span aria-hidden="true"></span>
+                  <b>__MSG_ocrExperimentalEnabled__</b>
+                </label>
+                <button
+                  id="ocr-self-test"
+                  class="button button-secondary"
+                  type="button"
+                >
+                  __MSG_ocrTestLocalEngine__
+                </button>
+                <output
+                  id="ocr-test-message"
+                  class="inline-feedback"
+                  aria-live="polite"
+                ></output>
+              </div>
+            </section>
+          </section>
+
+          <section
+            id="profiles-settings-panel"
+            class="settings-section tab-panel profiles-panel"
+            role="tabpanel"
+            aria-labelledby="profiles-settings-tab"
+            tabindex="0"
+            hidden
+          >
+            <div class="section-heading section-heading-with-control">
+              <div>
+                <h2>__MSG_siteProfiles__</h2>
+                <p>__MSG_siteProfilesEditorDescription__</p>
+              </div>
+              <button
+                id="profile-new"
+                class="button button-primary"
+                type="button"
+              >
+                __MSG_profileNew__
+              </button>
+            </div>
+
+            <div class="profile-editor-workspace">
+              <section
+                class="profile-catalog"
+                aria-labelledby="profile-catalog-heading"
+              >
+                <div class="profile-catalog-heading">
+                  <h3 id="profile-catalog-heading">__MSG_profileCatalog__</h3>
+                  <span id="profile-total-count" class="profile-count">0</span>
+                </div>
+                <ul
+                  id="profile-catalog-list"
+                  class="profile-catalog-list"
+                  aria-busy="true"
+                ></ul>
+                <p id="profile-loading" class="profile-empty" role="status">
+                  __MSG_profileLoading__
+                </p>
+              </section>
+
+              <section
+                class="profile-json-editor"
+                aria-labelledby="profile-editor-heading"
+              >
+                <div class="profile-editor-heading">
+                  <div>
+                    <h3 id="profile-editor-heading">__MSG_profileEditor__</h3>
+                    <span id="profile-editor-kind" class="profile-kind-badge"
+                      >__MSG_profileUnsaved__</span
+                    >
+                  </div>
+                  <button
+                    id="profile-copy-current"
+                    class="button button-secondary"
+                    type="button"
+                  >
+                    __MSG_profileCopyJson__
+                  </button>
+                </div>
+                <p id="profile-editor-note" class="profile-editor-note">
+                  __MSG_profileEditorEmpty__
+                </p>
+                <label class="profile-json-label" for="profile-json"
+                  >__MSG_profileJsonLabel__</label
+                >
+                <textarea
+                  id="profile-json"
+                  name="profile-json"
+                  rows="22"
+                  maxlength="50000"
+                  spellcheck="false"
+                  autocomplete="off"
+                  aria-describedby="profile-editor-note profile-message"
+                ></textarea>
+                <div class="profile-editor-actions">
+                  <button
+                    id="profile-format"
+                    class="button button-secondary"
+                    type="button"
+                  >
+                    __MSG_profileFormatJson__
+                  </button>
+                  <button
+                    id="profile-cancel"
+                    class="button button-secondary"
+                    type="button"
+                  >
+                    __MSG_cancel__
+                  </button>
+                  <button
+                    id="profile-delete"
+                    class="button button-danger"
+                    type="button"
+                    hidden
+                  >
+                    __MSG_deleteProfile__
+                  </button>
+                  <button
+                    id="profile-restore"
+                    class="button button-secondary"
+                    type="button"
+                    hidden
+                  >
+                    __MSG_profileRestoreBuiltin__
+                  </button>
+                  <button
+                    id="profile-save"
+                    class="button button-primary"
+                    type="button"
+                  >
+                    __MSG_profileSave__
+                  </button>
+                </div>
+                <p
+                  id="profile-message"
+                  class="feedback profile-feedback"
+                  aria-live="polite"
+                ></p>
+              </section>
+            </div>
+
+            <details class="profile-reference">
+              <summary>__MSG_profileTemplateAndFields__</summary>
+              <div class="profile-template-heading">
+                <p>__MSG_profileTemplateDescription__</p>
+                <button
+                  id="profile-copy-template"
+                  class="button button-secondary"
+                  type="button"
+                >
+                  __MSG_profileCopyTemplate__
+                </button>
+              </div>
+              <pre id="profile-template" tabindex="0"></pre>
+              <dl class="profile-field-guide">
+                <div>
+                  <dt>id / version / name</dt>
+                  <dd>__MSG_profileFieldIdentity__</dd>
+                </div>
+                <div>
+                  <dt>parser</dt>
+                  <dd id="profile-parser-guide"></dd>
+                </div>
+                <div>
+                  <dt>priority</dt>
+                  <dd>__MSG_profileFieldPriority__</dd>
+                </div>
+                <div>
+                  <dt>match</dt>
+                  <dd>__MSG_profileFieldMatch__</dd>
+                </div>
+                <div>
+                  <dt>selectors</dt>
+                  <dd>__MSG_profileFieldSelectors__</dd>
+                </div>
+                <div>
+                  <dt>capture</dt>
+                  <dd>__MSG_profileFieldCapture__</dd>
+                </div>
+              </dl>
+              <p class="profile-safety-note">
+                __MSG_profileCaptureNarrowOnly__
+              </p>
+            </details>
+          </section>
+
+          <section
+            id="visibility-settings-panel"
+            class="settings-section tab-panel visibility-panel"
+            role="tabpanel"
+            aria-labelledby="visibility-settings-tab"
+            tabindex="0"
+            hidden
+          >
+            <div class="section-heading">
+              <div>
+                <h2>__MSG_visibilitySettingsTitle__</h2>
+                <p>__MSG_visibilitySettingsDescription__</p>
+              </div>
+            </div>
+
+            <div class="visibility-list">
+              <div class="visibility-row">
+                <div>
+                  <strong id="floating-control-label"
+                    >__MSG_floatingControlEnabled__</strong
+                  >
+                  <p id="floating-control-description">
+                    __MSG_floatingControlDescription__
+                  </p>
+                </div>
+                <label class="switch-label" for="floating-control-enabled">
+                  <input
+                    id="floating-control-enabled"
+                    name="floating-control-enabled"
+                    type="checkbox"
+                    aria-labelledby="floating-control-label"
+                    aria-describedby="floating-control-description"
+                  />
+                  <span aria-hidden="true"></span>
+                </label>
+              </div>
+
+              <div class="visibility-row">
+                <div>
+                  <strong>__MSG_floatingSessionRestoreTitle__</strong>
+                  <p>__MSG_floatingSessionRestoreDescription__</p>
+                </div>
+                <div class="floating-recovery-action">
+                  <button
+                    id="restore-session-floating"
+                    class="button button-secondary"
+                    type="button"
+                  >
+                    __MSG_floatingSessionRestore__
+                  </button>
+                  <output
+                    id="restore-session-floating-message"
+                    class="feedback"
+                    aria-live="polite"
+                  ></output>
+                </div>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <div class="save-bar">
+          <p id="save-message" class="feedback" aria-live="polite"></p>
+          <button
+            id="save-settings"
+            class="button button-primary"
+            type="submit"
+          >
+            __MSG_saveSettings__
+          </button>
+        </div>
+      </form>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

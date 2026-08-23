@@ -1,0 +1,22 @@
+{
+  "id": "tver",
+  "version": 1,
+  "name": "TVer",
+  "parser": "dom",
+  "priority": 49,
+  "match": { "hostnameSuffixes": ["tver.jp"] },
+  "selectors": {
+    "video": "video",
+    "captions": [
+      ".vjs-text-track-display",
+      ".vjs-text-track-cue",
+      ".vjs-text-track-cue-text"
+    ],
+    "nativeCaptions": [".vjs-text-track-display"]
+  },
+  "capture": {
+    "formats": [],
+    "allowedHostnameSuffixes": [],
+    "urlPatterns": []
+  }
+}

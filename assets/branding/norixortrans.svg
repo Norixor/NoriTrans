@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">NorixorTrans</title>
+  <desc id="desc">Three white subtitle bars with alternating cuts on a blue rounded square.</desc>
+  <g transform="translate(40.96 40.96) scale(0.84)">
+    <rect width="512" height="512" rx="112" fill="#2563EB" />
+    <rect x="104" y="134" width="304" height="64" rx="32" fill="#FFFFFF" />
+    <rect x="104" y="224" width="304" height="64" rx="32" fill="#FFFFFF" />
+    <rect x="104" y="314" width="304" height="64" rx="32" fill="#FFFFFF" />
+    <rect x="214" y="134" width="34" height="64" fill="#2563EB" />
+    <rect x="298" y="224" width="34" height="64" fill="#2563EB" />
+    <rect x="214" y="314" width="34" height="64" fill="#2563EB" />
+  </g>
+</svg>

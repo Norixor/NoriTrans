@@ -1,0 +1,34 @@
+{
+  "id": "bbc-iplayer",
+  "version": 1,
+  "name": "BBC iPlayer",
+  "parser": "dom",
+  "priority": 51,
+  "match": {
+    "hostnameSuffixes": ["bbc.co.uk", "bbc.com"],
+    "urlRules": [
+      { "hostnameSuffixes": ["bbc.co.uk"], "pathnamePrefixes": ["/iplayer"] },
+      { "hostnameSuffixes": ["bbc.com"], "pathnamePrefixes": ["/video"] }
+    ]
+  },
+  "selectors": {
+    "video": "video",
+    "captions": [
+      ".bumpv4_textTracks",
+      ".vjs-text-track-display",
+      "[class*='caption' i]",
+      "[class*='subtitle' i]"
+    ],
+    "nativeCaptions": [".bumpv4_textTracks", ".vjs-text-track-display"]
+  },
+  "capture": {
+    "formats": ["vtt", "ttml"],
+    "allowedHostnameSuffixes": [
+      "bbc.co.uk",
+      "bbc.com",
+      "bbci.co.uk",
+      "akamaized.net"
+    ],
+    "urlPatterns": [".vtt", ".webvtt", ".ttml", ".dfxp", "subtitle", "caption"]
+  }
+}

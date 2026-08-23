@@ -1,0 +1,532 @@
+import {
+  chromeTranslatorLanguage,
+  ChromeLocalProvider,
+} from "@/src/translation/providers/chrome-local";
+import { createProtectedText } from "@/src/translation/protected-text";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+interface TranslatorFactoryStub {
+  availability: ReturnType<typeof vi.fn>;
+  create: ReturnType<typeof vi.fn>;
+}
+
+interface LanguageDetectorFactoryStub {
+  availability: ReturnType<typeof vi.fn>;
+  create: ReturnType<typeof vi.fn>;
+}
+
+function setTranslator(factory: TranslatorFactoryStub): void {
+  (globalThis as typeof globalThis & { Translator?: unknown }).Translator =
+    factory;
+}
+
+function setLanguageDetector(factory: LanguageDetectorFactoryStub): void {
+  (
+    globalThis as typeof globalThis & { LanguageDetector?: unknown }
+  ).LanguageDetector = factory;
+}
+
+const request = {
+  sourceLanguage: "en",
+  targetLanguage: "zh-CN",
+  mode: "fast" as const,
+  segments: [{ id: "one", text: "Hello" }],
+};
+
+afterEach(() => {
+  delete (globalThis as typeof globalThis & { Translator?: unknown })
+    .Translator;
+  delete (globalThis as typeof globalThis & { LanguageDetector?: unknown })
+    .LanguageDetector;
+});
+
+describe("ChromeLocalProvider readiness", () => {
+  it("maps Chinese UI tags to Chrome Translator language-pack codes", () => {
+    expect(chromeTranslatorLanguage("zh-CN")).toBe("zh");
+    expect(chromeTranslatorLanguage("zh-Hans-CN")).toBe("zh");
+    expect(chromeTranslatorLanguage("zh-Hant")).toBe("zh-Hant");
+    expect(chromeTranslatorLanguage("zh-TW")).toBe("zh-Hant");
+    expect(chromeTranslatorLanguage("en")).toBe("en");
+  });
+
+  it("reuses one task Translator and caps concurrent packed work at six", async () => {
+    let active = 0;
+    let maximumActive = 0;
+    const destroy = vi.fn();
+    const create = vi.fn(() =>
+      Promise.resolve({
+        translate: async (text: string) => {
+          active += 1;
+          maximumActive = Math.max(maximumActive, active);
+          await new Promise((resolve) => setTimeout(resolve, 6));
+          active -= 1;
+          return text.replaceAll("text-", "translated-");
+        },
+        destroy,
+      }),
+    );
+    setTranslator({
+      availability: vi.fn(() => Promise.resolve("available")),
+      create,
+    });
+    const provider = new ChromeLocalProvider({ keepAliveForTask: true });
+    const progress: string[] = [];
+    const segments = Array.from({ length: 24 }, (_, index) => ({
+      id: `id-${index}`,
+      text: `text-${index}`,
+    }));
+
+    const batches = await Promise.all(
+      Array.from({ length: 12 }, (_, batchIndex) =>
+        provider.translateBatch(
+          {
+            ...request,
+            segments: segments.slice(batchIndex * 2, batchIndex * 2 + 2),
+          },
+          new AbortController().signal,
+          (result) => {
+            progress.push(result.id);
+          },
+        ),
+      ),
+    );
+    const results = batches.flat();
+
+    expect(create).toHaveBeenCalledOnce();
+    expect(maximumActive).toBe(6);
+    expect(results.map((result) => result.id)).toEqual(
+      segments.map((segment) => segment.id),
+    );
+    expect(results.map((result) => result.translatedText)).toEqual(
+      segments.map((segment) => segment.text.replace("text-", "translated-")),
+    );
+    expect(new Set(progress)).toEqual(
+      new Set(segments.map((segment) => segment.id)),
+    );
+    await provider.dispose();
+    expect(destroy).toHaveBeenCalledOnce();
+  });
+
+  it("falls back once to exact per-segment translation when packed markers are not preserved", async () => {
+    const destroy = vi.fn();
+    const translate = vi.fn((text: string) =>
+      Promise.resolve(text.includes("\uE000NT") ? "markers lost" : `T:${text}`),
+    );
+    setTranslator({
+      availability: vi.fn(() => Promise.resolve("available")),
+      create: vi.fn(() => Promise.resolve({ translate, destroy })),
+    });
+    const provider = new ChromeLocalProvider({ keepAliveForTask: true });
+    const firstSegments = [
+      { id: "one", text: "First" },
+      { id: "two", text: "Second" },
+      { id: "three", text: "Third" },
+    ];
+
+    await expect(
+      provider.translateBatch(
+        { ...request, segments: firstSegments },
+        new AbortController().signal,
+      ),
+    ).resolves.toEqual([
+      { id: "one", translatedText: "T:First" },
+      { id: "two", translatedText: "T:Second" },
+      { id: "three", translatedText: "T:Third" },
+    ]);
+    await expect(
+      provider.translateBatch(
+        {
+          ...request,
+          segments: [
+            { id: "four", text: "Fourth" },
+            { id: "five", text: "Fifth" },
+          ],
+        },
+        new AbortController().signal,
+      ),
+    ).resolves.toEqual([
+      { id: "four", translatedText: "T:Fourth" },
+      { id: "five", translatedText: "T:Fifth" },
+    ]);
+
+    expect(translate).toHaveBeenCalledTimes(6);
+    expect(
+      translate.mock.calls.filter(([text]) => text.includes("\uE000NT")),
+    ).toHaveLength(1);
+    await provider.dispose();
+    expect(destroy).toHaveBeenCalledOnce();
+  });
+
+  it("validates protected markers for packed and per-segment local translation", async () => {
+    const destroy = vi.fn();
+    const translate = vi.fn((text: string) =>
+      Promise.resolve(
+        text.replaceAll("Hello", "你好").replaceAll("world", "世界"),
+      ),
+    );
+    setTranslator({
+      availability: vi.fn(() => Promise.resolve("available")),
+      create: vi.fn(() => Promise.resolve({ translate, destroy })),
+    });
+    const provider = new ChromeLocalProvider({ keepAliveForTask: true });
+    const first = createProtectedText(["Hello ", "world"]);
+    const second = createProtectedText(["Hello world"]);
+
+    await expect(
+      provider.translateBatch(
+        {
+          ...request,
+          segments: [
+            { id: "first", text: first, format: "protected-text-v1" },
+            { id: "second", text: second, format: "protected-text-v1" },
+          ],
+        },
+        new AbortController().signal,
+      ),
+    ).resolves.toEqual([
+      {
+        id: "first",
+        translatedText: first.replace("Hello", "你好").replace("world", "世界"),
+      },
+      {
+        id: "second",
+        translatedText: second
+          .replace("Hello", "你好")
+          .replace("world", "世界"),
+      },
+    ]);
+    await expect(
+      provider.translateBatch(
+        {
+          ...request,
+          segments: [
+            { id: "single", text: first, format: "protected-text-v1" },
+          ],
+        },
+        new AbortController().signal,
+      ),
+    ).resolves.toHaveLength(1);
+    await provider.dispose();
+  });
+
+  it("rejects invalid protected markers from packed fallback and exact translation", async () => {
+    const source = createProtectedText(["Hello", "world"]);
+    const translate = vi.fn((text: string) =>
+      Promise.resolve(text.replace(/\uE000NT1:0:1:close\uE001/u, "")),
+    );
+    setTranslator({
+      availability: vi.fn(() => Promise.resolve("available")),
+      create: vi.fn(() => Promise.resolve({ translate, destroy: vi.fn() })),
+    });
+    const provider = new ChromeLocalProvider({ keepAliveForTask: true });
+    const progress = vi.fn();
+
+    await expect(
+      provider.translateBatch(
+        {
+          ...request,
+          segments: [
+            { id: "first", text: source, format: "protected-text-v1" },
+            { id: "second", text: source, format: "protected-text-v1" },
+          ],
+        },
+        new AbortController().signal,
+        progress,
+      ),
+    ).rejects.toMatchObject({ code: "invalid_response" });
+    expect(progress).not.toHaveBeenCalled();
+    expect(translate).toHaveBeenCalledTimes(3);
+    await provider.dispose();
+  });
+
+  it("pools automatic selection translators by the detected language pair", async () => {
+    const translatorDestroy = vi.fn();
+    const detectorDestroy = vi.fn();
+    const create = vi.fn(
+      (options: { sourceLanguage: string; targetLanguage: string }) =>
+        Promise.resolve({
+          translate: (text: string) =>
+            Promise.resolve(`${options.sourceLanguage}:${text}`),
+          destroy: translatorDestroy,
+        }),
+    );
+    const onSourceLanguageResolved = vi.fn<(sourceLanguage: string) => void>();
+    setTranslator({
+      availability: vi.fn(() => Promise.resolve("available")),
+      create,
+    });
+    setLanguageDetector({
+      availability: vi.fn(() => Promise.resolve("available")),
+      create: vi.fn(() =>
+        Promise.resolve({
+          detect: (text: string) =>
+            Promise.resolve([
+              {
+                detectedLanguage: text.includes("Bonjour")
+                  ? "fr"
+                  : text.includes("Hola")
+                    ? "es"
+                    : text.includes("Hallo")
+                      ? "de"
+                      : "en",
+                confidence: 0.99,
+              },
+            ]),
+          destroy: detectorDestroy,
+        }),
+      ),
+    });
+    const provider = new ChromeLocalProvider({
+      keepAliveForTask: true,
+      dynamicSourceLanguage: true,
+      onSourceLanguageResolved,
+    });
+    const translate = (text: string) =>
+      provider.translateBatch(
+        {
+          ...request,
+          sourceLanguage: "auto",
+          segments: [{ id: "one", text }],
+        },
+        new AbortController().signal,
+      );
+
+    await expect(translate("Hello")).resolves.toEqual([
+      { id: "one", translatedText: "en:Hello" },
+    ]);
+    await expect(translate("Hello again")).resolves.toEqual([
+      { id: "one", translatedText: "en:Hello again" },
+    ]);
+    await expect(translate("Bonjour")).resolves.toEqual([
+      { id: "one", translatedText: "fr:Bonjour" },
+    ]);
+    await expect(translate("Hola")).resolves.toEqual([
+      { id: "one", translatedText: "es:Hola" },
+    ]);
+    await expect(translate("Hallo")).resolves.toEqual([
+      { id: "one", translatedText: "de:Hallo" },
+    ]);
+
+    expect(create).toHaveBeenCalledTimes(4);
+    expect(
+      create.mock.calls.map(([options]) => options.sourceLanguage),
+    ).toEqual(["en", "fr", "es", "de"]);
+    expect(detectorDestroy).not.toHaveBeenCalled();
+    expect(
+      onSourceLanguageResolved.mock.calls.map(([language]) => language),
+    ).toEqual(["en", "en", "fr", "es", "de"]);
+    await provider.dispose();
+    expect(detectorDestroy).toHaveBeenCalledOnce();
+    expect(translatorDestroy).toHaveBeenCalledTimes(4);
+  });
+
+  it("reuses one detector runtime while checking every automatic page batch", async () => {
+    const detectorDestroy = vi.fn();
+    const detect = vi.fn(() =>
+      Promise.resolve([{ detectedLanguage: "en", confidence: 0.99 }]),
+    );
+    const detectorCreate = vi.fn(() =>
+      Promise.resolve({ detect, destroy: detectorDestroy }),
+    );
+    const translatorCreate = vi.fn(
+      (options: { sourceLanguage: string; targetLanguage: string }) =>
+        Promise.resolve({
+          translate: (text: string) =>
+            Promise.resolve(`${options.sourceLanguage}:${text}`),
+          destroy: vi.fn(),
+        }),
+    );
+    setLanguageDetector({
+      availability: vi.fn(() => Promise.resolve("available")),
+      create: detectorCreate,
+    });
+    setTranslator({
+      availability: vi.fn(() => Promise.resolve("available")),
+      create: translatorCreate,
+    });
+    const provider = new ChromeLocalProvider({
+      keepAliveForTask: true,
+      dynamicSourceLanguage: true,
+    });
+    const translate = (id: string, text: string) =>
+      provider.translateBatch(
+        {
+          ...request,
+          sourceLanguage: "auto",
+          segments: [{ id, text }],
+        },
+        new AbortController().signal,
+      );
+
+    await Promise.all([
+      translate("one", "First page batch"),
+      translate("two", "Second page batch"),
+      translate("three", "Third page batch"),
+    ]);
+
+    expect(detectorCreate).toHaveBeenCalledOnce();
+    expect(detect).toHaveBeenCalledTimes(3);
+    expect(translatorCreate).toHaveBeenCalledOnce();
+    await provider.dispose();
+    expect(detectorDestroy).toHaveBeenCalledOnce();
+  });
+
+  it("does not create a pooled Translator after an automatic selection is cancelled", async () => {
+    let resolveDetection:
+      | ((
+          value: Array<{ detectedLanguage: string; confidence: number }>,
+        ) => void)
+      | undefined;
+    const create = vi.fn();
+    setTranslator({
+      availability: vi.fn(() => Promise.resolve("available")),
+      create,
+    });
+    setLanguageDetector({
+      availability: vi.fn(() => Promise.resolve("available")),
+      create: vi.fn(() =>
+        Promise.resolve({
+          detect: () =>
+            new Promise<
+              Array<{ detectedLanguage: string; confidence: number }>
+            >((resolve) => {
+              resolveDetection = resolve;
+            }),
+          destroy: vi.fn(),
+        }),
+      ),
+    });
+    const controller = new AbortController();
+    const provider = new ChromeLocalProvider({
+      keepAliveForTask: true,
+      dynamicSourceLanguage: true,
+    });
+    const translation = provider.translateBatch(
+      { ...request, sourceLanguage: "auto" },
+      controller.signal,
+    );
+    await vi.waitFor(() => expect(resolveDetection).toBeTypeOf("function"));
+
+    controller.abort();
+    await provider.dispose();
+    resolveDetection?.([{ detectedLanguage: "en", confidence: 0.99 }]);
+
+    await expect(translation).rejects.toMatchObject({ name: "AbortError" });
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("evicts a stalled Translator creation after cancellation and retries cleanly", async () => {
+    let resolveFirst!: (translator: {
+      translate(text: string): Promise<string>;
+      destroy(): void;
+    }) => void;
+    const firstDestroy = vi.fn();
+    const secondDestroy = vi.fn();
+    const create = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirst = resolve;
+          }),
+      )
+      .mockResolvedValueOnce({
+        translate: (text: string) => Promise.resolve(`T:${text}`),
+        destroy: secondDestroy,
+      });
+    setTranslator({
+      availability: vi.fn(() => Promise.resolve("available")),
+      create,
+    });
+    const provider = new ChromeLocalProvider({ keepAliveForTask: true });
+    const firstController = new AbortController();
+    const first = provider.translateBatch(request, firstController.signal);
+    await vi.waitFor(() => expect(create).toHaveBeenCalledOnce());
+
+    firstController.abort();
+    await expect(first).rejects.toMatchObject({ name: "AbortError" });
+    await expect(
+      provider.translateBatch(request, new AbortController().signal),
+    ).resolves.toEqual([{ id: "one", translatedText: "T:Hello" }]);
+    expect(create).toHaveBeenCalledTimes(2);
+
+    resolveFirst({
+      translate: (text: string) => Promise.resolve(text),
+      destroy: firstDestroy,
+    });
+    await vi.waitFor(() => expect(firstDestroy).toHaveBeenCalledOnce());
+    await provider.dispose();
+    expect(secondDestroy).toHaveBeenCalledOnce();
+  });
+
+  it("does not download a model for opportunistic subtitle fallback", async () => {
+    const create = vi.fn();
+    setTranslator({
+      availability: vi.fn(() => Promise.resolve("downloadable")),
+      create,
+    });
+
+    await expect(
+      new ChromeLocalProvider({ requireAvailable: true }).translateBatch(
+        request,
+        new AbortController().signal,
+      ),
+    ).rejects.toMatchObject({ code: "provider_unavailable" });
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("keeps model download available for an explicit fast translation", async () => {
+    const destroy = vi.fn();
+    const create = vi.fn(() =>
+      Promise.resolve({
+        translate: () => Promise.resolve("你好"),
+        destroy,
+      }),
+    );
+    setTranslator({
+      availability: vi.fn(() => Promise.resolve("downloadable")),
+      create,
+    });
+
+    await expect(
+      new ChromeLocalProvider().translateBatch(
+        request,
+        new AbortController().signal,
+      ),
+    ).resolves.toEqual([{ id: "one", translatedText: "你好" }]);
+    expect(create).toHaveBeenCalledOnce();
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceLanguage: "en",
+        targetLanguage: "zh",
+      }),
+    );
+    expect(destroy).toHaveBeenCalledOnce();
+  });
+
+  it("reports bounded local model download progress", async () => {
+    const progress: number[] = [];
+    setTranslator({
+      availability: vi.fn(() => Promise.resolve("downloadable")),
+      create: vi.fn((options: { monitor?: (monitor: EventTarget) => void }) => {
+        const monitor = new EventTarget();
+        options.monitor?.(monitor);
+        for (const loaded of [-0.2, 0.45, 1.2]) {
+          const event = new Event("downloadprogress");
+          Object.defineProperty(event, "loaded", { value: loaded });
+          monitor.dispatchEvent(event);
+        }
+        return Promise.resolve({
+          translate: () => Promise.resolve("你好"),
+          destroy: vi.fn(),
+        });
+      }),
+    });
+
+    await new ChromeLocalProvider({
+      onDownloadProgress: (value) => progress.push(value),
+    }).translateBatch(request, new AbortController().signal);
+
+    expect(progress).toEqual([0, 0.45, 1]);
+  });
+});

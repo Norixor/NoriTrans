@@ -1,0 +1,813 @@
+{
+  "extensionName": { "message": "NorixorTrans" },
+  "documentLanguage": { "message": "en" },
+  "extensionDescription": {
+    "message": "Translate web pages and video subtitles quickly and accurately."
+  },
+  "commandTranslatePage": { "message": "Translate the current page" },
+  "commandRestorePage": { "message": "Restore the current page" },
+  "popupTitle": { "message": "Translate this page" },
+  "openSettings": { "message": "Open settings" },
+  "currentStatus": { "message": "Current status" },
+  "pageTranslation": { "message": "Page translation" },
+  "subtitleTranslation": { "message": "Subtitle translation" },
+  "translationMode": { "message": "Translation mode" },
+  "modeFast": { "message": "Fast" },
+  "modeAi": { "message": "AI refined" },
+  "aiResponseMode": { "message": "AI response" },
+  "responseModeStream": { "message": "Progressive stream (recommended)" },
+  "responseModeBatch": { "message": "Complete response" },
+  "sourceLanguage": { "message": "Source language" },
+  "targetLanguage": { "message": "Target language" },
+  "languageAuto": { "message": "Detect automatically" },
+  "displayMode": { "message": "Page display" },
+  "pageDisplayReplace": { "message": "Replace original" },
+  "pageDisplayAppend": { "message": "Add after original" },
+  "displayTranslated": { "message": "Translation" },
+  "displayBilingual": { "message": "Bilingual" },
+  "displayOriginal": { "message": "Original" },
+  "translateCurrentPage": { "message": "Translate page" },
+  "restoreOriginal": { "message": "Restore original" },
+  "progressCount": {
+    "message": "$DONE$ / $TOTAL$",
+    "placeholders": {
+      "done": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
+  "translationStarting": { "message": "Preparing translation…" },
+  "translationStarted": {
+    "message": "Translation started. You can keep browsing."
+  },
+  "pageRestored": {
+    "message": "Text changed by this translation has been restored."
+  },
+  "pageActionFailed": {
+    "message": "This action is unavailable on the current page. Refresh and try again."
+  },
+  "settingsSaveFailed": {
+    "message": "Settings could not be saved. Try again."
+  },
+  "settingsLoadFailed": {
+    "message": "Settings could not be loaded. Reload the extension and try again."
+  },
+  "providerPermissionDenied": {
+    "message": "Host access for this provider was not granted, so the settings were not saved."
+  },
+  "providerUrlInvalid": {
+    "message": "Provider URL must use HTTPS; local development only allows localhost or 127.0.0.1."
+  },
+  "pageStatusIdle": { "message": "Not started" },
+  "pageStatusScanning": { "message": "Scanning page" },
+  "pageStatusTranslating": { "message": "Translating" },
+  "pageStatusTranslated": { "message": "Translation complete" },
+  "pageStatusPartial": { "message": "Partially complete" },
+  "pageStatusError": { "message": "Translation failed" },
+  "pageStatusUnavailable": { "message": "Unavailable on this page" },
+  "pageWidgetTitle": { "message": "Page translation" },
+  "pageAutoTranslate": { "message": "Auto translate" },
+  "pageAutoTranslateDescription": {
+    "message": "Automatically translate every supported page when it opens or navigates."
+  },
+  "pageAutoTranslateCurrentSite": {
+    "message": "Auto translate this site"
+  },
+  "autoTranslateSitesTitle": {
+    "message": "Auto-translate sites"
+  },
+  "autoTranslateSitesDescription": {
+    "message": "Sites enabled from the page control are matched with a *.domain.com rule, including their subdomains."
+  },
+  "autoTranslateSitesEmpty": {
+    "message": "No individual auto-translate sites have been remembered yet."
+  },
+  "autoTranslateRuleEnabled": {
+    "message": "Auto translate"
+  },
+  "autoTranslateRuleExcluded": {
+    "message": "Global exception"
+  },
+  "removeAutoTranslateRule": {
+    "message": "Remove"
+  },
+  "widgetTranslate": { "message": "Translate" },
+  "widgetRestore": { "message": "Restore" },
+  "cancelPageTranslation": { "message": "Cancel translation" },
+  "stopPageTranslation": { "message": "Stop" },
+  "floatingPageQuickActions": { "message": "Page translation quick actions" },
+  "subtitleStatusUnavailable": { "message": "No subtitles available" },
+  "subtitleStatusWaiting": { "message": "Waiting for subtitles" },
+  "subtitleStatusTranslating": { "message": "Translating" },
+  "subtitleStatusReady": { "message": "Subtitles ready" },
+  "subtitleStatusPartial": {
+    "message": "Some subtitle translations failed"
+  },
+  "subtitleStatusError": { "message": "Subtitle processing failed" },
+  "subtitleTrackFull": { "message": "Full subtitles" },
+  "subtitleTrackStream": { "message": "Live subtitles" },
+  "subtitleFastFallbackNoFullTrack": {
+    "message": "Full subtitles unavailable; using fast translation"
+  },
+  "subtitleStatusCancelled": { "message": "Translation cancelled" },
+  "retryFailedSubtitles": { "message": "Retry failed items" },
+  "startSubtitleTranslation": { "message": "Start translation" },
+  "cancelSubtitleTranslation": { "message": "Cancel translation" },
+  "subtitleTaskActionFailed": {
+    "message": "The subtitle task could not be updated. Try again."
+  },
+  "subtitleRetrying": { "message": "Retrying failed subtitles…" },
+  "subtitleRetryStarted": {
+    "message": "Failed subtitles were added back to the task."
+  },
+  "subtitleRetryFailed": { "message": "Retry failed. Try again shortly." },
+  "subtitleCancelling": { "message": "Cancelling subtitle translation…" },
+  "subtitleCancelled": { "message": "Subtitle translation cancelled." },
+  "subtitleCancelFailed": {
+    "message": "Subtitle translation could not be cancelled. Try again shortly."
+  },
+  "statusIdle": { "message": "Not started" },
+  "statusUnavailable": { "message": "Unavailable" },
+  "statusLoading": { "message": "Loading…" },
+  "openSettingsFailed": {
+    "message": "Could not open settings. Try again."
+  },
+  "optionsTitle": { "message": "Settings" },
+  "optionsDescription": {
+    "message": "Configure translation providers and subtitle display. Your API key stays on this device."
+  },
+  "providerSettings": { "message": "Translation providers" },
+  "providerSettingsDescription": {
+    "message": "Fast translation prioritizes latency; AI refined translation improves context consistency."
+  },
+  "providerPrivacyNotice": {
+    "message": "With OpenAI-compatible, only the necessary text to translate is sent to the currently configured Base URL. Chrome local translation does not upload text."
+  },
+  "fastProvider": { "message": "Fast provider" },
+  "aiProvider": { "message": "AI provider" },
+  "providerChromeLocal": { "message": "Chrome local translator" },
+  "ocrLocalTranslationUnavailable": {
+    "message": "OCR recognized text, but Chrome could not prepare the local translation language pack. Confirm that source and target languages are correct and different, keep this page active, then start OCR again. The recognized original is preserved; switch the display to Original or Bilingual to view it."
+  },
+  "ocrPreparingTranslationModel": {
+    "message": "Preparing local translation model… $PERCENT$%",
+    "placeholders": { "percent": { "content": "$1" } }
+  },
+  "viewProviderDetails": { "message": "View response details" },
+  "providerDetailsLabel": { "message": "Provider response diagnostic" },
+  "providerOpenAiCompatible": { "message": "OpenAI-compatible" },
+  "baseUrl": { "message": "Base URL" },
+  "baseUrlPlaceholder": { "message": "https://api.example.com/v1" },
+  "apiKey": { "message": "API key" },
+  "apiKeyPlaceholder": { "message": "Enter API key" },
+  "apiKeyHelp": {
+    "message": "Stored only in chrome.storage.local and never synced to other devices."
+  },
+  "model": { "message": "Model" },
+  "timeoutSeconds": { "message": "Timeout (seconds)" },
+  "systemPrompt": { "message": "System prompt" },
+  "testConnection": { "message": "Test connection" },
+  "connectionTesting": { "message": "Saving settings and testing…" },
+  "connectionSucceeded": {
+    "message": "Connected. The provider returned a valid response."
+  },
+  "connectionFailed": {
+    "message": "Connection failed. Check the URL, API key, model, and host permission."
+  },
+  "connectionDetails": { "message": "View failure details" },
+  "subtitleSettings": { "message": "Subtitle display" },
+  "subtitleSettingsDescription": {
+    "message": "Set the default appearance of the in-page subtitle layer."
+  },
+  "settingsTabPage": { "message": "Page translation" },
+  "settingsTabVideo": { "message": "Video subtitles" },
+  "settingsTabProfiles": { "message": "Site profiles" },
+  "settingsTabProvider": { "message": "Translation service" },
+  "settingsTabOcrRuntimes": { "message": "OCR runtimes" },
+  "settingsTabVisibility": { "message": "Visibility" },
+  "visibilitySettingsTitle": { "message": "Visibility memory" },
+  "visibilitySettingsDescription": {
+    "message": "Manage floating-control visibility and hidden items from this browsing session."
+  },
+  "ocrRuntimesTitle": { "message": "OCR language packs" },
+  "ocrRuntimesDescription": {
+    "message": "Download and manage language packs for image subtitle recognition."
+  },
+  "ocrRuntimesLocalNotice": {
+    "message": "Language packs are saved to this device only after you click Download or Download all. Missing packs are never downloaded automatically."
+  },
+  "ocrRuntimeLanguage": { "message": "Language pack" },
+  "ocrRuntimeLanguageEnglish": { "message": "English" },
+  "ocrRuntimeLanguageChineseSimplified": {
+    "message": "Chinese (Simplified)"
+  },
+  "ocrRuntimeLanguageChineseTraditional": {
+    "message": "Chinese (Traditional)"
+  },
+  "ocrRuntimeLanguageJapanese": { "message": "Japanese" },
+  "ocrRuntimeLanguageKorean": { "message": "Korean" },
+  "ocrRuntimeLanguageSpanish": { "message": "Spanish" },
+  "ocrRuntimeLanguageFrench": { "message": "French" },
+  "ocrRuntimeLanguageGerman": { "message": "German" },
+  "ocrRuntimeGroupEastAsian": {
+    "message": "Shared English and CJK language pack"
+  },
+  "ocrRuntimeGroupLatin": { "message": "Shared Latin language pack" },
+  "ocrRuntimeGroupKorean": { "message": "Korean language pack" },
+  "ocrRuntimeGroupSummary": {
+    "message": "$COUNT$ languages share it · up to $SIZE$",
+    "placeholders": {
+      "count": { "content": "$1" },
+      "size": { "content": "$2" }
+    }
+  },
+  "ocrRuntimeStatus": { "message": "Status" },
+  "ocrRuntimeAction": { "message": "Action" },
+  "ocrRuntimesLoading": { "message": "Loading installed language packs…" },
+  "ocrRuntimesEmpty": { "message": "No OCR language packs are available." },
+  "ocrRuntimesLoadFailed": {
+    "message": "Language pack status could not be loaded. Reload the extension and try again."
+  },
+  "ocrRuntimeStateMissing": { "message": "Not installed" },
+  "ocrRuntimeMissing": {
+    "message": "The required local OCR language pack is not installed. Open Settings > OCR runtimes to download it."
+  },
+  "ocrRuntimeStateDownloading": {
+    "message": "Downloading · $PERCENT$%",
+    "placeholders": { "percent": { "content": "$1" } }
+  },
+  "ocrRuntimeStateInstalled": { "message": "Installed" },
+  "ocrRuntimeStateEnabled": { "message": "Enabled" },
+  "ocrRuntimeStateNotEnabled": { "message": "Not enabled" },
+  "ocrRuntimeEnable": { "message": "Enable" },
+  "ocrRuntimeStateInstalledSize": {
+    "message": "Installed · $SIZE$",
+    "placeholders": { "size": { "content": "$1" } }
+  },
+  "ocrRuntimeStateError": { "message": "Download failed" },
+  "ocrRuntimeProgressLabel": {
+    "message": "$LANGUAGE$ download progress: $PERCENT$%",
+    "placeholders": {
+      "language": { "content": "$1" },
+      "percent": { "content": "$2" }
+    }
+  },
+  "ocrRuntimeDownload": { "message": "Download" },
+  "ocrRuntimeDownloading": { "message": "Downloading" },
+  "ocrRuntimeDownloadAll": { "message": "Download all" },
+  "ocrRuntimeDownloadLabel": {
+    "message": "Download $LANGUAGE$ OCR pack",
+    "placeholders": { "language": { "content": "$1" } }
+  },
+  "ocrRuntimeDelete": { "message": "Delete" },
+  "ocrRuntimeDeleteLabel": {
+    "message": "Delete $LANGUAGE$ OCR pack",
+    "placeholders": { "language": { "content": "$1" } }
+  },
+  "ocrRuntimeDeleteConfirm": {
+    "message": "Delete the $LANGUAGE$ OCR pack from this device?",
+    "placeholders": { "language": { "content": "$1" } }
+  },
+  "ocrRuntimePermissionDenied": {
+    "message": "Download access to the pinned GitHub model files was not granted. No language pack was downloaded."
+  },
+  "ocrRuntimeDownloadFailed": {
+    "message": "This language pack could not be downloaded. Try again."
+  },
+  "ocrRuntimeDownloadTimedOut": {
+    "message": "The language pack download timed out. Check your connection and try again."
+  },
+  "ocrRuntimeDownloadAllFailed": {
+    "message": "Some language packs could not be downloaded. Check their status and try again."
+  },
+  "ocrRuntimeDeleted": { "message": "The language pack was deleted." },
+  "ocrRuntimeDeleteFailed": {
+    "message": "The language pack could not be deleted. Try again."
+  },
+  "pageSettings": { "message": "Page translation settings" },
+  "pageSettingsDescription": {
+    "message": "Configure page languages, translation quality, display, and automation."
+  },
+  "selectionTranslationEnabled": { "message": "Enable selection translation" },
+  "selectionTranslationMode": { "message": "Selection translation mode" },
+  "selectionTranslationDescription": {
+    "message": "Show a translation button after you select ordinary page text. Text is sent only after you click the button."
+  },
+  "selectionTranslate": { "message": "Translate selected text" },
+  "selectionTranslationTitle": { "message": "Selection translation" },
+  "selectionOriginal": { "message": "Original" },
+  "selectionTranslation": { "message": "Translation" },
+  "selectionTranslating": { "message": "Translating selected text…" },
+  "selectionRetry": { "message": "Retry" },
+  "selectionCopy": { "message": "Copy translation" },
+  "selectionCopied": { "message": "Copied" },
+  "selectionCopyFailed": { "message": "Could not copy" },
+  "selectionClose": { "message": "Close selection translation" },
+  "subtitleEnabled": { "message": "Enable subtitle translation" },
+  "subtitleSourceLanguage": { "message": "Subtitle source language" },
+  "subtitleTargetLanguage": { "message": "Subtitle target language" },
+  "subtitleTranslationMode": { "message": "Subtitle translation mode" },
+  "subtitleDisplayMode": { "message": "Displayed content" },
+  "subtitleHideNative": { "message": "Hide website subtitles" },
+  "subtitlePosition": { "message": "Subtitle position" },
+  "subtitlePositionTop": { "message": "Top" },
+  "subtitlePositionCenter": { "message": "Center" },
+  "subtitlePositionBottom": { "message": "Bottom" },
+  "subtitlePositionCustom": { "message": "Custom (drag)" },
+  "subtitleDragHandle": { "message": "Drag to move subtitles" },
+  "subtitleDragHint": {
+    "message": "Drag the subtitles during playback, or use arrow keys for fine adjustment."
+  },
+  "subtitlePositionSaveFailed": {
+    "message": "Could not save the subtitle position. Try moving it again."
+  },
+  "subtitleFontSize": { "message": "Font size" },
+  "subtitleBackground": { "message": "Background opacity" },
+  "subtitleFontDecrease": { "message": "Decrease subtitle font size" },
+  "subtitleFontIncrease": { "message": "Increase subtitle font size" },
+  "subtitleOpacityDecrease": {
+    "message": "Decrease subtitle background opacity"
+  },
+  "subtitleOpacityIncrease": {
+    "message": "Increase subtitle background opacity"
+  },
+  "percentageValue": {
+    "message": "$VALUE$%",
+    "placeholders": { "value": { "content": "$1" } }
+  },
+  "localData": { "message": "Local data" },
+  "localDataDescription": {
+    "message": "Cache and credentials are independent. Clearing one does not affect the other."
+  },
+  "cacheTitle": { "message": "Translation cache" },
+  "cacheDescription": {
+    "message": "Remove cached page and subtitle translations without deleting your API key."
+  },
+  "clearCache": { "message": "Clear cache" },
+  "clearCacheConfirm": {
+    "message": "Clear the translation cache stored on this device?"
+  },
+  "credentialsTitle": { "message": "Provider credentials" },
+  "credentialsDescription": {
+    "message": "Remove the API key saved on this device without clearing translations."
+  },
+  "clearCredentials": { "message": "Clear credentials" },
+  "clearCredentialsConfirm": {
+    "message": "Remove the saved API key from this device?"
+  },
+  "saveSettings": { "message": "Save settings" },
+  "settingsSaved": { "message": "Settings saved." },
+  "settingsUpdatedExternally": {
+    "message": "Settings changed in another window. Unsaved fields were kept."
+  },
+  "cacheCleared": { "message": "Translation cache cleared." },
+  "cacheClearFailed": { "message": "Cache could not be cleared. Try again." },
+  "credentialsCleared": {
+    "message": "The API key was removed from this device."
+  },
+  "credentialsClearFailed": {
+    "message": "Credentials could not be cleared. Try again."
+  },
+  "subtitleWaiting": { "message": "Waiting for subtitles" },
+  "subtitleTranslating": { "message": "Translating subtitles" },
+  "subtitleReady": { "message": "Subtitles ready" },
+  "subtitlePartial": { "message": "Some subtitle translations failed" },
+  "subtitlePartialFailure": { "message": "Some subtitle translations failed" },
+  "subtitleUnavailable": { "message": "No subtitles available" },
+  "subtitleError": { "message": "Subtitle translation failed" },
+  "pageFloatingButton": { "message": "Show page floating button" },
+  "pageFloatingButtonDescription": {
+    "message": "Open page translation actions without reopening the extension popup."
+  },
+  "subtitleFloatingButton": { "message": "Show video floating button" },
+  "subtitleFloatingButtonDescription": {
+    "message": "Open quick subtitle controls over supported video pages."
+  },
+  "videoQuickSettings": { "message": "Video translation" },
+  "hideNativeSubtitles": { "message": "Hide website subtitles" },
+  "hideCurrentPage": { "message": "Hide on this page" },
+  "visibilityMenu": { "message": "Visibility options" },
+  "manageVisibilityMemory": { "message": "Manage visibility memory" },
+  "disableFloatingPermanently": { "message": "Always hide" },
+  "floatingHideFailed": {
+    "message": "The floating control could not be hidden. Try again."
+  },
+  "closeQuickSettings": { "message": "Close quick settings" },
+  "createSiteProfile": { "message": "Create site profile" },
+  "siteProfiles": { "message": "Site profiles" },
+  "siteProfilesDescription": {
+    "message": "Built-in and captured rules used to find subtitles on video sites."
+  },
+  "siteProfilesEditorDescription": {
+    "message": "Inspect normalized built-in and user JSON, create DOM-only profiles, or save a safe local override without changing packaged files."
+  },
+  "profileNew": { "message": "New profile" },
+  "profileCatalog": { "message": "Profile catalog" },
+  "profileEditor": { "message": "JSON editor" },
+  "profileUnsaved": { "message": "Unsaved" },
+  "profileKindBuiltin": { "message": "Built in" },
+  "profileKindOverride": { "message": "User override" },
+  "profileKindUser": { "message": "User profile" },
+  "profileEditorEmpty": { "message": "Choose a profile or create a new one." },
+  "profileBuiltinEditNote": {
+    "message": "This is the packaged normalized JSON. Saving creates a local user override; the packaged file is not changed."
+  },
+  "profileOverrideEditNote": {
+    "message": "This local override replaces the matching built-in profile at runtime. Restore the built-in version to remove it."
+  },
+  "profileUserEditNote": {
+    "message": "This user profile can be edited, copied, or deleted."
+  },
+  "profileNewEditNote": {
+    "message": "Paste or edit a DOM-only user profile. The background validator checks the production schema before saving."
+  },
+  "profileJsonLabel": { "message": "Normalized profile JSON" },
+  "profileCopyJson": { "message": "Copy JSON" },
+  "profileFormatJson": { "message": "Format JSON" },
+  "cancel": { "message": "Cancel changes" },
+  "profileRestoreBuiltin": { "message": "Restore built in" },
+  "profileSave": { "message": "Save profile" },
+  "profileSaveOverride": { "message": "Save local override" },
+  "profileTemplateAndFields": { "message": "Minimal template and field guide" },
+  "profileTemplateDescription": {
+    "message": "This template is accepted by the current DOM-only user-profile validator."
+  },
+  "profileCopyTemplate": { "message": "Copy template" },
+  "profileFieldIdentity": {
+    "message": "Lowercase user-* ID, schema version 1, and a short display name."
+  },
+  "profileFieldParser": {
+    "message": "Production parser allowlist: $PARSERS$. New user profiles must use dom.",
+    "placeholders": { "parsers": { "content": "$1" } }
+  },
+  "profileFieldPriority": {
+    "message": "Integer from 0 to 1000. Wizard-created user profiles stay below 10."
+  },
+  "profileFieldMatch": {
+    "message": "Lowercase hostname suffixes and optional route prefixes beginning with /."
+  },
+  "profileFieldSelectors": {
+    "message": "A video selector plus caption and native-caption selector arrays. Empty or unsafe selectors are rejected."
+  },
+  "profileFieldCapture": {
+    "message": "Formats, allowed host suffixes, URL substrings, and optional complete-file substrings. New user profiles keep these arrays empty."
+  },
+  "profileCaptureNarrowOnly": {
+    "message": "Security boundary: a built-in override keeps the same ID and parser. Match and capture scope may only stay equivalent or become narrower. Tencent Video remains OCR-only."
+  },
+  "profileJsonCopied": { "message": "JSON copied." },
+  "profileCopyFailed": { "message": "JSON could not be copied." },
+  "profileJsonFormatted": { "message": "JSON formatted." },
+  "profileChangesCancelled": { "message": "Unsaved changes were cancelled." },
+  "profileSaved": { "message": "User profile saved." },
+  "profileOverrideSaved": {
+    "message": "Local override saved and will be used by new subtitle sessions."
+  },
+  "profileSaveFailed": { "message": "The profile could not be saved." },
+  "profileDeleteConfirm": {
+    "message": "Delete $NAME$?",
+    "placeholders": { "name": { "content": "$1" } }
+  },
+  "profileRestoreConfirm": {
+    "message": "Remove the local override for $NAME$ and restore the packaged version?",
+    "placeholders": { "name": { "content": "$1" } }
+  },
+  "profileBuiltinRestored": {
+    "message": "The packaged built-in profile was restored."
+  },
+  "profileRestoreFailed": {
+    "message": "The built-in profile could not be restored."
+  },
+  "profileValidationError": {
+    "message": "$PATH$: $REASON$",
+    "placeholders": {
+      "path": { "content": "$1" },
+      "reason": { "content": "$2" }
+    }
+  },
+  "profileValidationType": { "message": "wrong JSON value type" },
+  "profileValidationUnknownField": { "message": "unknown field" },
+  "profileValidationRequired": { "message": "required field is missing" },
+  "profileValidationFormat": { "message": "invalid JSON or field format" },
+  "profileValidationRange": {
+    "message": "value is outside the allowed size or range"
+  },
+  "profileValidationUnsafeSelector": { "message": "empty or unsafe selector" },
+  "profileValidationUnsafeHostname": {
+    "message": "invalid or unsafe hostname suffix"
+  },
+  "profileValidationUnsafeUrlPattern": {
+    "message": "invalid or unsafe URL pattern"
+  },
+  "profileValidationParser": {
+    "message": "parser is not on the production allowlist"
+  },
+  "profileValidationTencentOcrOnly": {
+    "message": "Tencent Video only supports user-initiated local OCR"
+  },
+  "profileValidationOverrideNarrowOnly": {
+    "message": "new profiles must be DOM-only, and built-in overrides may only narrow the original match and capture scope"
+  },
+  "builtInProfiles": { "message": "Built in" },
+  "customProfiles": { "message": "Captured by you" },
+  "profileEmpty": {
+    "message": "No custom profiles yet. Open video quick settings on a site to start the capture wizard."
+  },
+  "profileLoading": { "message": "Loading custom profiles…" },
+  "profileLoadFailed": {
+    "message": "Custom profiles could not be loaded. Reload settings to try again."
+  },
+  "deleteProfile": { "message": "Delete profile" },
+  "profileDeleted": { "message": "Site profile deleted." },
+  "profileDeleteFailed": {
+    "message": "The site profile could not be deleted."
+  },
+  "profileBuiltinHtml5": { "message": "Standard HTML5 TextTrack" },
+  "profileBuiltinYoutube": { "message": "YouTube enhanced capture" },
+  "profileBuiltinNetflix": { "message": "Netflix enhanced capture" },
+  "profileBuiltinMax": { "message": "Max / HBO Max enhanced capture" },
+  "profileBuiltinDisney": { "message": "Disney+ enhanced capture" },
+  "profileBuiltinPrime": { "message": "Prime Video enhanced capture" },
+  "profileBuiltinAppleTv": { "message": "Apple TV+ preset" },
+  "profileBuiltinHulu": { "message": "Hulu preset" },
+  "profileBuiltinParamount": { "message": "Paramount+ preset" },
+  "profileBuiltinDiscovery": { "message": "Discovery+ preset" },
+  "profileBuiltinPeacock": { "message": "Peacock preset" },
+  "profileBuiltinFubo": { "message": "fuboTV preset" },
+  "profileBuiltinTed": { "message": "TED preset" },
+  "profileBuiltinBbc": { "message": "BBC iPlayer preset" },
+  "profileBuiltinZdf": { "message": "ZDF enhanced capture" },
+  "profileBuiltinDw": { "message": "Deutsche Welle enhanced capture" },
+  "profileBuiltinUdemy": { "message": "Udemy enhanced capture" },
+  "profileBuiltinKanopy": { "message": "Kanopy enhanced capture" },
+  "profileBuiltinTver": { "message": "TVer preset" },
+  "profileBuiltinHeuristic": { "message": "Generic DOM heuristic" },
+  "profileWizard": { "message": "Subtitle capture wizard" },
+  "profileWizardSampling": { "message": "Sampling subtitle changes…" },
+  "profileWizardPlayHint": {
+    "message": "Turn on website subtitles and play the video while NorixorTrans samples this page."
+  },
+  "profileWizardCandidate": { "message": "Subtitle candidate" },
+  "profileWizardNoCandidates": {
+    "message": "No changing subtitle region was found. Play a section with visible subtitles and sample again."
+  },
+  "profileWizardResample": { "message": "Sample again" },
+  "profileWizardSave": { "message": "Save and use profile" },
+  "profileWizardSaved": {
+    "message": "Profile saved. New subtitles will use it immediately."
+  },
+  "profileWizardSaveFailed": {
+    "message": "Profile could not be saved. Try sampling again."
+  },
+  "profileWizardClose": { "message": "Close capture wizard" },
+  "profileWizardAdvancedPick": { "message": "Select subtitle area" },
+  "profileWizardPickHint": {
+    "message": "Move over the visible subtitle area and click to select it. Press Escape to cancel."
+  },
+  "profileWizardEmbeddedUnsupported": {
+    "message": "Subtitles embedded in video or canvas cannot be selected. This site needs a dedicated adapter."
+  },
+  "profileWizardTextTrackFound": {
+    "message": "A standard TextTrack is available; a custom DOM profile may not be necessary."
+  },
+  "profileWizardStep": {
+    "message": "Step $CURRENT$/$TOTAL$",
+    "placeholders": {
+      "current": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
+  "floatingControl": { "message": "NorixorTrans quick controls" },
+  "floatingControlEnabled": { "message": "Show the floating control" },
+  "floatingControlDescription": {
+    "message": "One movable control for page translation, video subtitles, and site capture."
+  },
+  "floatingSessionRestoreTitle": {
+    "message": "Hidden for this browser session?"
+  },
+  "floatingSessionRestoreDescription": {
+    "message": "Restore controls hidden with “Hide on this page” across open web pages. If you chose “Always hide,” enable the floating control above and save separately."
+  },
+  "floatingSessionRestore": { "message": "Restore hidden controls" },
+  "floatingSessionRestored": {
+    "message": "Restore sent to $COUNT$ open page(s).",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "floatingSessionRestoreFailed": {
+    "message": "Hidden controls could not be restored. Try again."
+  },
+  "pageTranslationTab": { "message": "Page" },
+  "videoTranslationTab": { "message": "Video" },
+  "videoUnavailable": {
+    "message": "No readable subtitle track is available for the current video yet."
+  },
+  "ocrExperimentalTitle": { "message": "Image subtitle OCR (experimental)" },
+  "ocrExperimentalDescription": {
+    "message": "Select the subtitle area in a visible video frame, then download the matching language pack under Settings > OCR runtimes before use."
+  },
+  "ocrExperimentalEnabled": { "message": "Enable experimental image OCR" },
+  "ocrSourceLanguageUnsupported": {
+    "message": "Image OCR cannot use the selected source language. Choose a supported language, then install its pack under Settings > OCR runtimes."
+  },
+  "ocrTestLocalEngine": { "message": "Test local OCR" },
+  "ocrTestPreparing": { "message": "Preparing local OCR…" },
+  "ocrTestLoading": {
+    "message": "Loading local OCR models: $percent$%",
+    "placeholders": { "percent": { "content": "$1" } }
+  },
+  "ocrTestSucceeded": {
+    "message": "Local OCR works: $sample$",
+    "placeholders": { "sample": { "content": "$1" } }
+  },
+  "ocrTestFailed": {
+    "message": "Local OCR could not start. Reload the extension and try again."
+  },
+  "ocrLocalPrivacyNote": {
+    "message": "Frames, screenshots, and recognized OCR text stay on this device. OCR translation uses Chrome local translation only and is never sent to an AI provider."
+  },
+  "ocrStart": { "message": "Select area and start" },
+  "ocrStop": { "message": "Stop OCR" },
+  "ocrSelectTitle": { "message": "Select the subtitle area inside the video" },
+  "ocrSelectHint": {
+    "message": "Drag around the on-screen subtitles. Press Escape to cancel."
+  },
+  "ocrUseSuggestedRegion": { "message": "Use subtitle safe area" },
+  "ocrCancelSelection": { "message": "Cancel" },
+  "ocrRegionTooSmall": { "message": "Select a larger area inside the video." },
+  "ocrLocalUnavailable": {
+    "message": "The local image recognition component or required language pack could not be loaded. No screenshot was uploaded."
+  },
+  "ocrVideoUnavailable": {
+    "message": "No visible video is available for OCR."
+  },
+  "ocrPictureInPictureUnsupported": {
+    "message": "Picture-in-picture video cannot be captured from this tab. Return the video to the page before starting image OCR."
+  },
+  "ocrVideoChanged": {
+    "message": "The active video changed. Select the OCR region again."
+  },
+  "ocrExistingSubtitlesAvailable": {
+    "message": "Existing subtitles are already available. Stop them before starting image OCR."
+  },
+  "ocrStartFailed": { "message": "Image OCR could not start on this page." },
+  "ocrCaptureUnavailable": {
+    "message": "This tab cannot be captured. Keep it active and try again."
+  },
+  "ocrCaptureTooLarge": {
+    "message": "The current frame is too large for Chrome to pass locally. Reduce the window size or display scaling and try again."
+  },
+  "ocrInactiveTabPaused": {
+    "message": "OCR is paused and will resume when you return to this tab."
+  },
+  "ocrCapturePermissionRequired": {
+    "message": "Approve the optional screenshot permission in the NorixorTrans window that just opened."
+  },
+  "ocrPermissionTitle": { "message": "Enable local image OCR" },
+  "ocrPermissionDescription": {
+    "message": "NorixorTrans needs Chrome's optional all-sites capture permission to read only the subtitle area you select in the active tab."
+  },
+  "ocrPermissionInstruction": {
+    "message": "Click the blue button below. Chrome will then show its own permission confirmation."
+  },
+  "ocrPermissionReady": {
+    "message": "No screenshot is captured until you finish this step and select a subtitle area."
+  },
+  "ocrPermissionPrivacy": {
+    "message": "Screenshots, OCR, and OCR translation stay on this device. Recognized text is never sent to an AI provider."
+  },
+  "ocrPermissionAllow": { "message": "Continue to Chrome permission" },
+  "ocrPermissionCancel": { "message": "Not now" },
+  "ocrPermissionRequesting": { "message": "Waiting for Chrome permission…" },
+  "ocrPermissionGranted": {
+    "message": "Image OCR is enabled. You can return to the video."
+  },
+  "ocrPermissionResumeFailed": {
+    "message": "Image OCR is enabled, but the original tab could not resume automatically. Return to the video and start OCR again."
+  },
+  "ocrPermissionClose": { "message": "Close" },
+  "ocrPermissionDenied": {
+    "message": "Permission was not granted. No screenshot was captured."
+  },
+  "ocrPermissionSaveFailed": {
+    "message": "Chrome permission was granted, but the OCR setting could not be saved. Reload the extension and try again."
+  },
+  "ocrRecognitionFailed": {
+    "message": "Local text recognition failed. Stop and select the subtitle area again."
+  },
+  "ocrProtectedVideoUnsupported": {
+    "message": "The captured area is black or protected by DRM. This video is not supported."
+  },
+  "ocrBlackFrameWaiting": {
+    "message": "The player is currently black. OCR is checking less often until a visible frame returns; persistent black output may be DRM-protected."
+  },
+  "ocrStatusDisabled": { "message": "Image OCR is off" },
+  "ocrStatusIdle": { "message": "Image OCR is ready" },
+  "ocrStatusSelecting": { "message": "Select a subtitle area" },
+  "ocrStatusInitializing": { "message": "Loading local OCR models" },
+  "ocrStatusCapturing": { "message": "Capturing the selected area locally" },
+  "ocrStatusRecognizing": { "message": "Recognizing text locally" },
+  "ocrStatusActive": { "message": "Image OCR is active" },
+  "ocrRecognizedCount": {
+    "message": "$COUNT$ recognized",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "ocrStatusCancelled": { "message": "Image OCR stopped" },
+  "ocrStatusUnavailable": { "message": "Image OCR is unavailable" },
+  "ocrStatusError": { "message": "Image OCR failed" },
+  "runtimeErrorProviderUnavailable": {
+    "message": "The selected translation provider is unavailable. Check the source language or choose another provider."
+  },
+  "runtimeErrorPermissionRequired": {
+    "message": "NorixorTrans does not have permission to access the selected translation provider."
+  },
+  "runtimeErrorInvalidConfiguration": {
+    "message": "Configure the provider Base URL, API key, and model before translating."
+  },
+  "runtimeErrorInvalidResponse": {
+    "message": "The translation provider returned an invalid or incomplete response."
+  },
+  "runtimeErrorRequestFailed": {
+    "message": "The translation request failed. Check the provider settings and try again."
+  },
+  "runtimeErrorCancelled": {
+    "message": "The translation request was cancelled or timed out."
+  },
+  "runtimeErrorContentSettingsUnavailable": {
+    "message": "Translation settings could not be loaded. Reload the page and try again."
+  },
+  "runtimeErrorSettingsSaveFailed": {
+    "message": "The setting could not be saved. Try again."
+  },
+  "runtimeErrorProfileSaveFailed": {
+    "message": "The subtitle site profile could not be saved."
+  },
+  "runtimeErrorPageContentChanged": {
+    "message": "The page changed during translation, so some translated text could not be applied."
+  },
+  "settingsTabImage": { "message": "Image translation" },
+  "imageTranslationTab": { "message": "Images" },
+  "imageTranslationSettings": { "message": "Image translation" },
+  "imageTranslationSettingsDescription": {
+    "message": "Recognize text in visible page images and place translations over the original text."
+  },
+  "imageTranslationEnabled": { "message": "Enable image translation" },
+  "imageTranslationPrivacy": {
+    "message": "Images are recognized locally. Only recognized text is sent to the selected translation provider; image pixels are never uploaded."
+  },
+  "imageModelOverride": { "message": "AI model override" },
+  "imageModelInherit": { "message": "Inherit the global model" },
+  "imageModelOverrideHelp": {
+    "message": "Leave blank to inherit the model from Provider settings."
+  },
+  "imageTranslateAction": { "message": "Translate this image" },
+  "imageRetryAction": { "message": "Retry image translation" },
+  "imageClearAction": { "message": "Clear" },
+  "imageCancelAction": { "message": "Cancel" },
+  "imageTranslateCurrent": { "message": "Translate current image" },
+  "imageCancelOrClear": { "message": "Cancel or clear" },
+  "imageStatusDisabled": { "message": "Image translation is off" },
+  "imageStatusIdle": { "message": "Point to or focus an image" },
+  "imageStatusAvailable": { "message": "Image is ready" },
+  "imageStatusCapturing": { "message": "Reading the image…" },
+  "imageStatusSourceUnavailable": {
+    "message": "This image source could not be read. Check that the image is still available."
+  },
+  "imageStatusSourceTooLarge": {
+    "message": "This image is too large to process locally."
+  },
+  "imageStatusRecognizing": { "message": "Recognizing image text locally…" },
+  "imageStatusTranslating": { "message": "Translating recognized text…" },
+  "imageStatusReady": { "message": "Image translation is ready" },
+  "imageStatusCancelled": { "message": "Image translation was cancelled" },
+  "imageStatusUnavailable": { "message": "Image translation is unavailable" },
+  "imageStatusError": { "message": "Image translation failed. Try again." },
+  "imageStatusNoVisibleImage": {
+    "message": "No supported visible image is selected."
+  },
+  "imageStatusTooManyTasks": {
+    "message": "Finish or cancel another image translation first."
+  },
+  "imageStatusPermissionRequired": {
+    "message": "Screen capture permission is required. Enable the feature again, then retry."
+  },
+  "imageStatusInactiveTab": { "message": "Keep this tab active and retry." },
+  "imageStatusBlackFrame": {
+    "message": "The image is blank and cannot be recognized."
+  },
+  "imageStatusRuntimeMissing": {
+    "message": "Install the local recognition package in Settings, then retry."
+  },
+  "imageStatusNoText": {
+    "message": "No readable text was found in this image."
+  },
+  "imageStatusProviderUnavailable": {
+    "message": "The selected translation provider is unavailable."
+  },
+  "imageStatusInvalidResponse": {
+    "message": "The provider returned an invalid or incomplete image translation."
+  },
+  "imageStatusRequestFailed": {
+    "message": "The image translation request failed. Check the provider settings and retry."
+  }
+}

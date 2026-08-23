@@ -1,0 +1,737 @@
+{
+  "extensionName": { "message": "NorixorTrans" },
+  "documentLanguage": { "message": "zh-CN" },
+  "extensionDescription": { "message": "快速、准确地翻译网页和视频字幕。" },
+  "commandTranslatePage": { "message": "翻译当前页面" },
+  "commandRestorePage": { "message": "恢复当前页面原文" },
+  "popupTitle": { "message": "翻译当前页面" },
+  "openSettings": { "message": "打开设置" },
+  "currentStatus": { "message": "当前状态" },
+  "pageTranslation": { "message": "网页翻译" },
+  "subtitleTranslation": { "message": "字幕翻译" },
+  "translationMode": { "message": "翻译模式" },
+  "modeFast": { "message": "快速翻译" },
+  "modeAi": { "message": "AI 精译" },
+  "aiResponseMode": { "message": "AI 返回方式" },
+  "responseModeStream": { "message": "流式逐段（推荐）" },
+  "responseModeBatch": { "message": "完整返回" },
+  "sourceLanguage": { "message": "源语言" },
+  "targetLanguage": { "message": "目标语言" },
+  "languageAuto": { "message": "自动检测" },
+  "displayMode": { "message": "网页显示" },
+  "pageDisplayReplace": { "message": "替换原文" },
+  "pageDisplayAppend": { "message": "原文后附加" },
+  "displayTranslated": { "message": "仅译文" },
+  "displayBilingual": { "message": "双语" },
+  "displayOriginal": { "message": "仅原文" },
+  "translateCurrentPage": { "message": "翻译当前页" },
+  "restoreOriginal": { "message": "恢复原文" },
+  "progressCount": {
+    "message": "$DONE$ / $TOTAL$",
+    "placeholders": {
+      "done": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
+  "translationStarting": { "message": "正在准备翻译…" },
+  "translationStarted": { "message": "翻译已开始，可继续浏览页面。" },
+  "pageRestored": { "message": "已恢复本次翻译修改的原文。" },
+  "pageActionFailed": {
+    "message": "当前页面无法执行此操作。请刷新页面后重试。"
+  },
+  "settingsSaveFailed": { "message": "设置保存失败，请重试。" },
+  "settingsLoadFailed": {
+    "message": "设置加载失败，请重新加载扩展后再试。"
+  },
+  "providerPermissionDenied": {
+    "message": "未授予此 Provider 的主机访问权限，设置未保存。"
+  },
+  "providerUrlInvalid": {
+    "message": "Provider 地址必须使用 HTTPS；本地调试仅允许 localhost 或 127.0.0.1。"
+  },
+  "pageStatusIdle": { "message": "尚未开始" },
+  "pageStatusScanning": { "message": "正在扫描页面" },
+  "pageStatusTranslating": { "message": "正在翻译" },
+  "pageStatusTranslated": { "message": "翻译完成" },
+  "pageStatusPartial": { "message": "部分完成" },
+  "pageStatusError": { "message": "翻译失败" },
+  "pageStatusUnavailable": { "message": "此页面不可用" },
+  "pageWidgetTitle": { "message": "网页翻译" },
+  "pageAutoTranslate": { "message": "自动翻译" },
+  "pageAutoTranslateDescription": {
+    "message": "开启后，所有支持的网页在打开或导航时都会自动翻译。"
+  },
+  "pageAutoTranslateCurrentSite": {
+    "message": "自动翻译此站点"
+  },
+  "autoTranslateSitesTitle": {
+    "message": "自动翻译站点"
+  },
+  "autoTranslateSitesDescription": {
+    "message": "从网页浮窗开启后，将按 *.domain.com 规则匹配当前站点及其子域名。"
+  },
+  "autoTranslateSitesEmpty": {
+    "message": "还没有单独记忆的自动翻译站点。"
+  },
+  "autoTranslateRuleEnabled": {
+    "message": "自动翻译"
+  },
+  "autoTranslateRuleExcluded": {
+    "message": "全局排除"
+  },
+  "removeAutoTranslateRule": {
+    "message": "删除"
+  },
+  "widgetTranslate": { "message": "翻译" },
+  "widgetRestore": { "message": "恢复" },
+  "cancelPageTranslation": { "message": "取消翻译" },
+  "stopPageTranslation": { "message": "停止" },
+  "floatingPageQuickActions": { "message": "网页翻译快捷操作" },
+  "subtitleStatusUnavailable": { "message": "未发现可用字幕" },
+  "subtitleStatusWaiting": { "message": "等待字幕" },
+  "subtitleStatusTranslating": { "message": "正在翻译" },
+  "subtitleStatusReady": { "message": "字幕就绪" },
+  "subtitleStatusPartial": { "message": "部分字幕翻译失败" },
+  "subtitleStatusError": { "message": "字幕处理失败" },
+  "subtitleTrackFull": { "message": "完整字幕" },
+  "subtitleTrackStream": { "message": "实时字幕" },
+  "subtitleFastFallbackNoFullTrack": {
+    "message": "未获取完整字幕，已回退快速翻译"
+  },
+  "subtitleStatusCancelled": { "message": "翻译已取消" },
+  "retryFailedSubtitles": { "message": "重试失败项" },
+  "startSubtitleTranslation": { "message": "开始翻译" },
+  "cancelSubtitleTranslation": { "message": "取消翻译" },
+  "subtitleTaskActionFailed": {
+    "message": "无法更新字幕任务，请重试。"
+  },
+  "subtitleRetrying": { "message": "正在重试失败的字幕…" },
+  "subtitleRetryStarted": { "message": "失败字幕已重新加入任务。" },
+  "subtitleRetryFailed": { "message": "重试失败，请稍后再试。" },
+  "subtitleCancelling": { "message": "正在取消字幕翻译…" },
+  "subtitleCancelled": { "message": "字幕翻译已取消。" },
+  "subtitleCancelFailed": { "message": "无法取消字幕翻译，请稍后再试。" },
+  "statusIdle": { "message": "尚未开始" },
+  "statusUnavailable": { "message": "不可用" },
+  "statusLoading": { "message": "正在加载…" },
+  "openSettingsFailed": { "message": "设置页打开失败，请重试。" },
+  "optionsTitle": { "message": "设置" },
+  "optionsDescription": {
+    "message": "配置翻译服务与字幕显示。API 密钥仅保存在此设备。"
+  },
+  "providerSettings": { "message": "翻译服务" },
+  "providerSettingsDescription": {
+    "message": "快速翻译优先低延迟，AI 精译用于上下文一致性。"
+  },
+  "providerPrivacyNotice": {
+    "message": "使用 OpenAI-compatible 时，仅必要的待译文本会发送到当前配置的 Base URL；Chrome 本地翻译不会上传文本。"
+  },
+  "fastProvider": { "message": "快速翻译 Provider" },
+  "aiProvider": { "message": "AI 精译 Provider" },
+  "providerChromeLocal": { "message": "Chrome 本地翻译" },
+  "ocrLocalTranslationUnavailable": {
+    "message": "OCR 已识别文字；Chrome 本地翻译语言包当前不可用或准备失败。请确认源语言与目标语言正确且不同，保持页面在前台，然后重新开始 OCR；识别原文已保留，可切换到原文或双语查看。"
+  },
+  "ocrPreparingTranslationModel": {
+    "message": "正在准备本地翻译模型… $PERCENT$%",
+    "placeholders": { "percent": { "content": "$1" } }
+  },
+  "viewProviderDetails": { "message": "查看响应详情" },
+  "providerDetailsLabel": { "message": "Provider 响应诊断" },
+  "providerOpenAiCompatible": { "message": "OpenAI-compatible" },
+  "baseUrl": { "message": "Base URL" },
+  "baseUrlPlaceholder": { "message": "https://api.example.com/v1" },
+  "apiKey": { "message": "API Key" },
+  "apiKeyPlaceholder": { "message": "输入 API Key" },
+  "apiKeyHelp": {
+    "message": "仅存储在 chrome.storage.local，不会同步到其他设备。"
+  },
+  "model": { "message": "模型" },
+  "timeoutSeconds": { "message": "超时（秒）" },
+  "systemPrompt": { "message": "系统提示词" },
+  "testConnection": { "message": "测试连接" },
+  "connectionTesting": { "message": "正在保存并测试连接…" },
+  "connectionSucceeded": { "message": "连接成功，Provider 已返回有效响应。" },
+  "connectionFailed": {
+    "message": "连接失败，请检查地址、密钥、模型与主机权限。"
+  },
+  "connectionDetails": { "message": "查看失败详情" },
+  "subtitleSettings": { "message": "字幕显示" },
+  "subtitleSettingsDescription": {
+    "message": "调整页面内字幕层的默认显示方式。"
+  },
+  "settingsTabPage": { "message": "网页翻译" },
+  "settingsTabVideo": { "message": "视频字幕" },
+  "settingsTabProfiles": { "message": "站点 Profile" },
+  "settingsTabProvider": { "message": "翻译服务" },
+  "settingsTabOcrRuntimes": { "message": "OCR 运行时" },
+  "settingsTabVisibility": { "message": "显示记忆" },
+  "visibilitySettingsTitle": { "message": "显示记忆" },
+  "visibilitySettingsDescription": {
+    "message": "统一管理浮动控制的显示状态和本次浏览会话中的隐藏记录。"
+  },
+  "ocrRuntimesTitle": { "message": "OCR 语言包" },
+  "ocrRuntimesDescription": {
+    "message": "下载和管理图像字幕识别所需的语言包。"
+  },
+  "ocrRuntimesLocalNotice": {
+    "message": "语言包仅在你点击“下载”或“全部下载”后保存到此设备；缺少时不会自动下载。"
+  },
+  "ocrRuntimeLanguage": { "message": "语言包" },
+  "ocrRuntimeLanguageEnglish": { "message": "英语" },
+  "ocrRuntimeLanguageChineseSimplified": { "message": "简体中文" },
+  "ocrRuntimeLanguageChineseTraditional": { "message": "繁体中文" },
+  "ocrRuntimeLanguageJapanese": { "message": "日语" },
+  "ocrRuntimeLanguageKorean": { "message": "韩语" },
+  "ocrRuntimeLanguageSpanish": { "message": "西班牙语" },
+  "ocrRuntimeLanguageFrench": { "message": "法语" },
+  "ocrRuntimeLanguageGerman": { "message": "德语" },
+  "ocrRuntimeGroupEastAsian": { "message": "英语与中日韩共享语言包" },
+  "ocrRuntimeGroupLatin": { "message": "拉丁语系共享语言包" },
+  "ocrRuntimeGroupKorean": { "message": "韩语语言包" },
+  "ocrRuntimeGroupSummary": {
+    "message": "$COUNT$ 种语言共用 · 最大下载 $SIZE$",
+    "placeholders": {
+      "count": { "content": "$1" },
+      "size": { "content": "$2" }
+    }
+  },
+  "ocrRuntimeStatus": { "message": "状态" },
+  "ocrRuntimeAction": { "message": "操作" },
+  "ocrRuntimesLoading": { "message": "正在读取已安装的语言包…" },
+  "ocrRuntimesEmpty": { "message": "当前没有可管理的 OCR 语言包。" },
+  "ocrRuntimesLoadFailed": {
+    "message": "无法读取语言包状态，请重新加载扩展后再试。"
+  },
+  "ocrRuntimeStateMissing": { "message": "未安装" },
+  "ocrRuntimeMissing": {
+    "message": "所需的本地 OCR 语言包尚未安装。请打开“设置 > OCR 运行时”下载。"
+  },
+  "ocrRuntimeStateDownloading": {
+    "message": "下载中 · $PERCENT$%",
+    "placeholders": { "percent": { "content": "$1" } }
+  },
+  "ocrRuntimeStateInstalled": { "message": "已安装" },
+  "ocrRuntimeStateEnabled": { "message": "已启用" },
+  "ocrRuntimeStateNotEnabled": { "message": "未启用" },
+  "ocrRuntimeEnable": { "message": "启用" },
+  "ocrRuntimeStateInstalledSize": {
+    "message": "已安装 · $SIZE$",
+    "placeholders": { "size": { "content": "$1" } }
+  },
+  "ocrRuntimeStateError": { "message": "下载失败" },
+  "ocrRuntimeProgressLabel": {
+    "message": "$LANGUAGE$ OCR 语言包下载进度：$PERCENT$%",
+    "placeholders": {
+      "language": { "content": "$1" },
+      "percent": { "content": "$2" }
+    }
+  },
+  "ocrRuntimeDownload": { "message": "下载" },
+  "ocrRuntimeDownloading": { "message": "下载中" },
+  "ocrRuntimeDownloadAll": { "message": "全部下载" },
+  "ocrRuntimeDownloadLabel": {
+    "message": "下载$LANGUAGE$ OCR 语言包",
+    "placeholders": { "language": { "content": "$1" } }
+  },
+  "ocrRuntimeDelete": { "message": "删除" },
+  "ocrRuntimeDeleteLabel": {
+    "message": "删除$LANGUAGE$ OCR 语言包",
+    "placeholders": { "language": { "content": "$1" } }
+  },
+  "ocrRuntimeDeleteConfirm": {
+    "message": "从此设备删除$LANGUAGE$ OCR 语言包？",
+    "placeholders": { "language": { "content": "$1" } }
+  },
+  "ocrRuntimePermissionDenied": {
+    "message": "未授予访问固定 GitHub 模型文件的下载权限，因此没有下载语言包。"
+  },
+  "ocrRuntimeDownloadFailed": {
+    "message": "无法下载此语言包，请重试。"
+  },
+  "ocrRuntimeDownloadTimedOut": {
+    "message": "语言包下载超时，请检查网络后重试。"
+  },
+  "ocrRuntimeDownloadAllFailed": {
+    "message": "部分语言包下载失败，请检查状态后重试。"
+  },
+  "ocrRuntimeDeleted": { "message": "语言包已删除。" },
+  "ocrRuntimeDeleteFailed": { "message": "无法删除语言包，请重试。" },
+  "pageSettings": { "message": "网页翻译设置" },
+  "pageSettingsDescription": {
+    "message": "设置网页语言、翻译质量、显示方式与自动翻译。"
+  },
+  "selectionTranslationEnabled": { "message": "启用划词翻译" },
+  "selectionTranslationMode": { "message": "划词翻译方式" },
+  "selectionTranslationDescription": {
+    "message": "选中普通网页文字后显示翻译按钮；只有点击按钮后才会发送文字。"
+  },
+  "selectionTranslate": { "message": "翻译所选文字" },
+  "selectionTranslationTitle": { "message": "划词翻译" },
+  "selectionOriginal": { "message": "原文" },
+  "selectionTranslation": { "message": "译文" },
+  "selectionTranslating": { "message": "正在翻译所选文字…" },
+  "selectionRetry": { "message": "重试" },
+  "selectionCopy": { "message": "复制译文" },
+  "selectionCopied": { "message": "已复制" },
+  "selectionCopyFailed": { "message": "复制失败" },
+  "selectionClose": { "message": "关闭划词翻译" },
+  "subtitleEnabled": { "message": "启用字幕翻译" },
+  "subtitleSourceLanguage": { "message": "字幕源语言" },
+  "subtitleTargetLanguage": { "message": "字幕目标语言" },
+  "subtitleTranslationMode": { "message": "字幕翻译模式" },
+  "subtitleDisplayMode": { "message": "显示内容" },
+  "subtitleHideNative": { "message": "隐藏网站原字幕" },
+  "subtitlePosition": { "message": "字幕位置" },
+  "subtitlePositionTop": { "message": "顶部" },
+  "subtitlePositionCenter": { "message": "居中" },
+  "subtitlePositionBottom": { "message": "底部" },
+  "subtitlePositionCustom": { "message": "自定义（拖动）" },
+  "subtitleDragHandle": { "message": "拖动字幕调整位置" },
+  "subtitleDragHint": {
+    "message": "播放时直接拖动字幕调整位置，也可用方向键微调。"
+  },
+  "subtitlePositionSaveFailed": {
+    "message": "字幕位置保存失败，请重新移动后再试。"
+  },
+  "subtitleFontSize": { "message": "字号" },
+  "subtitleBackground": { "message": "背景不透明度" },
+  "subtitleFontDecrease": { "message": "减小字幕字号" },
+  "subtitleFontIncrease": { "message": "增大字幕字号" },
+  "subtitleOpacityDecrease": { "message": "降低字幕背景不透明度" },
+  "subtitleOpacityIncrease": { "message": "提高字幕背景不透明度" },
+  "percentageValue": {
+    "message": "$VALUE$%",
+    "placeholders": { "value": { "content": "$1" } }
+  },
+  "localData": { "message": "本地数据" },
+  "localDataDescription": {
+    "message": "缓存与凭据彼此独立，清除一项不会影响另一项。"
+  },
+  "cacheTitle": { "message": "翻译缓存" },
+  "cacheDescription": {
+    "message": "删除已缓存的网页与字幕翻译，不会删除 API Key。"
+  },
+  "clearCache": { "message": "清除缓存" },
+  "clearCacheConfirm": { "message": "确定清除本机翻译缓存吗？" },
+  "credentialsTitle": { "message": "Provider 凭据" },
+  "credentialsDescription": {
+    "message": "删除本机保存的 API Key，不会删除翻译缓存。"
+  },
+  "clearCredentials": { "message": "清除凭据" },
+  "clearCredentialsConfirm": {
+    "message": "确定从本机删除已保存的 API Key 吗？"
+  },
+  "saveSettings": { "message": "保存设置" },
+  "settingsSaved": { "message": "设置已保存。" },
+  "settingsUpdatedExternally": {
+    "message": "其他窗口更新了设置，未保存的字段已保留。"
+  },
+  "cacheCleared": { "message": "翻译缓存已清除。" },
+  "cacheClearFailed": { "message": "缓存清除失败，请重试。" },
+  "credentialsCleared": { "message": "API Key 已从本机删除。" },
+  "credentialsClearFailed": { "message": "凭据清除失败，请重试。" },
+  "subtitleWaiting": { "message": "等待字幕" },
+  "subtitleTranslating": { "message": "正在翻译字幕" },
+  "subtitleReady": { "message": "字幕已就绪" },
+  "subtitlePartial": { "message": "部分字幕翻译失败" },
+  "subtitlePartialFailure": { "message": "部分字幕翻译失败" },
+  "subtitleUnavailable": { "message": "未发现可用字幕" },
+  "subtitleError": { "message": "字幕翻译失败" },
+  "pageFloatingButton": { "message": "显示网页浮动按钮" },
+  "pageFloatingButtonDescription": {
+    "message": "无需重新打开扩展弹窗，即可使用网页翻译操作。"
+  },
+  "subtitleFloatingButton": { "message": "显示视频浮动按钮" },
+  "subtitleFloatingButtonDescription": {
+    "message": "在支持的视频页面上打开字幕快速控制。"
+  },
+  "videoQuickSettings": { "message": "视频翻译" },
+  "hideNativeSubtitles": { "message": "隐藏网站原字幕" },
+  "hideCurrentPage": { "message": "在当前网页隐藏" },
+  "visibilityMenu": { "message": "显示选项" },
+  "manageVisibilityMemory": { "message": "管理显示记忆" },
+  "disableFloatingPermanently": { "message": "永久隐藏" },
+  "floatingHideFailed": { "message": "浮窗隐藏失败，请重试。" },
+  "closeQuickSettings": { "message": "关闭快速设置" },
+  "createSiteProfile": { "message": "创建站点配置" },
+  "siteProfiles": { "message": "站点 Profile" },
+  "siteProfilesDescription": {
+    "message": "用于识别视频网站字幕的内置规则和用户采集规则。"
+  },
+  "siteProfilesEditorDescription": {
+    "message": "查看规范化的内置与用户 JSON，新建 DOM-only Profile，或在不改动打包文件的前提下保存安全的本地覆盖。"
+  },
+  "profileNew": { "message": "新建 Profile" },
+  "profileCatalog": { "message": "Profile 列表" },
+  "profileEditor": { "message": "JSON 编辑器" },
+  "profileUnsaved": { "message": "未保存" },
+  "profileKindBuiltin": { "message": "内置" },
+  "profileKindOverride": { "message": "用户覆盖" },
+  "profileKindUser": { "message": "用户 Profile" },
+  "profileEditorEmpty": { "message": "请选择一个 Profile 或新建 Profile。" },
+  "profileBuiltinEditNote": {
+    "message": "这里显示打包版本的完整规范化 JSON；保存时会新建本地用户覆盖，不会修改打包文件。"
+  },
+  "profileOverrideEditNote": {
+    "message": "此本地覆盖会在运行时替代同 ID 的内置 Profile；恢复内置版本即可移除覆盖。"
+  },
+  "profileUserEditNote": {
+    "message": "此用户 Profile 可以继续编辑、复制或删除。"
+  },
+  "profileNewEditNote": {
+    "message": "可粘贴或编辑 DOM-only 用户 Profile；保存前由后台生产校验器统一检查。"
+  },
+  "profileJsonLabel": { "message": "规范化 Profile JSON" },
+  "profileCopyJson": { "message": "复制 JSON" },
+  "profileFormatJson": { "message": "格式化 JSON" },
+  "cancel": { "message": "取消修改" },
+  "profileRestoreBuiltin": { "message": "恢复内置版本" },
+  "profileSave": { "message": "保存 Profile" },
+  "profileSaveOverride": { "message": "保存本地覆盖" },
+  "profileTemplateAndFields": { "message": "最小模板与字段说明" },
+  "profileTemplateDescription": {
+    "message": "此模板可通过当前 DOM-only 用户 Profile 生产校验。"
+  },
+  "profileCopyTemplate": { "message": "复制模板" },
+  "profileFieldIdentity": {
+    "message": "小写 user-* ID、schema 版本 1，以及简短显示名称。"
+  },
+  "profileFieldParser": {
+    "message": "生产 parser 白名单：$PARSERS$。新建用户 Profile 只能使用 dom。",
+    "placeholders": { "parsers": { "content": "$1" } }
+  },
+  "profileFieldPriority": {
+    "message": "0 到 1000 的整数；向导创建的用户 Profile 保持在 10 以下。"
+  },
+  "profileFieldMatch": {
+    "message": "小写 hostname 后缀，以及可选且以 / 开头的路由前缀。"
+  },
+  "profileFieldSelectors": {
+    "message": "视频 selector、字幕 selector 数组和原字幕 selector 数组；空或危险 selector 会被拒绝。"
+  },
+  "profileFieldCapture": {
+    "message": "格式、允许的主机后缀、URL 子串及可选的完整文件子串；新建用户 Profile 的这些数组必须为空。"
+  },
+  "profileCaptureNarrowOnly": {
+    "message": "安全边界：内置覆盖必须保持相同 ID 与 parser，match 和 capture 范围只能等价或收紧。腾讯视频始终仅支持主动 OCR。"
+  },
+  "profileJsonCopied": { "message": "JSON 已复制。" },
+  "profileCopyFailed": { "message": "JSON 复制失败。" },
+  "profileJsonFormatted": { "message": "JSON 已格式化。" },
+  "profileChangesCancelled": { "message": "已取消未保存修改。" },
+  "profileSaved": { "message": "用户 Profile 已保存。" },
+  "profileOverrideSaved": {
+    "message": "本地覆盖已保存，将在新的字幕会话中生效。"
+  },
+  "profileSaveFailed": { "message": "Profile 保存失败。" },
+  "profileDeleteConfirm": {
+    "message": "删除 $NAME$？",
+    "placeholders": { "name": { "content": "$1" } }
+  },
+  "profileRestoreConfirm": {
+    "message": "移除 $NAME$ 的本地覆盖并恢复打包版本？",
+    "placeholders": { "name": { "content": "$1" } }
+  },
+  "profileBuiltinRestored": { "message": "已恢复打包的内置 Profile。" },
+  "profileRestoreFailed": { "message": "无法恢复内置 Profile。" },
+  "profileValidationError": {
+    "message": "$PATH$：$REASON$",
+    "placeholders": {
+      "path": { "content": "$1" },
+      "reason": { "content": "$2" }
+    }
+  },
+  "profileValidationType": { "message": "JSON 值类型不正确" },
+  "profileValidationUnknownField": { "message": "包含未知字段" },
+  "profileValidationRequired": { "message": "缺少必填字段" },
+  "profileValidationFormat": { "message": "JSON 或字段格式无效" },
+  "profileValidationRange": { "message": "数值、长度或数量超出允许范围" },
+  "profileValidationUnsafeSelector": { "message": "selector 为空或不安全" },
+  "profileValidationUnsafeHostname": { "message": "hostname 后缀无效或不安全" },
+  "profileValidationUnsafeUrlPattern": {
+    "message": "URL pattern 无效或不安全"
+  },
+  "profileValidationParser": { "message": "parser 不在生产白名单中" },
+  "profileValidationTencentOcrOnly": {
+    "message": "腾讯视频仅支持用户主动启用的本地 OCR"
+  },
+  "profileValidationOverrideNarrowOnly": {
+    "message": "新 Profile 必须为 DOM-only，内置覆盖只能收紧原有 match 与 capture 范围"
+  },
+  "builtInProfiles": { "message": "内置 Profile" },
+  "customProfiles": { "message": "我的 Profile" },
+  "profileEmpty": {
+    "message": "还没有自定义 Profile。请在视频网站的快速设置中打开采集向导。"
+  },
+  "profileLoading": { "message": "正在加载自定义 Profile…" },
+  "profileLoadFailed": {
+    "message": "自定义 Profile 加载失败，请重新打开设置后重试。"
+  },
+  "deleteProfile": { "message": "删除 Profile" },
+  "profileDeleted": { "message": "站点 Profile 已删除。" },
+  "profileDeleteFailed": { "message": "站点 Profile 删除失败。" },
+  "profileBuiltinHtml5": { "message": "标准 HTML5 TextTrack" },
+  "profileBuiltinYoutube": { "message": "YouTube 增强采集" },
+  "profileBuiltinNetflix": { "message": "Netflix 增强采集" },
+  "profileBuiltinMax": { "message": "Max / HBO Max 增强采集" },
+  "profileBuiltinDisney": { "message": "Disney+ 增强采集" },
+  "profileBuiltinPrime": { "message": "Prime Video 增强采集" },
+  "profileBuiltinAppleTv": { "message": "Apple TV+ 预制配置" },
+  "profileBuiltinHulu": { "message": "Hulu 预制配置" },
+  "profileBuiltinParamount": { "message": "Paramount+ 预制配置" },
+  "profileBuiltinDiscovery": { "message": "Discovery+ 预制配置" },
+  "profileBuiltinPeacock": { "message": "Peacock 预制配置" },
+  "profileBuiltinFubo": { "message": "fuboTV 预制配置" },
+  "profileBuiltinTed": { "message": "TED 预制配置" },
+  "profileBuiltinBbc": { "message": "BBC iPlayer 预制配置" },
+  "profileBuiltinZdf": { "message": "ZDF 增强采集" },
+  "profileBuiltinDw": { "message": "Deutsche Welle 增强采集" },
+  "profileBuiltinUdemy": { "message": "Udemy 增强采集" },
+  "profileBuiltinKanopy": { "message": "Kanopy 增强采集" },
+  "profileBuiltinTver": { "message": "TVer 预制配置" },
+  "profileBuiltinHeuristic": { "message": "通用 DOM 启发式" },
+  "profileWizard": { "message": "字幕采集向导" },
+  "profileWizardSampling": { "message": "正在采样字幕变化…" },
+  "profileWizardPlayHint": {
+    "message": "请打开网站原字幕并播放视频，NorixorTrans 会在当前页面采样。"
+  },
+  "profileWizardCandidate": { "message": "字幕候选区域" },
+  "profileWizardNoCandidates": {
+    "message": "没有发现持续变化的字幕区域。请播放有可见字幕的片段后重新采样。"
+  },
+  "profileWizardResample": { "message": "重新采样" },
+  "profileWizardSave": { "message": "保存并使用 Profile" },
+  "profileWizardSaved": { "message": "Profile 已保存，后续字幕会立即使用。" },
+  "profileWizardSaveFailed": { "message": "Profile 保存失败，请重新采样。" },
+  "profileWizardClose": { "message": "关闭采集向导" },
+  "profileWizardAdvancedPick": { "message": "手动选择字幕区域" },
+  "profileWizardPickHint": {
+    "message": "移动鼠标高亮可见字幕区域并点击选择，按 Esc 取消。"
+  },
+  "profileWizardEmbeddedUnsupported": {
+    "message": "视频画面或 Canvas 内嵌字幕无法选择，此网站需要专用 Adapter。"
+  },
+  "profileWizardTextTrackFound": {
+    "message": "当前页面已有标准 TextTrack，通常不需要自定义 DOM Profile。"
+  },
+  "profileWizardStep": {
+    "message": "步骤 $CURRENT$/$TOTAL$",
+    "placeholders": {
+      "current": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
+  "floatingControl": { "message": "NorixorTrans 快速控制" },
+  "floatingControlEnabled": { "message": "显示浮动控制" },
+  "floatingControlDescription": {
+    "message": "一个可移动浮窗，统一控制网页翻译、视频字幕和站点采集。"
+  },
+  "floatingSessionRestoreTitle": { "message": "本次浏览会话中隐藏了浮窗？" },
+  "floatingSessionRestoreDescription": {
+    "message": "恢复所有已打开网页中通过“在当前网页隐藏”关闭的浮窗。若选择过“永久隐藏”，请另行开启上方浮动控制并保存。"
+  },
+  "floatingSessionRestore": { "message": "恢复已隐藏浮窗" },
+  "floatingSessionRestored": {
+    "message": "已向 $COUNT$ 个打开的网页发送恢复命令。",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "floatingSessionRestoreFailed": { "message": "浮窗恢复失败，请重试。" },
+  "pageTranslationTab": { "message": "网页" },
+  "videoTranslationTab": { "message": "视频" },
+  "videoUnavailable": { "message": "当前视频暂未发现可读取的字幕轨道。" },
+  "ocrExperimentalTitle": { "message": "图像字幕 OCR（实验）" },
+  "ocrExperimentalDescription": {
+    "message": "手动框选可见视频画面中的字幕区域；使用前请在“设置 > OCR 运行时”中下载对应语言包。"
+  },
+  "ocrExperimentalEnabled": { "message": "启用实验性图像 OCR" },
+  "ocrSourceLanguageUnsupported": {
+    "message": "图像 OCR 无法使用当前源语言。请选择支持的语言，并在“设置 > OCR 运行时”中安装对应语言包。"
+  },
+  "ocrTestLocalEngine": { "message": "测试本地 OCR" },
+  "ocrTestPreparing": { "message": "正在准备本地 OCR…" },
+  "ocrTestLoading": {
+    "message": "正在加载本地 OCR 模型：$percent$%",
+    "placeholders": { "percent": { "content": "$1" } }
+  },
+  "ocrTestSucceeded": {
+    "message": "本地 OCR 可用：$sample$",
+    "placeholders": { "sample": { "content": "$1" } }
+  },
+  "ocrTestFailed": {
+    "message": "无法启动本地 OCR，请重新加载扩展后重试。"
+  },
+  "ocrLocalPrivacyNote": {
+    "message": "画面、截图和 OCR 识别文字都只在本机处理；OCR 仅使用 Chrome 本地翻译，绝不会发送给 AI Provider。"
+  },
+  "ocrStart": { "message": "框选区域并开始" },
+  "ocrStop": { "message": "停止 OCR" },
+  "ocrSelectTitle": { "message": "框选视频画面中的字幕区域" },
+  "ocrSelectHint": { "message": "拖动框住画面字幕，按 Escape 取消。" },
+  "ocrUseSuggestedRegion": { "message": "使用字幕安全区域" },
+  "ocrCancelSelection": { "message": "取消" },
+  "ocrRegionTooSmall": { "message": "请在视频画面内选择更大的区域。" },
+  "ocrLocalUnavailable": {
+    "message": "无法加载本地图像识别组件或所需的语言包；未上传任何截图。"
+  },
+  "ocrVideoUnavailable": { "message": "当前没有可见视频可供 OCR。" },
+  "ocrPictureInPictureUnsupported": {
+    "message": "无法从当前标签页采集画中画视频；请先将视频恢复到网页内，再启动图像 OCR。"
+  },
+  "ocrVideoChanged": { "message": "活动视频已切换，请重新框选 OCR 区域。" },
+  "ocrExistingSubtitlesAvailable": {
+    "message": "当前视频已有可用字幕，请先停止现有字幕再启动图像 OCR。"
+  },
+  "ocrStartFailed": { "message": "当前页面无法启动图像 OCR。" },
+  "ocrCaptureUnavailable": {
+    "message": "无法采集当前标签页，请保持标签页激活后重试。"
+  },
+  "ocrCaptureTooLarge": {
+    "message": "当前画面尺寸过大，Chrome 无法在本地传递截图。请缩小窗口或降低系统显示缩放后重试。"
+  },
+  "ocrInactiveTabPaused": {
+    "message": "OCR 已暂停；返回此标签页后会自动继续。"
+  },
+  "ocrCapturePermissionRequired": {
+    "message": "请在刚打开的 NorixorTrans 授权窗口中允许可选截图权限。"
+  },
+  "ocrPermissionTitle": { "message": "启用本地图像 OCR" },
+  "ocrPermissionDescription": {
+    "message": "NorixorTrans 需要 Chrome 的可选全站截图权限，只读取你在当前标签页主动框选的字幕区域。"
+  },
+  "ocrPermissionInstruction": {
+    "message": "点击下方蓝色按钮，随后 Chrome 会显示自己的权限确认。"
+  },
+  "ocrPermissionReady": {
+    "message": "完成授权并框选字幕区域前，不会采集任何截图。"
+  },
+  "ocrPermissionPrivacy": {
+    "message": "截图、OCR 和 OCR 翻译全程保留在本机，识别文字绝不会发送给 AI Provider。"
+  },
+  "ocrPermissionAllow": { "message": "继续授权 Chrome 权限" },
+  "ocrPermissionCancel": { "message": "暂不启用" },
+  "ocrPermissionRequesting": { "message": "正在等待 Chrome 授权…" },
+  "ocrPermissionGranted": {
+    "message": "图像 OCR 已启用，可以返回视频页面。"
+  },
+  "ocrPermissionResumeFailed": {
+    "message": "图像 OCR 已启用，但原视频标签页未能自动恢复。请返回视频页面并重新启动 OCR。"
+  },
+  "ocrPermissionClose": { "message": "关闭" },
+  "ocrPermissionDenied": {
+    "message": "未获得权限，没有采集任何截图。"
+  },
+  "ocrPermissionSaveFailed": {
+    "message": "Chrome 权限已授予，但 OCR 设置保存失败。请重新加载扩展后再试。"
+  },
+  "ocrRecognitionFailed": {
+    "message": "本地文字识别失败，请停止后重新框选字幕区域。"
+  },
+  "ocrProtectedVideoUnsupported": {
+    "message": "采集区域为黑帧或受 DRM 保护，此视频不支持图像 OCR。"
+  },
+  "ocrBlackFrameWaiting": {
+    "message": "播放器当前为黑帧，OCR 将低频等待可见画面恢复；若持续无画面，视频可能受 DRM 保护。"
+  },
+  "ocrStatusDisabled": { "message": "图像 OCR 已关闭" },
+  "ocrStatusIdle": { "message": "图像 OCR 可开始" },
+  "ocrStatusSelecting": { "message": "请框选字幕区域" },
+  "ocrStatusInitializing": { "message": "正在加载本地 OCR 模型" },
+  "ocrStatusCapturing": { "message": "正在本地采集所选区域" },
+  "ocrStatusRecognizing": { "message": "正在本地识别文字" },
+  "ocrStatusActive": { "message": "图像 OCR 运行中" },
+  "ocrRecognizedCount": {
+    "message": "已识别 $COUNT$ 条",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "ocrStatusCancelled": { "message": "图像 OCR 已停止" },
+  "ocrStatusUnavailable": { "message": "图像 OCR 不可用" },
+  "ocrStatusError": { "message": "图像 OCR 失败" },
+  "runtimeErrorProviderUnavailable": {
+    "message": "当前翻译 Provider 不可用，请检查源语言或更换 Provider。"
+  },
+  "runtimeErrorPermissionRequired": {
+    "message": "NorixorTrans 尚未获得当前翻译 Provider 的访问权限。"
+  },
+  "runtimeErrorInvalidConfiguration": {
+    "message": "请先配置 Provider Base URL、API Key 和模型。"
+  },
+  "runtimeErrorInvalidResponse": {
+    "message": "翻译 Provider 返回了无效或不完整的响应。"
+  },
+  "runtimeErrorRequestFailed": {
+    "message": "翻译请求失败，请检查 Provider 设置后重试。"
+  },
+  "runtimeErrorCancelled": {
+    "message": "翻译请求已取消或超时。"
+  },
+  "runtimeErrorContentSettingsUnavailable": {
+    "message": "无法读取翻译设置，请刷新页面后重试。"
+  },
+  "runtimeErrorSettingsSaveFailed": {
+    "message": "设置保存失败，请重试。"
+  },
+  "runtimeErrorProfileSaveFailed": {
+    "message": "字幕站点 Profile 保存失败。"
+  },
+  "runtimeErrorPageContentChanged": {
+    "message": "页面在翻译期间发生变化，部分译文未能写入。"
+  },
+  "settingsTabImage": { "message": "图片翻译" },
+  "imageTranslationTab": { "message": "图片" },
+  "imageTranslationSettings": { "message": "图片翻译" },
+  "imageTranslationSettingsDescription": {
+    "message": "识别网页可见图片中的文字，并将译文覆盖到原文字位置。"
+  },
+  "imageTranslationEnabled": { "message": "启用图片翻译" },
+  "imageTranslationPrivacy": {
+    "message": "图片仅在本地识别；只有识别出的文字会发送到所选翻译 Provider，图片像素绝不上传。"
+  },
+  "imageModelOverride": { "message": "AI 模型覆盖" },
+  "imageModelInherit": { "message": "继承全局模型" },
+  "imageModelOverrideHelp": { "message": "留空时继承 Provider 设置中的模型。" },
+  "imageTranslateAction": { "message": "翻译这张图片" },
+  "imageRetryAction": { "message": "重试图片翻译" },
+  "imageClearAction": { "message": "清除" },
+  "imageCancelAction": { "message": "取消" },
+  "imageTranslateCurrent": { "message": "翻译当前图片" },
+  "imageCancelOrClear": { "message": "取消或清除" },
+  "imageStatusDisabled": { "message": "图片翻译已关闭" },
+  "imageStatusIdle": { "message": "将指针移到图片上或聚焦图片" },
+  "imageStatusAvailable": { "message": "图片可翻译" },
+  "imageStatusCapturing": { "message": "正在读取图片…" },
+  "imageStatusSourceUnavailable": {
+    "message": "无法读取这张图片，请确认图片仍可访问。"
+  },
+  "imageStatusSourceTooLarge": { "message": "这张图片过大，无法在本地处理。" },
+  "imageStatusRecognizing": { "message": "正在本地识别图片文字…" },
+  "imageStatusTranslating": { "message": "正在翻译识别文字…" },
+  "imageStatusReady": { "message": "图片翻译已就绪" },
+  "imageStatusCancelled": { "message": "图片翻译已取消" },
+  "imageStatusUnavailable": { "message": "图片翻译不可用" },
+  "imageStatusError": { "message": "图片翻译失败，请重试。" },
+  "imageStatusNoVisibleImage": { "message": "尚未选择受支持的可见图片。" },
+  "imageStatusTooManyTasks": { "message": "请先完成或取消另一张图片的翻译。" },
+  "imageStatusPermissionRequired": {
+    "message": "需要屏幕截图权限。请重新开启功能后再重试。"
+  },
+  "imageStatusInactiveTab": {
+    "message": "请保持当前标签页处于活动状态后重试。"
+  },
+  "imageStatusBlackFrame": { "message": "图片为空白，无法识别。" },
+  "imageStatusRuntimeMissing": {
+    "message": "请先在设置中安装本地识别资源，然后重试。"
+  },
+  "imageStatusNoText": { "message": "这张图片中未发现可识别文字。" },
+  "imageStatusProviderUnavailable": {
+    "message": "所选翻译 Provider 当前不可用。"
+  },
+  "imageStatusInvalidResponse": {
+    "message": "翻译 Provider 返回了无效或不完整的图片译文。"
+  },
+  "imageStatusRequestFailed": {
+    "message": "图片翻译请求失败，请检查 Provider 设置后重试。"
+  }
+}

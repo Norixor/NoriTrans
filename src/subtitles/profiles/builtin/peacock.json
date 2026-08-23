@@ -1,0 +1,28 @@
+{
+  "id": "peacock",
+  "version": 1,
+  "name": "Peacock",
+  "parser": "dom",
+  "priority": 48,
+  "match": { "hostnameSuffixes": ["peacocktv.com"] },
+  "selectors": {
+    "video": "video",
+    "captions": [
+      ".vjs-text-track-display",
+      ".shaka-text-container",
+      "[class*='caption' i]",
+      "[class*='subtitle' i]"
+    ],
+    "nativeCaptions": [".vjs-text-track-display", ".shaka-text-container"]
+  },
+  "capture": {
+    "formats": ["vtt", "ttml"],
+    "allowedHostnameSuffixes": [
+      "peacocktv.com",
+      "nbcuni.com",
+      "cloudfront.net",
+      "akamaihd.net"
+    ],
+    "urlPatterns": [".vtt", ".webvtt", ".ttml", ".dfxp", "subtitle", "caption"]
+  }
+}

@@ -1,0 +1,19 @@
+.output/
+.wxt/
+coverage/
+node_modules/
+playwright-report/
+test-results/
+
+# Generated dependency and build metadata.
+pnpm-lock.yaml
+*.tsbuildinfo
+
+# Binary/source design assets and third-party legal text are not formatter input.
+assets/branding/
+public/ocr/licenses/
+LICENSE
+NOTICE
+TRADEMARKS.md
+AGENTS.md
+

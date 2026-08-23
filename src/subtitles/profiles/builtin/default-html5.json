@@ -1,0 +1,18 @@
+{
+  "id": "default-html5",
+  "version": 1,
+  "name": "Standard HTML5 TextTrack",
+  "parser": "html5",
+  "priority": 10,
+  "match": { "hostnameSuffixes": ["*"] },
+  "selectors": {
+    "video": "video",
+    "captions": [],
+    "nativeCaptions": []
+  },
+  "capture": {
+    "formats": ["vtt"],
+    "allowedHostnameSuffixes": [],
+    "urlPatterns": []
+  }
+}

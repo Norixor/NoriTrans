@@ -1,0 +1,23 @@
+{
+  "id": "kanopy",
+  "version": 1,
+  "name": "Kanopy",
+  "parser": "dom",
+  "priority": 55,
+  "match": { "hostnameSuffixes": ["kanopy.com"] },
+  "selectors": {
+    "video": "video",
+    "captions": [
+      ".vjs-text-track-display > div > div > div",
+      ".vjs-text-track-display > div > div",
+      ".vjs-text-track-display"
+    ],
+    "nativeCaptions": [".vjs-text-track-display"]
+  },
+  "capture": {
+    "formats": ["vtt"],
+    "allowedHostnameSuffixes": ["kanopy.com"],
+    "urlPatterns": ["/captioncache/webvtt/", ".vtt", ".webvtt"],
+    "completeFilePatterns": ["/captioncache/webvtt/", ".vtt", ".webvtt"]
+  }
+}

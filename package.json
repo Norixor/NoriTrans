@@ -1,0 +1,57 @@
+{
+  "name": "norixortrans",
+  "version": "0.1.118",
+  "description": "A privacy-conscious Chrome extension for webpage, subtitle, and local OCR-assisted translation.",
+  "private": true,
+  "license": "Apache-2.0",
+  "author": "Norixor",
+  "keywords": [
+    "chrome-extension",
+    "translation",
+    "subtitles",
+    "ocr",
+    "manifest-v3"
+  ],
+  "type": "module",
+  "packageManager": "pnpm@10.32.1",
+  "engines": {
+    "node": ">=22.22.2 <23 || >=24.15.0 <25",
+    "pnpm": ">=10.32.1 <11"
+  },
+  "scripts": {
+    "dev": "wxt",
+    "build": "wxt build",
+    "zip": "wxt zip",
+    "prepare": "wxt prepare",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "pnpm build && playwright test",
+    "test:e2e:ocr": "node scripts/e2e-ocr.mjs",
+    "check": "pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build",
+    "ci": "pnpm check"
+  },
+  "dependencies": {
+    "idb": "^8.0.3",
+    "onnxruntime-web": "1.27.0",
+    "ppu-paddle-ocr": "5.8.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.62.1",
+    "@types/chrome": "^0.2.6",
+    "@types/node": "^26.2.0",
+    "eslint": "^10.0.1",
+    "fake-indexeddb": "^6.2.5",
+    "jsdom": "^30.0.1",
+    "prettier": "^3.9.6",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.67.0",
+    "vitest": "^4.1.11",
+    "wxt": "^0.21.4"
+  }
+}

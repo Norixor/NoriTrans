@@ -1,0 +1,31 @@
+{
+  "id": "paramount-plus",
+  "version": 1,
+  "name": "Paramount+",
+  "parser": "dom",
+  "priority": 46,
+  "match": { "hostnameSuffixes": ["paramountplus.com"] },
+  "selectors": {
+    "video": "video",
+    "captions": [
+      ".vjs-text-track-display",
+      ".theoplayer-texttrack-display",
+      "[class*='caption' i]",
+      "[class*='subtitle' i]"
+    ],
+    "nativeCaptions": [
+      ".vjs-text-track-display",
+      ".theoplayer-texttrack-display"
+    ]
+  },
+  "capture": {
+    "formats": ["vtt", "ttml"],
+    "allowedHostnameSuffixes": [
+      "paramountplus.com",
+      "cbs.com",
+      "cbsivideo.com",
+      "akamaihd.net"
+    ],
+    "urlPatterns": [".vtt", ".webvtt", ".ttml", ".dfxp", "subtitle", "caption"]
+  }
+}

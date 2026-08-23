@@ -1,0 +1,31 @@
+{
+  "id": "udemy",
+  "version": 1,
+  "name": "Udemy",
+  "parser": "dom",
+  "priority": 54,
+  "match": { "hostnameSuffixes": ["udemy.com"] },
+  "selectors": {
+    "video": "video",
+    "captions": [
+      "[data-purpose='captions-cue-text']",
+      ".captions-display--captions-cue-text--TQ0DQ",
+      "[class*='captions-display--captions-cue-text']",
+      "[class*='captions-cue-text']",
+      ".shaka-text-container",
+      ".vjs-text-track-display"
+    ],
+    "nativeCaptions": [
+      ".shaka-text-container",
+      ".vjs-text-track-display",
+      "[data-purpose='captions-cue-text']",
+      "[class*='captions-cue-text']"
+    ]
+  },
+  "capture": {
+    "formats": ["vtt"],
+    "allowedHostnameSuffixes": ["udemy.com", "udemycdn.com"],
+    "urlPatterns": [".vtt", ".webvtt", "subtitle", "caption"],
+    "completeFilePatterns": [".vtt", ".webvtt"]
+  }
+}

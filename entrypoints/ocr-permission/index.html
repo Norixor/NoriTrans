@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="theme-color"
+      content="#f3efe7"
+      media="(prefers-color-scheme: light)"
+    />
+    <meta
+      name="theme-color"
+      content="#171613"
+      media="(prefers-color-scheme: dark)"
+    />
+    <title>Enable local image OCR · NorixorTrans</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow" data-i18n="extensionName">NorixorTrans</p>
+      <h1 data-i18n="ocrPermissionTitle">Enable local image OCR</h1>
+      <p class="description" data-i18n="ocrPermissionDescription">
+        NorixorTrans needs Chrome's optional screenshot permission to read only
+        the subtitle area you select.
+      </p>
+      <p class="instruction" data-i18n="ocrPermissionInstruction">
+        Click the blue button below. Chrome will then show its permission
+        confirmation.
+      </p>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+      <div class="actions">
+        <button
+          id="cancel"
+          class="button secondary"
+          type="button"
+          data-i18n="ocrPermissionCancel"
+        >
+          Not now
+        </button>
+        <button
+          id="allow"
+          class="button primary"
+          type="button"
+          data-i18n="ocrPermissionAllow"
+        >
+          Continue to Chrome permission
+        </button>
+      </div>
+      <div class="privacy-note" role="note">
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M12 3 5 6v5c0 4.6 2.9 8.1 7 10 4.1-1.9 7-5.4 7-10V6l-7-3Z" />
+          <path d="m9 12 2 2 4-4" />
+        </svg>
+        <p data-i18n="ocrPermissionPrivacy">
+          Screenshots, OCR, and OCR translation stay on this device. Recognized
+          text is never sent to an AI provider.
+        </p>
+      </div>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

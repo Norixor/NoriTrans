@@ -1,0 +1,22 @@
+{
+  "id": "max",
+  "version": 1,
+  "name": "Max / HBO Max",
+  "parser": "dom",
+  "priority": 41,
+  "match": { "hostnameSuffixes": ["max.com", "hbomax.com"] },
+  "selectors": {
+    "video": "video",
+    "captions": ["[data-testid='cue']", ".caption-cue", ".vjs-text-track-cue"],
+    "nativeCaptions": [
+      ".vjs-text-track-display",
+      "[data-testid='cue']",
+      ".caption-cue"
+    ]
+  },
+  "capture": {
+    "formats": ["vtt"],
+    "allowedHostnameSuffixes": ["max.com", "hbomax.com", "hbomaxcdn.com"],
+    "urlPatterns": [".vtt", ".webvtt", ".m3u8", "subtitle", ".mpd", "manifest"]
+  }
+}

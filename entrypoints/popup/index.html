@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="__MSG_documentLanguage__">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="theme-color"
+      content="#f3efe7"
+      media="(prefers-color-scheme: light)"
+    />
+    <meta
+      name="theme-color"
+      content="#171613"
+      media="(prefers-color-scheme: dark)"
+    />
+    <title>__MSG_extensionName__</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main class="popup-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">__MSG_extensionName__</p>
+          <h1>__MSG_popupTitle__</h1>
+        </div>
+        <button
+          id="open-options"
+          class="icon-button"
+          type="button"
+          aria-label="__MSG_openSettings__"
+          title="__MSG_openSettings__"
+        >
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            width="20"
+            height="20"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2Z"
+            />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+        </button>
+      </header>
+
+      <section
+        id="status-section"
+        class="status-section"
+        aria-labelledby="status-heading"
+        aria-busy="true"
+      >
+        <h2 id="status-heading">__MSG_currentStatus__</h2>
+        <div class="status-list">
+          <div class="status-row">
+            <div>
+              <span class="status-label">__MSG_pageTranslation__</span>
+              <strong id="page-status" role="status" aria-live="polite"
+                >__MSG_statusLoading__</strong
+              >
+            </div>
+            <span
+              id="page-progress"
+              class="status-meta"
+              aria-live="polite"
+            ></span>
+          </div>
+          <details id="page-diagnostic" class="status-diagnostic" hidden>
+            <summary>__MSG_viewProviderDetails__</summary>
+            <pre aria-label="__MSG_providerDetailsLabel__"></pre>
+          </details>
+          <div class="status-row">
+            <div>
+              <span class="status-label">__MSG_subtitleTranslation__</span>
+              <strong id="subtitle-status" role="status" aria-live="polite"
+                >__MSG_statusLoading__</strong
+              >
+            </div>
+            <span
+              id="subtitle-progress"
+              class="status-meta"
+              aria-live="polite"
+            ></span>
+          </div>
+          <details id="subtitle-diagnostic" class="status-diagnostic" hidden>
+            <summary>__MSG_viewProviderDetails__</summary>
+            <pre aria-label="__MSG_providerDetailsLabel__"></pre>
+          </details>
+        </div>
+      </section>
+
+      <form id="translation-form">
+        <fieldset class="field-group">
+          <legend>__MSG_translationMode__</legend>
+          <div class="segmented-control">
+            <label
+              ><input type="radio" name="mode" value="fast" /><span
+                >__MSG_modeFast__</span
+              ></label
+            >
+            <label
+              ><input type="radio" name="mode" value="ai" /><span
+                >__MSG_modeAi__</span
+              ></label
+            >
+          </div>
+        </fieldset>
+
+        <div class="select-grid">
+          <label class="field-label" for="source-language">
+            <span class="field-caption">__MSG_sourceLanguage__</span>
+            <span class="select-control">
+              <select id="source-language" name="source-language"></select>
+            </span>
+          </label>
+          <label class="field-label" for="target-language">
+            <span class="field-caption">__MSG_targetLanguage__</span>
+            <span class="select-control">
+              <select id="target-language" name="target-language"></select>
+            </span>
+          </label>
+        </div>
+
+        <label class="field-label response-mode-field" for="response-mode">
+          <span class="field-caption">__MSG_aiResponseMode__</span>
+          <span class="select-control">
+            <select id="response-mode" name="response-mode">
+              <option value="stream">__MSG_responseModeStream__</option>
+              <option value="batch">__MSG_responseModeBatch__</option>
+            </select>
+          </span>
+        </label>
+
+        <fieldset class="field-group">
+          <legend>__MSG_displayMode__</legend>
+          <div class="segmented-control">
+            <label
+              ><input
+                type="radio"
+                name="display-mode"
+                value="translated"
+              /><span>__MSG_pageDisplayReplace__</span></label
+            >
+            <label
+              ><input type="radio" name="display-mode" value="bilingual" /><span
+                >__MSG_pageDisplayAppend__</span
+              ></label
+            >
+          </div>
+        </fieldset>
+
+        <p id="action-message" class="feedback" aria-live="polite"></p>
+        <div class="action-row">
+          <button
+            id="translate-page"
+            class="button button-primary"
+            type="submit"
+          >
+            __MSG_translateCurrentPage__
+          </button>
+          <button
+            id="restore-page"
+            class="button button-secondary"
+            type="button"
+          >
+            __MSG_restoreOriginal__
+          </button>
+        </div>
+      </form>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

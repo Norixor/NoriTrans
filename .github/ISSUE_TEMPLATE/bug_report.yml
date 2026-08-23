@@ -1,0 +1,50 @@
+name: Bug report
+description: Report a reproducible NorixorTrans defect.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve NorixorTrans. Do not include API keys, cookies, authentication headers, private text, full subtitles, or unredacted provider responses. Report security issues privately as described in SECURITY.md.
+  - type: input
+    id: version
+    attributes:
+      label: NorixorTrans version
+      description: Use the version shown in the extension manifest or settings page.
+      placeholder: 0.1.x
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Include the operating system and Chrome version.
+      placeholder: macOS 15, Chrome 138
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: Provide the smallest reliable sequence and use synthetic text where possible.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: For video issues, include the site, subtitle source, languages, and whether the track is full or stream. Attach only redacted logs or screenshots.

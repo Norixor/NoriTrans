@@ -1,0 +1,27 @@
+{
+  "id": "fubo-tv",
+  "version": 1,
+  "name": "fuboTV",
+  "parser": "dom",
+  "priority": 49,
+  "match": { "hostnameSuffixes": ["fubo.tv", "fubotv.com"] },
+  "selectors": {
+    "video": "video",
+    "captions": [
+      ".vjs-text-track-display",
+      "[class*='caption' i]",
+      "[class*='subtitle' i]"
+    ],
+    "nativeCaptions": [".vjs-text-track-display"]
+  },
+  "capture": {
+    "formats": ["vtt", "ttml"],
+    "allowedHostnameSuffixes": [
+      "fubo.tv",
+      "fubotv.com",
+      "cloudfront.net",
+      "akamaihd.net"
+    ],
+    "urlPatterns": [".vtt", ".webvtt", ".ttml", ".dfxp", "subtitle", "caption"]
+  }
+}

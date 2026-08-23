@@ -1,0 +1,18 @@
+{
+  "id": "youtube",
+  "version": 1,
+  "name": "YouTube",
+  "parser": "youtube",
+  "priority": 20,
+  "match": { "hostnameSuffixes": ["youtube.com", "youtube-nocookie.com"] },
+  "selectors": {
+    "video": "video",
+    "captions": [".ytp-caption-segment"],
+    "nativeCaptions": [".ytp-caption-window-container"]
+  },
+  "capture": {
+    "formats": ["json3", "vtt"],
+    "allowedHostnameSuffixes": ["youtube.com", "youtube-nocookie.com"],
+    "urlPatterns": ["/api/timedtext"]
+  }
+}

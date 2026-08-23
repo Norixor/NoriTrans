@@ -1,0 +1,19 @@
+{
+  "id": "deutsche-welle",
+  "version": 1,
+  "name": "Deutsche Welle",
+  "parser": "dom",
+  "priority": 53,
+  "match": { "hostnameSuffixes": ["dw.com"] },
+  "selectors": {
+    "video": "video",
+    "captions": [],
+    "nativeCaptions": []
+  },
+  "capture": {
+    "formats": ["vtt"],
+    "allowedHostnameSuffixes": ["dw.com"],
+    "urlPatterns": [".vtt", ".webvtt", "/media/subtitles/", "/subtitles"],
+    "completeFilePatterns": [".vtt", ".webvtt", "/media/subtitles/"]
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "id": "apple-tv",
+  "version": 1,
+  "name": "Apple TV+",
+  "parser": "dom",
+  "priority": 44,
+  "match": { "hostnameSuffixes": ["tv.apple.com", "appletv.com"] },
+  "selectors": {
+    "video": "video",
+    "captions": [
+      "[class*='subtitle' i]",
+      "[class*='caption' i]",
+      ".shaka-text-container",
+      ".vjs-text-track-display"
+    ],
+    "nativeCaptions": [".shaka-text-container", ".vjs-text-track-display"]
+  },
+  "capture": {
+    "formats": ["vtt", "ttml"],
+    "allowedHostnameSuffixes": ["apple.com", "appletv.com", "mzstatic.com"],
+    "urlPatterns": [".vtt", ".webvtt", ".ttml", ".dfxp", "subtitle", "caption"]
+  }
+}

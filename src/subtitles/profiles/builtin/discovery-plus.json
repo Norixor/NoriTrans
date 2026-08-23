@@ -1,0 +1,28 @@
+{
+  "id": "discovery-plus",
+  "version": 1,
+  "name": "Discovery+",
+  "parser": "dom",
+  "priority": 47,
+  "match": { "hostnameSuffixes": ["discoveryplus.com"] },
+  "selectors": {
+    "video": "video",
+    "captions": [
+      ".shaka-text-container",
+      ".vjs-text-track-display",
+      "[class*='caption' i]",
+      "[class*='subtitle' i]"
+    ],
+    "nativeCaptions": [".shaka-text-container", ".vjs-text-track-display"]
+  },
+  "capture": {
+    "formats": ["vtt", "ttml"],
+    "allowedHostnameSuffixes": [
+      "discoveryplus.com",
+      "discovery.com",
+      "disco-api.com",
+      "cloudfront.net"
+    ],
+    "urlPatterns": [".vtt", ".webvtt", ".ttml", ".dfxp", "subtitle", "caption"]
+  }
+}

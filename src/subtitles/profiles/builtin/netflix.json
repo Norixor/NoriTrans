@@ -1,0 +1,26 @@
+{
+  "id": "netflix",
+  "version": 1,
+  "name": "Netflix",
+  "parser": "netflix",
+  "priority": 30,
+  "match": { "hostnameSuffixes": ["netflix.com"] },
+  "selectors": {
+    "video": "video",
+    "captions": [".player-timedtext"],
+    "nativeCaptions": [".player-timedtext"]
+  },
+  "capture": {
+    "formats": ["vtt", "ttml"],
+    "allowedHostnameSuffixes": ["netflix.com", "nflxso.net", "nflxvideo.net"],
+    "urlPatterns": [
+      "manifest",
+      "timedtexttracks",
+      "timedtext",
+      "subtitle",
+      ".vtt",
+      ".ttml",
+      ".dfxp"
+    ]
+  }
+}

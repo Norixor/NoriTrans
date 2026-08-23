@@ -1,0 +1,27 @@
+{
+  "id": "hulu",
+  "version": 1,
+  "name": "Hulu",
+  "parser": "dom",
+  "priority": 45,
+  "match": { "hostnameSuffixes": ["hulu.com", "hulu.jp"] },
+  "selectors": {
+    "video": "video",
+    "captions": [
+      ".vjs-text-track-display",
+      ".vjs-text-track-cue",
+      "[class*='caption-text' i]",
+      "[class*='subtitle' i]",
+      "img[src*='s2.happyon.jp'][src*='size=']"
+    ],
+    "nativeCaptions": [
+      ".vjs-text-track-display",
+      "img[src*='s2.happyon.jp'][src*='size=']"
+    ]
+  },
+  "capture": {
+    "formats": ["vtt", "ttml"],
+    "allowedHostnameSuffixes": ["hulu.com", "huluim.com", "akamaihd.net"],
+    "urlPatterns": [".vtt", ".webvtt", ".ttml", ".dfxp", "subtitle", "caption"]
+  }
+}

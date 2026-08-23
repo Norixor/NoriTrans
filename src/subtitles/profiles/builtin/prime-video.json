@@ -1,0 +1,72 @@
+{
+  "id": "prime-video",
+  "version": 1,
+  "name": "Prime Video",
+  "parser": "dom",
+  "priority": 43,
+  "match": {
+    "hostnameSuffixes": ["primevideo.com"],
+    "urlRules": [
+      {
+        "hostnameSuffixes": ["primevideo.com"],
+        "pathnamePrefixes": ["/"]
+      },
+      {
+        "hostnameSuffixes": [
+          "amazon.com",
+          "amazon.ca",
+          "amazon.co.uk",
+          "amazon.de",
+          "amazon.fr",
+          "amazon.it",
+          "amazon.es",
+          "amazon.in",
+          "amazon.co.jp",
+          "amazon.com.au",
+          "amazon.com.br",
+          "amazon.com.mx"
+        ],
+        "pathnamePrefixes": ["/gp/video"]
+      }
+    ]
+  },
+  "selectors": {
+    "video": "video",
+    "captions": [
+      ".atvwebplayersdk-captions-text",
+      "[class*='atvwebplayersdk-captions']"
+    ],
+    "nativeCaptions": ["[class*='atvwebplayersdk-captions']"]
+  },
+  "capture": {
+    "formats": ["vtt", "ttml"],
+    "allowedHostnameSuffixes": [
+      "primevideo.com",
+      "amazon.com",
+      "amazon.ca",
+      "amazon.co.uk",
+      "amazon.de",
+      "amazon.fr",
+      "amazon.it",
+      "amazon.es",
+      "amazon.in",
+      "amazon.co.jp",
+      "amazon.com.au",
+      "amazon.com.br",
+      "amazon.com.mx",
+      "media-amazon.com",
+      "aiv-cdn.net",
+      "akamaihd.net",
+      "cloudfront.net"
+    ],
+    "urlPatterns": [
+      ".vtt",
+      ".webvtt",
+      ".ttml",
+      ".dfxp",
+      ".m3u8",
+      "subtitle",
+      "manifest"
+    ]
+  }
+}

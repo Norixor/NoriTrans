@@ -1,0 +1,23 @@
+{
+  "id": "default-dom-heuristic",
+  "version": 1,
+  "name": "Generic visible caption heuristic",
+  "parser": "dom",
+  "priority": 90,
+  "match": { "hostnameSuffixes": ["*"] },
+  "selectors": {
+    "video": "video",
+    "captions": [
+      "[class~='caption' i]",
+      "[class~='captions' i]",
+      "[class~='subtitle' i]",
+      "[class~='subtitles' i]"
+    ],
+    "nativeCaptions": []
+  },
+  "capture": {
+    "formats": [],
+    "allowedHostnameSuffixes": [],
+    "urlPatterns": []
+  }
+}

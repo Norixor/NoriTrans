@@ -1,0 +1,220 @@
+:root {
+  color-scheme: light dark;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --background: #f3efe7;
+  --surface: #fbf8f2;
+  --text: #211f1b;
+  --muted: #746f66;
+  --border: #ded7ca;
+  --primary: #b87912;
+  --primary-hover: #955d08;
+  --primary-button: #23211e;
+  --primary-button-hover: #11100f;
+  --primary-gradient: var(--primary-button);
+  --success: #1a7f37;
+  --warning: #9a6700;
+  --danger: #cf222e;
+  --focus: #c58a26;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #171613;
+    --surface: #211f1b;
+    --text: #f6f1e7;
+    --muted: #b8b0a3;
+    --border: #474138;
+    --primary: #d39a37;
+    --primary-hover: #e1ad52;
+    --primary-button: #f0e9de;
+    --primary-button-hover: #ffffff;
+    --primary-gradient: var(--primary-button);
+    --success: #3fb950;
+    --warning: #d29922;
+    --danger: #f85149;
+    --focus: #d8a750;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  overflow: auto;
+  background: var(--background);
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+main {
+  width: min(100% - 32px, 480px);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 28px 0 24px;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+.description {
+  margin: 12px 0 0;
+  color: var(--muted);
+}
+
+.instruction {
+  margin: 18px 0 0;
+  padding-left: 12px;
+  border-left: 3px solid var(--primary);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.privacy-note {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 12px;
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--primary);
+  border-radius: 4px;
+  background: var(--surface);
+}
+
+.privacy-note svg {
+  width: 20px;
+  height: 20px;
+  color: var(--primary);
+}
+
+.privacy-note p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.status {
+  min-height: 24px;
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.status[data-tone="success"] {
+  color: var(--success);
+}
+
+.status[data-tone="warning"] {
+  color: var(--warning);
+}
+
+.status[data-tone="error"] {
+  color: var(--danger);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px 0;
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--background);
+}
+
+.button {
+  min-height: 44px;
+  padding: 9px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.button.primary {
+  border-color: var(--primary-button);
+  background: var(--primary-gradient);
+  color: var(--surface);
+}
+
+@media (prefers-color-scheme: dark) {
+  .button.primary {
+    color: #211f1b;
+  }
+}
+
+.button.primary:hover {
+  background: var(--primary-button-hover);
+}
+
+.button.secondary {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.button:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@media (max-width: 420px) {
+  main {
+    width: min(100% - 24px, 480px);
+    padding-top: 20px;
+  }
+
+  .actions {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  .button {
+    width: 100%;
+  }
+}
+
+@media (max-height: 480px) {
+  main {
+    padding-top: 16px;
+  }
+
+  .privacy-note {
+    margin-top: 14px;
+    padding: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+  }
+}

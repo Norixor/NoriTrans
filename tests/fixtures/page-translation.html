@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NorixorTrans browser fixture</title>
+    <style>
+      body {
+        max-width: 720px;
+        margin: 48px auto;
+        font:
+          18px/1.6 system-ui,
+          sans-serif;
+      }
+      button {
+        min-height: 44px;
+        padding: 0 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Translation fixture</h1>
+      <p id="static-text">Hello <strong>world</strong>.</p>
+      <button id="add-content" type="button">Add dynamic content</button>
+      <section id="dynamic-content" aria-live="polite"></section>
+    </main>
+    <script>
+      document.querySelector("#add-content").addEventListener("click", () => {
+        const paragraph = document.createElement("p");
+        paragraph.textContent = "This paragraph was added later.";
+        document.querySelector("#dynamic-content").append(paragraph);
+      });
+    </script>
+  </body>
+</html>

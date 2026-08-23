@@ -1,0 +1,370 @@
+import type {
+  TranslationMode,
+  TranslationResponseMode,
+} from "@/src/translation/types";
+import { normalizeAutoTranslateSitePatterns } from "@/src/shared/auto-translate-sites";
+
+export type DisplayMode = "translated" | "bilingual";
+export type SubtitleDisplayMode = "translated" | "bilingual" | "original";
+export type SubtitlePosition = "top" | "center" | "bottom" | "custom";
+
+export interface SubtitleCustomPosition {
+  x: number;
+  y: number;
+}
+
+export interface ProviderSettings {
+  fastProvider: "chrome-local" | "openai-compatible";
+  aiProvider: "openai-compatible";
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  systemPrompt: string;
+  timeoutMs: number;
+}
+
+export interface PageSettings {
+  sourceLanguage: string;
+  targetLanguage: string;
+  mode: TranslationMode;
+  aiResponseMode: TranslationResponseMode;
+  displayMode: DisplayMode;
+  autoTranslate: boolean;
+  autoTranslateSitePatterns: string[];
+  autoTranslateExcludedSitePatterns: string[];
+  floatingButtonEnabled: boolean;
+  selectionTranslationEnabled: boolean;
+  selectionTranslationMode: TranslationMode;
+}
+
+export interface SubtitleSettings {
+  enabled: boolean;
+  floatingButtonEnabled: boolean;
+  sourceLanguage: string;
+  targetLanguage: string;
+  mode: TranslationMode;
+  aiResponseMode: TranslationResponseMode;
+  displayMode: SubtitleDisplayMode;
+  hideNativeSubtitles: boolean;
+  position: SubtitlePosition;
+  customPosition: SubtitleCustomPosition;
+  fontScale: number;
+  backgroundOpacity: number;
+}
+
+export interface OcrSettings {
+  enabled: boolean;
+}
+
+export interface ImageTranslationSettings {
+  enabled: boolean;
+  sourceLanguage: string;
+  targetLanguage: string;
+  mode: TranslationMode;
+  /** Empty inherits provider.model. */
+  modelOverride: string;
+  displayMode: DisplayMode;
+}
+
+export interface AppSettings {
+  provider: ProviderSettings;
+  page: PageSettings;
+  subtitles: SubtitleSettings;
+  ocr: OcrSettings;
+  imageTranslation: ImageTranslationSettings;
+}
+
+export type ContentProviderSettings = Omit<ProviderSettings, "apiKey">;
+
+export interface ContentSettings {
+  provider: ContentProviderSettings;
+  page: PageSettings;
+  subtitles: SubtitleSettings;
+  ocr: OcrSettings;
+  imageTranslation: ImageTranslationSettings;
+}
+
+export const LEGACY_DEFAULT_SYSTEM_PROMPT = [
+  "You are a professional translator.",
+  "Preserve meaning, tone, names, terminology, punctuation, and formatting.",
+  "Use contextBefore and contextAfter only for consistency; translate only the segment text.",
+  "Do not add explanations.",
+  "Return exactly one result for every input ID.",
+].join(" ");
+
+export const DEFAULT_SYSTEM_PROMPT =
+  "Translate accurately. Preserve meaning, tone, names, terminology, punctuation, and formatting. Use context only for consistency.";
+
+export const DEFAULT_SETTINGS: AppSettings = {
+  provider: {
+    fastProvider: "chrome-local",
+    aiProvider: "openai-compatible",
+    baseUrl: "https://api.norixor.org/v1",
+    apiKey: "",
+    model: "gpt-5.5",
+    systemPrompt: DEFAULT_SYSTEM_PROMPT,
+    timeoutMs: 60_000,
+  },
+  page: {
+    sourceLanguage: "auto",
+    targetLanguage: "zh-CN",
+    mode: "fast",
+    aiResponseMode: "stream",
+    displayMode: "bilingual",
+    autoTranslate: false,
+    autoTranslateSitePatterns: [],
+    autoTranslateExcludedSitePatterns: [],
+    floatingButtonEnabled: true,
+    selectionTranslationEnabled: true,
+    selectionTranslationMode: "fast",
+  },
+  subtitles: {
+    enabled: true,
+    floatingButtonEnabled: true,
+    sourceLanguage: "auto",
+    targetLanguage: "zh-CN",
+    mode: "ai",
+    aiResponseMode: "stream",
+    displayMode: "bilingual",
+    hideNativeSubtitles: false,
+    position: "bottom",
+    customPosition: { x: 0.5, y: 0.82 },
+    fontScale: 1.2,
+    backgroundOpacity: 0.5,
+  },
+  ocr: {
+    enabled: false,
+  },
+  imageTranslation: {
+    enabled: false,
+    sourceLanguage: "auto",
+    targetLanguage: "zh-CN",
+    mode: "fast",
+    modelOverride: "",
+    displayMode: "translated",
+  },
+};
+
+export function isAllowedProviderBaseUrl(value: string): boolean {
+  if (value.length > 2_048) return false;
+  try {
+    const url = new URL(value);
+    if (url.username || url.password) return false;
+    if (url.protocol === "https:") return true;
+    return (
+      url.protocol === "http:" &&
+      (url.hostname === "localhost" || url.hostname === "127.0.0.1")
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function toContentSettings(settings: AppSettings): ContentSettings {
+  return {
+    provider: {
+      fastProvider: settings.provider.fastProvider,
+      aiProvider: settings.provider.aiProvider,
+      baseUrl: settings.provider.baseUrl,
+      model: settings.provider.model,
+      systemPrompt: settings.provider.systemPrompt,
+      timeoutMs: settings.provider.timeoutMs,
+    },
+    page: { ...settings.page },
+    subtitles: { ...settings.subtitles },
+    ocr: { ...settings.ocr },
+    imageTranslation: { ...settings.imageTranslation },
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+export function mergeSettings(value: unknown): AppSettings {
+  if (!isRecord(value)) return structuredClone(DEFAULT_SETTINGS);
+
+  const provider = isRecord(value.provider) ? value.provider : {};
+  const page = isRecord(value.page) ? value.page : {};
+  const subtitles = isRecord(value.subtitles) ? value.subtitles : {};
+  const ocr = isRecord(value.ocr) ? value.ocr : {};
+  const imageTranslation = isRecord(value.imageTranslation)
+    ? value.imageTranslation
+    : {};
+
+  const fastProvider =
+    provider.fastProvider === "openai-compatible"
+      ? "openai-compatible"
+      : "chrome-local";
+  const pageMode = page.mode === "ai" ? "ai" : "fast";
+  const pageDisplayMode =
+    page.displayMode === "translated" ? "translated" : "bilingual";
+  const subtitleMode = subtitles.mode === "fast" ? "fast" : "ai";
+  const subtitleDisplayMode =
+    subtitles.displayMode === "translated" ||
+    subtitles.displayMode === "original"
+      ? subtitles.displayMode
+      : "bilingual";
+  const subtitlePosition =
+    subtitles.position === "top" ||
+    subtitles.position === "center" ||
+    subtitles.position === "custom"
+      ? subtitles.position
+      : "bottom";
+  const customPosition = isRecord(subtitles.customPosition)
+    ? subtitles.customPosition
+    : {};
+
+  return {
+    provider: {
+      fastProvider,
+      aiProvider: "openai-compatible",
+      baseUrl:
+        typeof provider.baseUrl === "string" &&
+        isAllowedProviderBaseUrl(provider.baseUrl)
+          ? provider.baseUrl
+          : DEFAULT_SETTINGS.provider.baseUrl,
+      apiKey:
+        typeof provider.apiKey === "string"
+          ? provider.apiKey
+          : DEFAULT_SETTINGS.provider.apiKey,
+      model:
+        typeof provider.model === "string"
+          ? provider.model
+          : DEFAULT_SETTINGS.provider.model,
+      systemPrompt:
+        typeof provider.systemPrompt === "string"
+          ? provider.systemPrompt === LEGACY_DEFAULT_SYSTEM_PROMPT
+            ? DEFAULT_SYSTEM_PROMPT
+            : provider.systemPrompt
+          : DEFAULT_SETTINGS.provider.systemPrompt,
+      timeoutMs:
+        typeof provider.timeoutMs === "number" &&
+        Number.isFinite(provider.timeoutMs)
+          ? Math.min(180_000, Math.max(5_000, provider.timeoutMs))
+          : DEFAULT_SETTINGS.provider.timeoutMs,
+    },
+    page: {
+      sourceLanguage:
+        typeof page.sourceLanguage === "string"
+          ? page.sourceLanguage
+          : DEFAULT_SETTINGS.page.sourceLanguage,
+      targetLanguage:
+        typeof page.targetLanguage === "string"
+          ? page.targetLanguage
+          : DEFAULT_SETTINGS.page.targetLanguage,
+      mode: pageMode,
+      aiResponseMode: page.aiResponseMode === "batch" ? "batch" : "stream",
+      displayMode: pageDisplayMode,
+      autoTranslate:
+        typeof page.autoTranslate === "boolean"
+          ? page.autoTranslate
+          : DEFAULT_SETTINGS.page.autoTranslate,
+      autoTranslateSitePatterns: normalizeAutoTranslateSitePatterns(
+        page.autoTranslateSitePatterns,
+      ),
+      autoTranslateExcludedSitePatterns: normalizeAutoTranslateSitePatterns(
+        page.autoTranslateExcludedSitePatterns,
+      ),
+      floatingButtonEnabled:
+        typeof page.floatingButtonEnabled === "boolean"
+          ? page.floatingButtonEnabled
+          : DEFAULT_SETTINGS.page.floatingButtonEnabled,
+      selectionTranslationEnabled:
+        typeof page.selectionTranslationEnabled === "boolean"
+          ? page.selectionTranslationEnabled
+          : DEFAULT_SETTINGS.page.selectionTranslationEnabled,
+      selectionTranslationMode:
+        page.selectionTranslationMode === "fast" ||
+        page.selectionTranslationMode === "ai"
+          ? page.selectionTranslationMode
+          : pageMode,
+    },
+    subtitles: {
+      enabled:
+        typeof subtitles.enabled === "boolean"
+          ? subtitles.enabled
+          : DEFAULT_SETTINGS.subtitles.enabled,
+      floatingButtonEnabled:
+        typeof subtitles.floatingButtonEnabled === "boolean"
+          ? subtitles.floatingButtonEnabled
+          : DEFAULT_SETTINGS.subtitles.floatingButtonEnabled,
+      sourceLanguage:
+        typeof subtitles.sourceLanguage === "string"
+          ? subtitles.sourceLanguage
+          : DEFAULT_SETTINGS.subtitles.sourceLanguage,
+      targetLanguage:
+        typeof subtitles.targetLanguage === "string"
+          ? subtitles.targetLanguage
+          : DEFAULT_SETTINGS.subtitles.targetLanguage,
+      mode: subtitleMode,
+      aiResponseMode: subtitles.aiResponseMode === "batch" ? "batch" : "stream",
+      displayMode: subtitleDisplayMode,
+      hideNativeSubtitles:
+        typeof subtitles.hideNativeSubtitles === "boolean"
+          ? subtitles.hideNativeSubtitles
+          : DEFAULT_SETTINGS.subtitles.hideNativeSubtitles,
+      position: subtitlePosition,
+      customPosition: {
+        x:
+          typeof customPosition.x === "number" &&
+          Number.isFinite(customPosition.x)
+            ? Math.min(1, Math.max(0, customPosition.x))
+            : DEFAULT_SETTINGS.subtitles.customPosition.x,
+        y:
+          typeof customPosition.y === "number" &&
+          Number.isFinite(customPosition.y)
+            ? Math.min(1, Math.max(0, customPosition.y))
+            : DEFAULT_SETTINGS.subtitles.customPosition.y,
+      },
+      fontScale:
+        typeof subtitles.fontScale === "number" &&
+        Number.isFinite(subtitles.fontScale)
+          ? Math.min(1.8, Math.max(0.75, subtitles.fontScale))
+          : DEFAULT_SETTINGS.subtitles.fontScale,
+      backgroundOpacity:
+        typeof subtitles.backgroundOpacity === "number" &&
+        Number.isFinite(subtitles.backgroundOpacity)
+          ? Math.min(0.95, Math.max(0.3, subtitles.backgroundOpacity))
+          : DEFAULT_SETTINGS.subtitles.backgroundOpacity,
+    },
+    ocr: {
+      enabled:
+        typeof ocr.enabled === "boolean"
+          ? ocr.enabled
+          : DEFAULT_SETTINGS.ocr.enabled,
+    },
+    imageTranslation: {
+      enabled:
+        typeof imageTranslation.enabled === "boolean"
+          ? imageTranslation.enabled
+          : DEFAULT_SETTINGS.imageTranslation.enabled,
+      sourceLanguage:
+        typeof imageTranslation.sourceLanguage === "string"
+          ? imageTranslation.sourceLanguage
+          : DEFAULT_SETTINGS.imageTranslation.sourceLanguage,
+      targetLanguage:
+        typeof imageTranslation.targetLanguage === "string"
+          ? imageTranslation.targetLanguage
+          : DEFAULT_SETTINGS.imageTranslation.targetLanguage,
+      mode: imageTranslation.mode === "ai" ? "ai" : "fast",
+      modelOverride:
+        typeof imageTranslation.modelOverride === "string"
+          ? imageTranslation.modelOverride.trim().slice(0, 256)
+          : DEFAULT_SETTINGS.imageTranslation.modelOverride,
+      displayMode:
+        imageTranslation.displayMode === "bilingual"
+          ? "bilingual"
+          : "translated",
+    },
+  };
+}
+
+export async function loadSettings(): Promise<AppSettings> {
+  const stored = await browser.storage.local.get("settings");
+  return mergeSettings(stored.settings);
+}
+
+export async function saveSettings(settings: AppSettings): Promise<void> {
+  await browser.storage.local.set({ settings });
+}

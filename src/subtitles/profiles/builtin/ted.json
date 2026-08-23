@@ -1,0 +1,23 @@
+{
+  "id": "ted",
+  "version": 1,
+  "name": "TED",
+  "parser": "dom",
+  "priority": 50,
+  "match": { "hostnameSuffixes": ["ted.com"] },
+  "selectors": {
+    "video": "video",
+    "captions": [
+      ".vjs-text-track-display",
+      "[data-testid='subtitle']",
+      "[class*='caption' i]",
+      "[class*='subtitle' i]"
+    ],
+    "nativeCaptions": [".vjs-text-track-display", "[data-testid='subtitle']"]
+  },
+  "capture": {
+    "formats": ["vtt", "ttml"],
+    "allowedHostnameSuffixes": ["ted.com", "tedcdn.com", "cloudfront.net"],
+    "urlPatterns": [".vtt", ".webvtt", ".ttml", ".dfxp", "subtitle", "caption"]
+  }
+}

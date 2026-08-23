@@ -1,0 +1,36 @@
+{
+  "id": "disney-plus",
+  "version": 1,
+  "name": "Disney+ / Hotstar",
+  "parser": "dom",
+  "priority": 42,
+  "match": {
+    "hostnameSuffixes": ["disneyplus.com", "hotstar.com", "starplus.com"]
+  },
+  "selectors": {
+    "video": "video",
+    "captions": [
+      ".dss-subtitle-container",
+      ".shaka-text-container",
+      "[class*='subtitle-container' i]"
+    ],
+    "nativeCaptions": [
+      ".dss-subtitle-container",
+      ".shaka-text-container",
+      "[class*='subtitle-container' i]"
+    ]
+  },
+  "capture": {
+    "formats": ["vtt"],
+    "allowedHostnameSuffixes": [
+      "disneyplus.com",
+      "hotstar.com",
+      "starplus.com",
+      "disney-plus.net",
+      "bamgrid.com",
+      "dssott.com",
+      "starott.com"
+    ],
+    "urlPatterns": [".vtt", ".webvtt", ".m3u8", "subtitles", "manifest"]
+  }
+}
