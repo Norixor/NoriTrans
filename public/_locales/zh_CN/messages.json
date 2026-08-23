@@ -733,5 +733,34 @@
   },
   "imageStatusRequestFailed": {
     "message": "图片翻译请求失败，请检查 Provider 设置后重试。"
-  }
+  },
+  "updateAvailableTitle": {
+    "message": "NorixorTrans $VERSION$ 可更新",
+    "placeholders": { "version": { "content": "$1" } }
+  },
+  "updateAvailableDescription": {
+    "message": "打开 GitHub Release 查看改动并手动安装新版本。"
+  },
+  "updateViewRelease": { "message": "查看版本" },
+  "updateIgnoreVersion": { "message": "忽略此版本" },
+  "updateSettingsTitle": { "message": "版本更新" },
+  "updateSettingsDescription": {
+    "message": "无需新增扩展权限，检查 GitHub 上的最新正式版本。"
+  },
+  "updateAutoCheck": { "message": "自动检查更新" },
+  "updateAutoCheckDescription": {
+    "message": "扩展活跃时最多每 24 小时检查一次；新版本仍需手动安装。"
+  },
+  "updateCheckNow": { "message": "立即检查" },
+  "updateChecking": { "message": "正在检查更新…" },
+  "updateCurrent": {
+    "message": "NorixorTrans $VERSION$ 已是最新版本。",
+    "placeholders": { "version": { "content": "$1" } }
+  },
+  "updateIgnored": {
+    "message": "已忽略版本 $VERSION$。",
+    "placeholders": { "version": { "content": "$1" } }
+  },
+  "updateNeverChecked": { "message": "尚未检查版本更新。" },
+  "updateCheckFailed": { "message": "无法检查 GitHub Release，请稍后重试。" }
 }

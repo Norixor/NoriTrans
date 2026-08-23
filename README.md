@@ -42,7 +42,7 @@ NorixorTrans prefers complete sources before falling back to current-caption col
 
 The repository includes 20 built-in profiles covering standard HTML5, a generic DOM heuristic, YouTube, Netflix, Max/HBO Max, Disney+/Hotstar, Prime Video, Apple TV+, Hulu, Paramount+, Discovery+, Peacock, fuboTV, TED, BBC iPlayer, ZDF, Deutsche Welle, Udemy, Kanopy, and TVer.
 
-Tencent Video is intentionally OCR-only: its DOM, `TextTrack`, and network subtitle paths are excluded. For other sites, a bundled profile describes a supported acquisition strategy; it does not claim that a third-party site has been live-verified for every release.
+A bundled site profile describes a supported subtitle acquisition strategy; it does not claim that a third-party site has been live-verified for every release.
 
 ## Install from source
 
@@ -74,6 +74,7 @@ Unpacked builds do not update automatically. Keep the same extension directory i
 | Chrome local translation      | Chrome's local model runtime        | No text is sent to the configured AI provider. Chrome may download language models.     |
 | OpenAI-compatible translation | The endpoint configured by the user | Only the text segments and bounded translation context required for the active request. |
 | Local subtitle OCR            | Extension-origin Offscreen Document | Screenshots and recognized text are not uploaded and cannot be sent to an AI provider.  |
+| Version update check          | GitHub Releases API                 | No webpage, subtitle, image, provider credential, or translation text is sent.          |
 
 Additional guarantees:
 

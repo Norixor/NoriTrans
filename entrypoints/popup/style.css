@@ -133,6 +133,45 @@ legend {
   background: var(--surface-muted);
 }
 
+.update-banner {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--primary-soft);
+}
+.update-banner[hidden] {
+  display: none;
+}
+.update-banner strong {
+  display: block;
+  font-size: 13px;
+}
+.update-banner p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.update-actions {
+  display: flex;
+  gap: 14px;
+  margin-top: 7px;
+}
+.text-button {
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--primary-hover);
+  font-size: 12px;
+  font-weight: 700;
+}
+.text-button:hover {
+  text-decoration: underline;
+}
+.text-button.muted {
+  color: var(--muted);
+}
+
 .status-section {
   padding: 10px 16px;
   border-bottom: 1px solid var(--border);

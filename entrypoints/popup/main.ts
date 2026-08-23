@@ -1,4 +1,5 @@
 import type { PageStatus, SubtitleStatus } from "@/src/messaging/protocol";
+import type { ExtensionUpdateStatus } from "@/src/update/checker";
 import {
   displayLanguageName,
   SOURCE_LANGUAGES,
@@ -98,6 +99,21 @@ function isSuccessfulAction(value: unknown): value is { ok: true } {
   );
 }
 
+function isUpdateStatus(value: unknown): value is ExtensionUpdateStatus {
+  return (
+    isSuccessfulAction(value) &&
+    "state" in value &&
+    typeof value.state === "string" &&
+    ["never", "current", "available", "ignored", "error"].includes(
+      value.state,
+    ) &&
+    "currentVersion" in value &&
+    typeof value.currentVersion === "string" &&
+    "autoCheckEnabled" in value &&
+    typeof value.autoCheckEnabled === "boolean"
+  );
+}
+
 function subtitleDisplayState(status: SubtitleStatus): SubtitleStatus["state"] {
   if (status.failed > 0) return status.completed > 0 ? "partial" : "error";
   return status.state;
@@ -157,9 +173,42 @@ async function initialize(): Promise<void> {
   const subtitleStatusElement = element<HTMLElement>("subtitle-status");
   const subtitleProgressElement = element<HTMLElement>("subtitle-progress");
   const subtitleDiagnostic = element<HTMLDetailsElement>("subtitle-diagnostic");
+  const updateBanner = element<HTMLElement>("update-banner");
+  const updateTitle = element<HTMLElement>("update-title");
+  const viewUpdateButton = element<HTMLButtonElement>("view-update");
+  const ignoreUpdateButton = element<HTMLButtonElement>("ignore-update");
+  let updateStatus: ExtensionUpdateStatus | undefined;
   let statusRefreshBusy = false;
   let actionBusy = false;
   let pageAvailable = false;
+
+  const renderUpdateStatus = (status: ExtensionUpdateStatus): void => {
+    updateStatus = status;
+    const available =
+      status.state === "available" &&
+      Boolean(status.latestVersion) &&
+      Boolean(status.releaseUrl);
+    updateBanner.hidden = !available;
+    updateTitle.textContent = available
+      ? message("updateAvailableTitle", status.latestVersion)
+      : "";
+  };
+
+  viewUpdateButton.addEventListener("click", () => {
+    if (!updateStatus?.releaseUrl) return;
+    void browser.tabs.create({ url: updateStatus.releaseUrl });
+  });
+  ignoreUpdateButton.addEventListener("click", () => {
+    if (!updateStatus?.latestVersion) return;
+    void browser.runtime
+      .sendMessage({
+        type: "UPDATE_IGNORE",
+        version: updateStatus.latestVersion,
+      })
+      .then((response: unknown) => {
+        if (isUpdateStatus(response)) renderUpdateStatus(response);
+      });
+  });
 
   const updateDiagnostic = (
     diagnostic: HTMLDetailsElement,
@@ -408,6 +457,12 @@ async function initialize(): Promise<void> {
 
   syncForm();
   syncActionAvailability();
+  const initialUpdateStatus: unknown = await browser.runtime.sendMessage({
+    type: "UPDATE_STATUS_GET",
+  });
+  if (isUpdateStatus(initialUpdateStatus)) {
+    renderUpdateStatus(initialUpdateStatus);
+  }
   await refreshStatuses();
   const statusInterval = window.setInterval(() => void refreshStatuses(), 1500);
   window.addEventListener(

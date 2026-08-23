@@ -809,5 +809,36 @@
   },
   "imageStatusRequestFailed": {
     "message": "The image translation request failed. Check the provider settings and retry."
+  },
+  "updateAvailableTitle": {
+    "message": "NorixorTrans $VERSION$ is available",
+    "placeholders": { "version": { "content": "$1" } }
+  },
+  "updateAvailableDescription": {
+    "message": "Open the GitHub release to review the changes and install the new package."
+  },
+  "updateViewRelease": { "message": "View release" },
+  "updateIgnoreVersion": { "message": "Ignore this version" },
+  "updateSettingsTitle": { "message": "Version updates" },
+  "updateSettingsDescription": {
+    "message": "Check the latest stable GitHub release without adding extension permissions."
+  },
+  "updateAutoCheck": { "message": "Automatically check for updates" },
+  "updateAutoCheckDescription": {
+    "message": "Checks at most once every 24 hours while the extension is active. Installation remains manual."
+  },
+  "updateCheckNow": { "message": "Check now" },
+  "updateChecking": { "message": "Checking for updates…" },
+  "updateCurrent": {
+    "message": "NorixorTrans $VERSION$ is up to date.",
+    "placeholders": { "version": { "content": "$1" } }
+  },
+  "updateIgnored": {
+    "message": "Version $VERSION$ is ignored.",
+    "placeholders": { "version": { "content": "$1" } }
+  },
+  "updateNeverChecked": { "message": "No update check has run yet." },
+  "updateCheckFailed": {
+    "message": "Could not check GitHub releases. Try again later."
   }
 }

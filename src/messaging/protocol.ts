@@ -152,6 +152,10 @@ export type BackgroundCommand =
   | { type: "SITE_PROFILE_OVERRIDE_RESTORE"; id: string }
   | { type: "SETTINGS_GET" }
   | { type: "CONTENT_SETTINGS_GET" }
+  | { type: "UPDATE_STATUS_GET" }
+  | { type: "UPDATE_CHECK" }
+  | { type: "UPDATE_AUTO_CHECK_SET"; enabled: boolean }
+  | { type: "UPDATE_IGNORE"; version: string }
   | { type: "SETTINGS_SET"; settings: AppSettings }
   | { type: "TEST_CONNECTION" }
   | { type: "CREDENTIALS_CLEAR" }
@@ -732,8 +736,17 @@ export function isBackgroundCommand(
       );
     case "SETTINGS_SET":
       return isAppSettings(value.settings);
+    case "UPDATE_AUTO_CHECK_SET":
+      return typeof value.enabled === "boolean";
+    case "UPDATE_IGNORE":
+      return (
+        typeof value.version === "string" &&
+        /^v?\d{1,5}(?:\.\d{1,5}){1,3}$/u.test(value.version)
+      );
     case "SETTINGS_GET":
     case "CONTENT_SETTINGS_GET":
+    case "UPDATE_STATUS_GET":
+    case "UPDATE_CHECK":
     case "CACHE_EPOCH_GET":
     case "SITE_PROFILES_GET":
     case "TEST_CONNECTION":

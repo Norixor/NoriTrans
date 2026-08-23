@@ -1,4 +1,4 @@
-# NorixorTrans 0.1.119 Design QA
+# NorixorTrans 0.1.120 Design QA
 
 ## Source targets
 
@@ -12,20 +12,21 @@
 - Quick panel: 336px maximum width, 12px outer radius, 44px tabs, dense two-column settings, structured status/diagnostic regions and unchanged functional IDs.
 - Paper Seal: 40px visible circle inside a 48px interaction target, active indicator, determinate/indeterminate progress ring, edge-reveal marker and 48px hover/focus quick actions.
 - Popup, OCR permission, profile wizard and selected-text translation use the same visual tokens so the selected direction is applied as a system instead of one isolated screen.
+- Update surfaces: the popup and floating panel use a compact release notice, while Settings provides automatic-check, manual-check, view and ignore controls without adding extension permissions.
 - Image translation: translated text uses the same black translucent cue surface as video subtitles, covers the complete detected source-text line while remaining vertically compact, and stays centered over that line. Image progress and error copy no longer render on top of the image; they remain available through the unified floating control. Stale image controls left by an unpacked-extension reload are removed before remounting.
 - Image OCR now reads the hovered `<img>` source directly (`currentSrc`, plus local `data:`/`blob:` handling) instead of cropping a visible-tab screenshot. Cross-origin HTTPS raster images are fetched through the background with type, size and timeout bounds, so extension controls cannot enter the OCR pixels.
 
 ## Local checks
 
-- `pnpm build`: passed for Chrome MV3, version 0.1.119.
-- `pnpm zip`: passed for `.output/norixortrans-0.1.119-chrome.zip`.
+- `pnpm build`: passed for Chrome MV3, version 0.1.120.
+- `pnpm zip`: passed for `.output/norixortrans-0.1.120-chrome.zip`.
 - Automated behavior tests were not run, following the current project acceptance instruction.
 
 ## Browser comparison status
 
 The implementation screenshot is not available in this pass. Reloading the unpacked extension requires opening Chrome's internal extension-management page, and the connected browser session blocked navigation to `chrome://extensions/` by security policy. No workaround or alternate browser session was used.
 
-Consequently, same-viewport pixel comparison, overflow inspection, hover/focus state screenshots, dark-theme rendering and console interaction checks remain pending until the user manually reloads 0.1.119. Source-level dimensions can be checked locally, but this is not equivalent to browser-rendered visual acceptance.
+Consequently, same-viewport pixel comparison, overflow inspection, hover/focus state screenshots, dark-theme rendering and console interaction checks remain pending until the user manually reloads 0.1.120. Source-level dimensions can be checked locally, but this is not equivalent to browser-rendered visual acceptance.
 
 ## Open visual checks after reload
 

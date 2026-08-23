@@ -86,6 +86,13 @@ import {
 } from "@/src/ocr/runtime-storage";
 import type { OcrRuntimeLanguageCode } from "@/src/ocr/runtime-catalog";
 import { selectInstalledOcrRuntime } from "@/src/ocr/languages";
+import {
+  checkForUpdates,
+  getUpdateStatus,
+  ignoreUpdate,
+  initializeUpdateChecker,
+  setAutomaticUpdateChecks,
+} from "@/src/update/checker";
 
 const translationRequestGate = new TranslationRequestGate(8);
 const OCR_CAPTURE_MIN_INTERVAL_MS = Math.max(OCR_SAMPLE_INTERVAL_MS, 550);
@@ -1425,6 +1432,14 @@ async function handleBackgroundCommand(
       return loadSettings();
     case "CONTENT_SETTINGS_GET":
       return toContentSettings(await loadSettings());
+    case "UPDATE_STATUS_GET":
+      return getUpdateStatus();
+    case "UPDATE_CHECK":
+      return checkForUpdates(true);
+    case "UPDATE_AUTO_CHECK_SET":
+      return setAutomaticUpdateChecks(message.enabled);
+    case "UPDATE_IGNORE":
+      return ignoreUpdate(message.version);
     case "SETTINGS_SET":
       await mutateSettings(() => mergeSettings(message.settings));
       return { ok: true };
@@ -1465,6 +1480,8 @@ function commandAllowedFromContentScript(command: BackgroundCommand): boolean {
     command.type === "SUBTITLE_TRACK_SET" ||
     command.type === "SUBTITLE_TRACK_DELETE" ||
     command.type === "CONTENT_SETTINGS_GET" ||
+    command.type === "UPDATE_STATUS_GET" ||
+    command.type === "UPDATE_IGNORE" ||
     command.type === "PAGE_AUTO_TRANSLATE_SET" ||
     command.type === "PAGE_AUTO_TRANSLATE_SITE_SET" ||
     command.type === "PAGE_QUICK_SETTINGS_SET" ||
@@ -1488,11 +1505,14 @@ function isExtensionPageSender(sender: Browser.runtime.MessageSender): boolean {
 
 export default defineBackground(() => {
   void refreshOpenPageContentScripts().catch(() => undefined);
+  void initializeUpdateChecker().catch(() => undefined);
   browser.runtime.onInstalled.addListener(() => {
     void refreshOpenPageContentScripts().catch(() => undefined);
+    void initializeUpdateChecker().catch(() => undefined);
   });
   browser.runtime.onStartup.addListener(() => {
     void refreshOpenPageContentScripts().catch(() => undefined);
+    void initializeUpdateChecker().catch(() => undefined);
   });
   browser.permissions.onRemoved.addListener((removed) => {
     if (!removed.origins?.includes("<all_urls>")) return;

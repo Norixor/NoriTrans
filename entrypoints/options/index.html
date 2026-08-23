@@ -946,6 +946,63 @@
                   ></output>
                 </div>
               </div>
+
+              <div class="visibility-row update-preference-row">
+                <div>
+                  <strong id="update-auto-check-label"
+                    >__MSG_updateAutoCheck__</strong
+                  >
+                  <p id="update-auto-check-description">
+                    __MSG_updateAutoCheckDescription__
+                  </p>
+                </div>
+                <label class="switch-label" for="update-auto-check">
+                  <input
+                    id="update-auto-check"
+                    type="checkbox"
+                    aria-labelledby="update-auto-check-label"
+                    aria-describedby="update-auto-check-description"
+                  />
+                  <span aria-hidden="true"></span>
+                </label>
+              </div>
+
+              <div class="visibility-row update-status-row">
+                <div>
+                  <strong>__MSG_updateSettingsTitle__</strong>
+                  <p>__MSG_updateSettingsDescription__</p>
+                </div>
+                <div class="update-status-actions">
+                  <output id="update-status" class="feedback" aria-live="polite"
+                    >__MSG_updateNeverChecked__</output
+                  >
+                  <div>
+                    <button
+                      id="check-updates"
+                      class="button button-secondary"
+                      type="button"
+                    >
+                      __MSG_updateCheckNow__
+                    </button>
+                    <button
+                      id="view-update"
+                      class="button button-secondary"
+                      type="button"
+                      hidden
+                    >
+                      __MSG_updateViewRelease__
+                    </button>
+                    <button
+                      id="ignore-update"
+                      class="button button-quiet"
+                      type="button"
+                      hidden
+                    >
+                      __MSG_updateIgnoreVersion__
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </section>
         </section>

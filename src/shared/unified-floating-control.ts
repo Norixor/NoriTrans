@@ -1,4 +1,5 @@
 import type { PageStatus, SubtitleStatus } from "@/src/messaging/protocol";
+import type { ExtensionUpdateStatus } from "@/src/update/checker";
 import type { OcrStatus } from "@/src/ocr/types";
 import type { ImageTranslationStatus } from "@/src/image-translation/controller";
 import {
@@ -245,11 +246,31 @@ function createLanguageOption(
   return option;
 }
 
+function isUpdateStatus(value: unknown): value is ExtensionUpdateStatus {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "ok" in value &&
+    value.ok === true &&
+    "state" in value &&
+    typeof value.state === "string" &&
+    ["never", "current", "available", "ignored", "error"].includes(
+      value.state,
+    ) &&
+    "currentVersion" in value &&
+    typeof value.currentVersion === "string"
+  );
+}
+
 export class UnifiedFloatingControl {
   private readonly host = document.createElement("norixor-floating-control");
   private readonly fullscreenPortal = document.createElement("div");
   private readonly panel = document.createElement("section");
   private readonly panelMenu = document.createElement("details");
+  private readonly updateBanner = document.createElement("aside");
+  private readonly updateTitle = document.createElement("span");
+  private readonly updateLink = document.createElement("a");
+  private readonly ignoreUpdateButton = document.createElement("button");
   private readonly launcher = document.createElement("button");
   private readonly quickActions = document.createElement("div");
   private readonly quickTranslateButton = document.createElement("button");
@@ -454,6 +475,22 @@ export class UnifiedFloatingControl {
       '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg>';
     headerActions.append(menu, closeButton);
     header.append(title, headerActions);
+
+    this.updateBanner.className = "update-banner";
+    this.updateBanner.hidden = true;
+    this.updateTitle.className = "update-title";
+    this.updateLink.className = "update-link";
+    this.updateLink.target = "_blank";
+    this.updateLink.rel = "noopener";
+    this.updateLink.textContent = message("updateViewRelease");
+    this.ignoreUpdateButton.type = "button";
+    this.ignoreUpdateButton.className = "update-ignore";
+    this.ignoreUpdateButton.textContent = message("updateIgnoreVersion");
+    this.updateBanner.append(
+      this.updateTitle,
+      this.updateLink,
+      this.ignoreUpdateButton,
+    );
 
     const tablist = document.createElement("div");
     tablist.className = "tablist";
@@ -838,6 +875,7 @@ export class UnifiedFloatingControl {
 
     this.panel.append(
       header,
+      this.updateBanner,
       tablist,
       this.pagePanel,
       this.videoPanel,
@@ -853,6 +891,16 @@ export class UnifiedFloatingControl {
     });
     hidePermanentlyButton.addEventListener("click", () => {
       void this.runHidePermanentlyAction(hidePermanentlyButton);
+    });
+    this.ignoreUpdateButton.addEventListener("click", () => {
+      const version = this.ignoreUpdateButton.dataset.version;
+      if (!version) return;
+      void browser.runtime
+        .sendMessage({ type: "UPDATE_IGNORE", version })
+        .then((response: unknown) => {
+          if (isUpdateStatus(response)) this.renderUpdateStatus(response);
+        })
+        .catch(() => undefined);
     });
     const collapseForSettingsNavigation = (): void => {
       menu.open = false;
@@ -1010,7 +1058,34 @@ export class UnifiedFloatingControl {
     });
     this.restoreStoredPosition();
     void this.restorePersistedPosition();
+    void this.refreshUpdateStatus();
     this.handleFullscreenChange();
+  }
+
+  private renderUpdateStatus(status: ExtensionUpdateStatus): void {
+    const available =
+      status.state === "available" &&
+      Boolean(status.latestVersion) &&
+      Boolean(status.releaseUrl);
+    this.updateBanner.hidden = !available;
+    if (!available || !status.latestVersion || !status.releaseUrl) return;
+    this.updateTitle.textContent = message(
+      "updateAvailableTitle",
+      status.latestVersion,
+    );
+    this.updateLink.href = status.releaseUrl;
+    this.ignoreUpdateButton.dataset.version = status.latestVersion;
+  }
+
+  private async refreshUpdateStatus(): Promise<void> {
+    try {
+      const response: unknown = await browser.runtime.sendMessage({
+        type: "UPDATE_STATUS_GET",
+      });
+      if (isUpdateStatus(response)) this.renderUpdateStatus(response);
+    } catch {
+      this.updateBanner.hidden = true;
+    }
   }
 
   updateSettings(settings: ContentSettings): void {

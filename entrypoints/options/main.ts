@@ -26,6 +26,7 @@ import {
   type OcrRuntimePack,
 } from "@/src/ocr/runtime-catalog";
 import type { OcrRuntimeInfo } from "@/src/messaging/protocol";
+import type { ExtensionUpdateStatus } from "@/src/update/checker";
 import { browser } from "wxt/browser";
 import { DirtyControlTracker } from "./dirty-control-tracker";
 
@@ -70,6 +71,21 @@ function isSuccessfulResponse(value: unknown): value is { ok: true } {
     value !== null &&
     "ok" in value &&
     value.ok === true
+  );
+}
+
+function isUpdateStatus(value: unknown): value is ExtensionUpdateStatus {
+  return (
+    isSuccessfulResponse(value) &&
+    "state" in value &&
+    typeof value.state === "string" &&
+    ["never", "current", "available", "ignored", "error"].includes(
+      value.state,
+    ) &&
+    "currentVersion" in value &&
+    typeof value.currentVersion === "string" &&
+    "autoCheckEnabled" in value &&
+    typeof value.autoCheckEnabled === "boolean"
   );
 }
 
@@ -316,6 +332,11 @@ async function initialize(): Promise<void> {
   const restoreSessionFloatingMessage = element<HTMLOutputElement>(
     "restore-session-floating-message",
   );
+  const updateAutoCheck = element<HTMLInputElement>("update-auto-check");
+  const updateStatusOutput = element<HTMLOutputElement>("update-status");
+  const checkUpdatesButton = element<HTMLButtonElement>("check-updates");
+  const viewUpdateButton = element<HTMLButtonElement>("view-update");
+  const ignoreUpdateButton = element<HTMLButtonElement>("ignore-update");
   const subtitleEnabled = element<HTMLInputElement>("subtitle-enabled");
   const subtitleSourceLanguage = element<HTMLSelectElement>(
     "subtitle-source-language",
@@ -404,6 +425,7 @@ async function initialize(): Promise<void> {
   let builtInProfiles: SubtitleSiteProfile[] = [];
   let customProfiles: SubtitleSiteProfile[] = [];
   let profileOverrides: SubtitleSiteProfile[] = [];
+  let updateStatus: ExtensionUpdateStatus | undefined;
   let ocrRuntimes: OcrRuntimeStatus[] = [];
   let ocrRuntimeCommandPending = false;
   let ocrRuntimePollTimer: number | undefined;
@@ -411,6 +433,52 @@ async function initialize(): Promise<void> {
   let ocrRuntimeFocus:
     { language: string | undefined; action: string | undefined } | undefined;
   const dirtyControls = new DirtyControlTracker();
+
+  const renderUpdateStatus = (status: ExtensionUpdateStatus): void => {
+    updateStatus = status;
+    updateAutoCheck.checked = status.autoCheckEnabled;
+    const version = status.latestVersion ?? status.currentVersion;
+    updateStatusOutput.dataset.tone =
+      status.state === "error"
+        ? "error"
+        : status.state === "available"
+          ? "success"
+          : "";
+    updateStatusOutput.textContent =
+      status.state === "available"
+        ? message("updateAvailableTitle", version)
+        : status.state === "ignored"
+          ? message("updateIgnored", version)
+          : status.state === "error"
+            ? message("updateCheckFailed")
+            : status.state === "never"
+              ? message("updateNeverChecked")
+              : message("updateCurrent", status.currentVersion);
+    const available =
+      status.state === "available" && Boolean(status.releaseUrl);
+    viewUpdateButton.hidden = !available;
+    ignoreUpdateButton.hidden = !available;
+  };
+
+  const refreshUpdateStatus = async (force: boolean): Promise<void> => {
+    checkUpdatesButton.disabled = true;
+    if (force) {
+      updateStatusOutput.dataset.tone = "";
+      updateStatusOutput.textContent = message("updateChecking");
+    }
+    try {
+      const response: unknown = await browser.runtime.sendMessage({
+        type: force ? "UPDATE_CHECK" : "UPDATE_STATUS_GET",
+      });
+      if (!isUpdateStatus(response)) throw new Error("invalid-update-status");
+      renderUpdateStatus(response);
+    } catch {
+      updateStatusOutput.dataset.tone = "error";
+      updateStatusOutput.textContent = message("updateCheckFailed");
+    } finally {
+      checkUpdatesButton.disabled = false;
+    }
+  };
 
   const languageLabel = (code: string): string =>
     code === "auto"
@@ -1648,6 +1716,43 @@ async function initialize(): Promise<void> {
     })();
   });
 
+  updateAutoCheck.addEventListener("change", () => {
+    void (async () => {
+      updateAutoCheck.disabled = true;
+      try {
+        const response: unknown = await browser.runtime.sendMessage({
+          type: "UPDATE_AUTO_CHECK_SET",
+          enabled: updateAutoCheck.checked,
+        });
+        if (!isUpdateStatus(response)) throw new Error("invalid-update-status");
+        renderUpdateStatus(response);
+      } catch {
+        if (updateStatus) renderUpdateStatus(updateStatus);
+        updateStatusOutput.dataset.tone = "error";
+        updateStatusOutput.textContent = message("updateCheckFailed");
+      } finally {
+        updateAutoCheck.disabled = false;
+      }
+    })();
+  });
+  checkUpdatesButton.addEventListener("click", () => {
+    void refreshUpdateStatus(true);
+  });
+  viewUpdateButton.addEventListener("click", () => {
+    if (!updateStatus?.releaseUrl) return;
+    void browser.tabs.create({ url: updateStatus.releaseUrl });
+  });
+  ignoreUpdateButton.addEventListener("click", () => {
+    if (!updateStatus?.latestVersion) return;
+    void (async () => {
+      const response: unknown = await browser.runtime.sendMessage({
+        type: "UPDATE_IGNORE",
+        version: updateStatus?.latestVersion,
+      });
+      if (isUpdateStatus(response)) renderUpdateStatus(response);
+    })();
+  });
+
   const controlIdentifier = (
     control: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement,
   ): string => control.name || control.id;
@@ -1658,6 +1763,7 @@ async function initialize(): Promise<void> {
       control instanceof HTMLSelectElement ||
       control instanceof HTMLTextAreaElement
     ) {
+      if (control.id === "update-auto-check") return;
       const id = controlIdentifier(control);
       dirtyControls.mark(id);
     }
@@ -1745,6 +1851,7 @@ async function initialize(): Promise<void> {
   );
 
   syncForm();
+  void refreshUpdateStatus(false);
   void loadSiteProfiles();
   void loadOcrRuntimes(true).finally(scheduleOcrRuntimePolling);
 }

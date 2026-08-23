@@ -119,6 +119,40 @@ export const UNIFIED_FLOATING_CONTROL_STYLE = `
   }
   .title { min-width: 0; font-size: 15px; font-weight: 720; letter-spacing: -0.01em; overflow-wrap: anywhere; }
   .header-actions { display: flex; align-items: center; }
+  .update-banner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    min-height: 40px;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 12px 5px 16px;
+    border-bottom: 1px solid var(--nt-border-muted);
+    background: color-mix(in srgb, var(--nt-accent) 10%, var(--nt-bg));
+  }
+  .update-banner[hidden] { display: none; }
+  .update-title {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--nt-text);
+    font-size: 11px;
+    font-weight: 680;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .update-link, .update-ignore {
+    min-width: 0;
+    min-height: 28px;
+    padding: 0 3px;
+    border: 0;
+    background: transparent;
+    color: var(--nt-accent-hover);
+    font: 650 10px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .update-link { display: inline-flex; align-items: center; }
+  .update-ignore { color: var(--nt-muted); }
+  .update-link:hover, .update-ignore:hover { background: transparent; text-decoration: underline; }
   .panel-menu { position: relative; }
   .panel-menu > summary {
     display: grid;
