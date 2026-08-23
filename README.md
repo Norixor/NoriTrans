@@ -130,10 +130,6 @@ src/shared/      Settings, errors, diagnostics, and shared controls
 
 See [`AGENTS.md`](./AGENTS.md) for product contracts and acceptance boundaries.
 
-## Current scope
-
-NorixorTrans does not currently generate subtitles from audio, provide AI dubbing, download subtitle files, automate season navigation, or batch-download streaming content. Adding these capabilities requires an explicit review of scope, permissions, privacy, and cost.
-
 ## Contributing and security
 
 Read [`CONTRIBUTING.md`](./CONTRIBUTING.md) before opening a pull request and follow the [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md). Please report vulnerabilities privately as described in [`SECURITY.md`](./SECURITY.md); do not publish credentials, private text, full subtitles, or exploitable details in a public issue.

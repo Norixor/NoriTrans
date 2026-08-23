@@ -130,10 +130,6 @@ src/shared/      设置、错误、诊断和共享控制器
 
 产品契约和完整验收边界见 [`AGENTS.md`](./AGENTS.md)。
 
-## 当前不包含的能力
-
-NorixorTrans 当前不从音频生成字幕、不提供 AI 配音、不下载字幕文件、不自动跳转整季页面，也不批量下载流媒体内容。新增这些能力前需要明确评估范围、权限、隐私和成本。
-
 ## 参与贡献与安全报告
 
 提交 Pull Request 前请阅读 [`CONTRIBUTING.md`](./CONTRIBUTING.md)，并遵守 [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md)。安全漏洞请按照 [`SECURITY.md`](./SECURITY.md) 私下报告，不要在公开 Issue 中发布凭据、私人文本、完整字幕或可直接利用的细节。
