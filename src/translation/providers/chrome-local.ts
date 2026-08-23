@@ -1,4 +1,5 @@
 import { NorixorTransError } from "@/src/shared/errors";
+import { strongScriptSourceLanguageHint } from "@/src/translation/language-detection";
 import {
   assertValidProtectedTranslation,
   protectedTextParts,
@@ -54,6 +55,8 @@ export interface ChromeLocalProviderOptions {
   keepAliveForTask?: boolean;
   /** Re-detects automatic source language per request and pools each language pair. */
   dynamicSourceLanguage?: boolean;
+  /** Falls back to a trusted page language when Chrome detection is unavailable. */
+  fallbackSourceLanguage?: string;
   /** Reports explicit local model preparation without exposing translated text. */
   onDownloadProgress?: (progress: number) => void;
   /** Reports the concrete source language selected for an automatic request. */
@@ -579,8 +582,16 @@ export class ChromeLocalProvider implements TranslationProvider {
       .map((segment) => segment.text)
       .join(" ")
       .slice(0, 1000);
+    const scriptHint = strongScriptSourceLanguageHint(
+      text,
+      this.options.fallbackSourceLanguage,
+    );
+    if (scriptHint) return Promise.resolve(scriptHint);
     if (!this.options.keepAliveForTask || !this.options.dynamicSourceLanguage) {
-      return detectLanguage(text, signal);
+      return this.withSourceLanguageFallback(
+        detectLanguage(text, signal),
+        text,
+      );
     }
     if (!this.languageDetectorPromise) {
       const created = createLanguageDetector(signal);
@@ -591,9 +602,34 @@ export class ChromeLocalProvider implements TranslationProvider {
         }
       });
     }
-    return this.languageDetectorPromise.then((detector) =>
-      detectLanguageWith(detector, text, signal),
+    return this.withSourceLanguageFallback(
+      this.languageDetectorPromise.then((detector) =>
+        detectLanguageWith(detector, text, signal),
+      ),
+      text,
     );
+  }
+
+  private async withSourceLanguageFallback(
+    detected: Promise<string>,
+    text: string,
+  ): Promise<string> {
+    try {
+      return await detected;
+    } catch (error) {
+      if (
+        error instanceof NorixorTransError &&
+        error.code === "provider_unavailable"
+      ) {
+        const fallback =
+          strongScriptSourceLanguageHint(
+            text,
+            this.options.fallbackSourceLanguage,
+          ) ?? this.options.fallbackSourceLanguage;
+        if (fallback) return fallback;
+      }
+      throw error;
+    }
   }
 
   private async createTranslatorForLanguages(

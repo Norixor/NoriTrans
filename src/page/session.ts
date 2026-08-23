@@ -38,6 +38,7 @@ import type {
 import { browser } from "wxt/browser";
 import { runtimeId } from "@/src/shared/runtime-id";
 import { NorixorTransError } from "@/src/shared/errors";
+import { supportedSourceLanguageHint } from "@/src/translation/language-detection";
 
 type StatusListener = (status: PageStatus) => void;
 
@@ -1318,12 +1319,17 @@ export class PageTranslationSession {
   }
 
   private configureLocalProvider(settings: ContentSettings): void {
+    const fallbackSourceLanguage = supportedSourceLanguageHint(
+      document.documentElement.lang,
+    );
     const configuration =
       settings.page.mode === "fast" &&
       settings.provider.fastProvider === "chrome-local"
-        ? [settings.page.sourceLanguage, settings.page.targetLanguage].join(
-            "\u001f",
-          )
+        ? [
+            settings.page.sourceLanguage,
+            settings.page.targetLanguage,
+            fallbackSourceLanguage ?? "",
+          ].join("\u001f")
         : undefined;
     if (configuration === this.localProviderConfiguration) return;
     this.releaseLocalProvider();
@@ -1332,6 +1338,7 @@ export class PageTranslationSession {
       this.localProvider = new ChromeLocalProvider({
         keepAliveForTask: true,
         dynamicSourceLanguage: settings.page.sourceLanguage === "auto",
+        ...(fallbackSourceLanguage ? { fallbackSourceLanguage } : {}),
       });
     }
   }
@@ -1585,12 +1592,14 @@ export class PageTranslationSession {
         };
         let pendingRequestBatch = [...ownedRequestBatch];
         let lastError: unknown;
+        let attempts = 0;
         try {
           for (
             let attempt = 0;
             attempt < AI_BATCH_MAX_ATTEMPTS && pendingRequestBatch.length > 0;
             attempt += 1
           ) {
+            attempts += 1;
             try {
               const attemptedBatch = pendingRequestBatch;
               const results = await this.batchPermits.run(signal, () =>
@@ -1652,7 +1661,7 @@ export class PageTranslationSession {
                 ).length;
                 this.failureDetails ??=
                   lastError.details ??
-                  `Provider error code: ${lastError.code}. This batch received ${receivedRequestIds} of ${ownedRequestBatch.length} requested result IDs; ${ownedRequestBatch.length - receivedRequestIds} result IDs were missing after ${AI_BATCH_MAX_ATTEMPTS} attempts.`;
+                  `Provider error code: ${lastError.code}. Provider message: ${lastError.message.slice(0, 400)}. This batch received ${receivedRequestIds} of ${ownedRequestBatch.length} requested result IDs; ${ownedRequestBatch.length - receivedRequestIds} result IDs were missing after ${attempts} ${attempts === 1 ? "attempt" : "attempts"}.`;
               }
             }
           }

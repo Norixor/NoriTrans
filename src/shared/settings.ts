@@ -39,7 +39,13 @@ export interface PageSettings {
   autoTranslateExcludedSitePatterns: string[];
   floatingButtonEnabled: boolean;
   selectionTranslationEnabled: boolean;
+  selectionTranslationSourceLanguage: string;
+  selectionTranslationTargetLanguage: string;
   selectionTranslationMode: TranslationMode;
+  selectionTranslationAiResponseMode: TranslationResponseMode;
+  /** Empty inherits provider.model. */
+  selectionTranslationModelOverride: string;
+  selectionTranslationDisplayMode: DisplayMode;
 }
 
 export interface SubtitleSettings {
@@ -99,8 +105,11 @@ export const LEGACY_DEFAULT_SYSTEM_PROMPT = [
   "Return exactly one result for every input ID.",
 ].join(" ");
 
-export const DEFAULT_SYSTEM_PROMPT =
+export const PREVIOUS_DEFAULT_SYSTEM_PROMPT =
   "Translate accurately. Preserve meaning, tone, names, terminology, punctuation, and formatting. Use context only for consistency.";
+
+export const DEFAULT_SYSTEM_PROMPT =
+  "Translate every segment faithfully into the target language. Preserve meaning, tone, names, terminology, punctuation, and formatting. Keep code, URLs, and non-language tokens unchanged. Use context only for consistency. Never omit, merge, summarize, explain, or add content. Do not leave translatable source text unchanged. Follow the required output format exactly. If uncertain, return the best faithful translation.";
 
 export const DEFAULT_SETTINGS: AppSettings = {
   uiLanguage: "auto",
@@ -124,7 +133,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
     autoTranslateExcludedSitePatterns: [],
     floatingButtonEnabled: true,
     selectionTranslationEnabled: true,
+    selectionTranslationSourceLanguage: "auto",
+    selectionTranslationTargetLanguage: "zh-CN",
     selectionTranslationMode: "fast",
+    selectionTranslationAiResponseMode: "stream",
+    selectionTranslationModelOverride: "",
+    selectionTranslationDisplayMode: "bilingual",
   },
   subtitles: {
     enabled: true,
@@ -244,7 +258,8 @@ export function mergeSettings(value: unknown): AppSettings {
           : DEFAULT_SETTINGS.provider.model,
       systemPrompt:
         typeof provider.systemPrompt === "string"
-          ? provider.systemPrompt === LEGACY_DEFAULT_SYSTEM_PROMPT
+          ? provider.systemPrompt === LEGACY_DEFAULT_SYSTEM_PROMPT ||
+            provider.systemPrompt === PREVIOUS_DEFAULT_SYSTEM_PROMPT
             ? DEFAULT_SYSTEM_PROMPT
             : provider.systemPrompt
           : DEFAULT_SETTINGS.provider.systemPrompt,
@@ -284,11 +299,39 @@ export function mergeSettings(value: unknown): AppSettings {
         typeof page.selectionTranslationEnabled === "boolean"
           ? page.selectionTranslationEnabled
           : DEFAULT_SETTINGS.page.selectionTranslationEnabled,
+      selectionTranslationSourceLanguage:
+        typeof page.selectionTranslationSourceLanguage === "string"
+          ? page.selectionTranslationSourceLanguage
+          : typeof page.sourceLanguage === "string"
+            ? page.sourceLanguage
+            : DEFAULT_SETTINGS.page.selectionTranslationSourceLanguage,
+      selectionTranslationTargetLanguage:
+        typeof page.selectionTranslationTargetLanguage === "string"
+          ? page.selectionTranslationTargetLanguage
+          : typeof page.targetLanguage === "string"
+            ? page.targetLanguage
+            : DEFAULT_SETTINGS.page.selectionTranslationTargetLanguage,
       selectionTranslationMode:
         page.selectionTranslationMode === "fast" ||
         page.selectionTranslationMode === "ai"
           ? page.selectionTranslationMode
           : pageMode,
+      selectionTranslationAiResponseMode:
+        page.selectionTranslationAiResponseMode === "batch"
+          ? "batch"
+          : page.selectionTranslationAiResponseMode === "stream"
+            ? "stream"
+            : page.aiResponseMode === "batch"
+              ? "batch"
+              : "stream",
+      selectionTranslationModelOverride:
+        typeof page.selectionTranslationModelOverride === "string"
+          ? page.selectionTranslationModelOverride.trim().slice(0, 256)
+          : DEFAULT_SETTINGS.page.selectionTranslationModelOverride,
+      selectionTranslationDisplayMode:
+        page.selectionTranslationDisplayMode === "translated"
+          ? "translated"
+          : "bilingual",
     },
     subtitles: {
       enabled:

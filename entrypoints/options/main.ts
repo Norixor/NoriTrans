@@ -252,6 +252,9 @@ async function requestProviderPermission(settings: AppSettings): Promise<void> {
 async function initialize(): Promise<void> {
   const form = element<HTMLFormElement>("settings-form");
   const pageSettingsTab = element<HTMLButtonElement>("page-settings-tab");
+  const selectionSettingsTab = element<HTMLButtonElement>(
+    "selection-settings-tab",
+  );
   const videoSettingsTab = element<HTMLButtonElement>("video-settings-tab");
   const profilesSettingsTab = element<HTMLButtonElement>(
     "profiles-settings-tab",
@@ -265,6 +268,9 @@ async function initialize(): Promise<void> {
     "visibility-settings-tab",
   );
   const pageSettingsPanel = element<HTMLElement>("page-settings-panel");
+  const selectionSettingsPanel = element<HTMLElement>(
+    "selection-settings-panel",
+  );
   const videoSettingsPanel = element<HTMLElement>("video-settings-panel");
   const profilesSettingsPanel = element<HTMLElement>("profiles-settings-panel");
   const imageSettingsPanel = element<HTMLElement>("image-settings-panel");
@@ -298,8 +304,23 @@ async function initialize(): Promise<void> {
   const selectionTranslationEnabled = element<HTMLInputElement>(
     "selection-translation-enabled",
   );
+  const selectionTranslationSourceLanguage = element<HTMLSelectElement>(
+    "selection-translation-source-language",
+  );
+  const selectionTranslationTargetLanguage = element<HTMLSelectElement>(
+    "selection-translation-target-language",
+  );
   const selectionTranslationMode = element<HTMLSelectElement>(
     "selection-translation-mode",
+  );
+  const selectionTranslationResponseMode = element<HTMLSelectElement>(
+    "selection-translation-response-mode",
+  );
+  const selectionTranslationDisplayMode = element<HTMLSelectElement>(
+    "selection-translation-display-mode",
+  );
+  const selectionTranslationModelOverride = element<HTMLInputElement>(
+    "selection-translation-model-override",
   );
   const floatingControlEnabled = element<HTMLInputElement>(
     "floating-control-enabled",
@@ -348,6 +369,10 @@ async function initialize(): Promise<void> {
   const imageMode = element<HTMLSelectElement>("image-mode");
   const imageDisplayMode = element<HTMLSelectElement>("image-display-mode");
   const imageModelOverride = element<HTMLInputElement>("image-model-override");
+  const imageRuntimeWarning = element<HTMLElement>("image-runtime-warning");
+  const imageRuntimeOpenSettings = element<HTMLButtonElement>(
+    "image-runtime-open-settings",
+  );
   const ocrSelfTest = element<HTMLButtonElement>("ocr-self-test");
   const ocrTestMessage = element<HTMLOutputElement>("ocr-test-message");
   const ocrRuntimeDownloadAll = element<HTMLButtonElement>(
@@ -406,6 +431,7 @@ async function initialize(): Promise<void> {
   let updateStatus: ExtensionUpdateStatus | undefined;
   let ocrRuntimes: OcrRuntimeStatus[] = [];
   let ocrRuntimeCommandPending = false;
+  let ocrRuntimeListLoaded = false;
   let ocrRuntimePollTimer: number | undefined;
   let ocrRuntimeListRequest: Promise<void> | undefined;
   let ocrRuntimeFocus:
@@ -466,6 +492,9 @@ async function initialize(): Promise<void> {
     pageSourceLanguage.add(
       new Option(languageLabel(language.code), language.code),
     );
+    selectionTranslationSourceLanguage.add(
+      new Option(languageLabel(language.code), language.code),
+    );
     subtitleSourceLanguage.add(
       new Option(languageLabel(language.code), language.code),
     );
@@ -475,6 +504,9 @@ async function initialize(): Promise<void> {
   }
   for (const language of TARGET_LANGUAGES) {
     pageTargetLanguage.add(
+      new Option(languageLabel(language.code), language.code),
+    );
+    selectionTranslationTargetLanguage.add(
       new Option(languageLabel(language.code), language.code),
     );
     subtitleTargetLanguage.add(
@@ -488,6 +520,7 @@ async function initialize(): Promise<void> {
   const tabItems = [
     { tab: providerSettingsTab, panel: providerSettingsPanel },
     { tab: pageSettingsTab, panel: pageSettingsPanel },
+    { tab: selectionSettingsTab, panel: selectionSettingsPanel },
     { tab: videoSettingsTab, panel: videoSettingsPanel },
     { tab: profilesSettingsTab, panel: profilesSettingsPanel },
     { tab: imageSettingsTab, panel: imageSettingsPanel },
@@ -523,6 +556,12 @@ async function initialize(): Promise<void> {
       event.preventDefault();
       activateTab(nextIndex, true);
     });
+  });
+  imageRuntimeOpenSettings.addEventListener("click", () => {
+    const runtimeTabIndex = tabItems.findIndex(
+      ({ tab }) => tab === ocrRuntimesTab,
+    );
+    if (runtimeTabIndex >= 0) activateTab(runtimeTabIndex, true);
   });
 
   const syncRangeOutputs = (): void => {
@@ -618,7 +657,21 @@ async function initialize(): Promise<void> {
     pageAutoTranslate.checked = settings.page.autoTranslate;
     selectionTranslationEnabled.checked =
       settings.page.selectionTranslationEnabled;
+    selectionTranslationSourceLanguage.value =
+      settings.page.selectionTranslationSourceLanguage;
+    selectionTranslationTargetLanguage.value =
+      settings.page.selectionTranslationTargetLanguage;
     selectionTranslationMode.value = settings.page.selectionTranslationMode;
+    selectionTranslationResponseMode.value =
+      settings.page.selectionTranslationAiResponseMode;
+    selectionTranslationResponseMode.disabled =
+      settings.page.selectionTranslationMode !== "ai";
+    selectionTranslationModelOverride.value =
+      settings.page.selectionTranslationModelOverride;
+    selectionTranslationModelOverride.disabled =
+      settings.page.selectionTranslationMode !== "ai";
+    selectionTranslationDisplayMode.value =
+      settings.page.selectionTranslationDisplayMode;
     floatingControlEnabled.checked =
       settings.page.floatingButtonEnabled ||
       settings.subtitles.floatingButtonEnabled;
@@ -683,8 +736,20 @@ async function initialize(): Promise<void> {
         ? floatingControlEnabled.checked
         : settings.page.floatingButtonEnabled,
       selectionTranslationEnabled: selectionTranslationEnabled.checked,
+      selectionTranslationSourceLanguage:
+        selectionTranslationSourceLanguage.value,
+      selectionTranslationTargetLanguage:
+        selectionTranslationTargetLanguage.value,
       selectionTranslationMode:
         selectionTranslationMode.value === "ai" ? "ai" : "fast",
+      selectionTranslationAiResponseMode:
+        selectionTranslationResponseMode.value === "batch" ? "batch" : "stream",
+      selectionTranslationModelOverride:
+        selectionTranslationModelOverride.value.trim(),
+      selectionTranslationDisplayMode:
+        selectionTranslationDisplayMode.value === "translated"
+          ? "translated"
+          : "bilingual",
     },
     subtitles: {
       ...settings.subtitles,
@@ -827,7 +892,14 @@ async function initialize(): Promise<void> {
     }, 750);
   };
 
+  const syncImageRuntimeWarning = (): void => {
+    imageRuntimeWarning.hidden =
+      !ocrRuntimeListLoaded ||
+      ocrRuntimes.some((runtime) => runtime.state === "installed");
+  };
+
   const renderOcrRuntimes = (): void => {
+    syncImageRuntimeWarning();
     const focusedRuntimeControl =
       document.activeElement instanceof HTMLElement &&
       ocrRuntimeList.contains(document.activeElement) &&
@@ -1055,6 +1127,7 @@ async function initialize(): Promise<void> {
           throw new Error("ocr-runtime-list-failed");
         }
         ocrRuntimes = response.runtimes;
+        ocrRuntimeListLoaded = true;
         renderOcrRuntimes();
         if (ocrRuntimeMessage.dataset.tone === "error") {
           ocrRuntimeMessage.textContent = "";
@@ -1760,6 +1833,11 @@ async function initialize(): Promise<void> {
   form.addEventListener("change", markDirtyControl);
   pageMode.addEventListener("change", () => {
     pageResponseMode.disabled = pageMode.value !== "ai";
+  });
+  selectionTranslationMode.addEventListener("change", () => {
+    const aiMode = selectionTranslationMode.value === "ai";
+    selectionTranslationResponseMode.disabled = !aiMode;
+    selectionTranslationModelOverride.disabled = !aiMode;
   });
   subtitleMode.addEventListener("change", () => {
     subtitleResponseMode.disabled = subtitleMode.value !== "ai";

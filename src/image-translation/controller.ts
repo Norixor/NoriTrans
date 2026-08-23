@@ -446,6 +446,7 @@ const OVERLAY_STYLE = `
 
 const CONTROL_STYLE = `
   :host { all: initial; position: fixed !important; display: block !important; width: max-content !important; height: max-content !important; z-index: 2147483645 !important; pointer-events: none !important; color-scheme: light dark; }
+  :host([hidden]) { display: none !important; }
   .bar { display: flex; width: max-content; align-items: center; gap: 4px; pointer-events: auto; }
   button { display: inline-grid; min-width: 44px; min-height: 44px; place-items: center; padding: 0 10px; border: 0; border-radius: 8px; background: rgb(8 10 14 / 82%); color: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / 45%); font: 650 12px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; cursor: pointer; }
   button.icon { width: 44px; padding: 0; }

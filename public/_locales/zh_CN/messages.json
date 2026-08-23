@@ -168,14 +168,15 @@
     "message": "调整页面内字幕层的默认显示方式。"
   },
   "settingsTabPage": { "message": "网页翻译" },
+  "settingsTabSelection": { "message": "划词翻译" },
   "settingsTabVideo": { "message": "视频字幕" },
   "settingsTabProfiles": { "message": "站点 Profile" },
   "settingsTabProvider": { "message": "翻译服务" },
   "settingsTabOcrRuntimes": { "message": "OCR 运行时" },
-  "settingsTabVisibility": { "message": "显示记忆" },
-  "visibilitySettingsTitle": { "message": "显示记忆" },
+  "settingsTabVisibility": { "message": "通用设置" },
+  "visibilitySettingsTitle": { "message": "通用设置" },
   "visibilitySettingsDescription": {
-    "message": "统一管理浮动控制的显示状态和本次浏览会话中的隐藏记录。"
+    "message": "管理界面语言、浮窗显示、会话隐藏状态恢复和版本更新。"
   },
   "ocrRuntimesTitle": { "message": "OCR 语言包" },
   "ocrRuntimesDescription": {
@@ -272,6 +273,9 @@
   "selectionTranslationMode": { "message": "划词翻译方式" },
   "selectionTranslationDescription": {
     "message": "选中普通网页文字后显示翻译按钮；只有点击按钮后才会发送文字。"
+  },
+  "selectionTranslationSettingsNote": {
+    "message": "这里的语言、翻译质量和模型设置仅用于划词翻译。"
   },
   "selectionTranslate": { "message": "翻译所选文字" },
   "selectionTranslationTitle": { "message": "划词翻译" },
@@ -696,6 +700,10 @@
   "imageTranslationPrivacy": {
     "message": "图片仅在本地识别；只有识别出的文字会发送到所选翻译 Provider，图片像素绝不上传。"
   },
+  "imageRuntimeMissingWarning": {
+    "message": "尚未安装 OCR 语言包。翻译图片文字前，请先安装至少一个语言包。"
+  },
+  "imageRuntimeOpenSettings": { "message": "打开 OCR 运行时" },
   "imageModelOverride": { "message": "AI 模型覆盖" },
   "imageModelInherit": { "message": "继承全局模型" },
   "imageModelOverrideHelp": { "message": "留空时继承 Provider 设置中的模型。" },
@@ -729,7 +737,7 @@
   },
   "imageStatusBlackFrame": { "message": "图片为空白，无法识别。" },
   "imageStatusRuntimeMissing": {
-    "message": "请先在设置中安装本地识别资源，然后重试。"
+    "message": "尚未安装 OCR 语言包。请打开“设置 > OCR 运行时”，安装语言包后重试。"
   },
   "imageStatusNoText": { "message": "这张图片中未发现可识别文字。" },
   "imageStatusProviderUnavailable": {

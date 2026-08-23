@@ -384,8 +384,20 @@ function isAppSettings(value: unknown): value is AppSettings {
     isAutoTranslateSitePatterns(page.autoTranslateExcludedSitePatterns) &&
     typeof page.floatingButtonEnabled === "boolean" &&
     typeof page.selectionTranslationEnabled === "boolean" &&
+    typeof page.selectionTranslationSourceLanguage === "string" &&
+    page.selectionTranslationSourceLanguage.length > 0 &&
+    page.selectionTranslationSourceLanguage.length <= 64 &&
+    typeof page.selectionTranslationTargetLanguage === "string" &&
+    page.selectionTranslationTargetLanguage.length > 0 &&
+    page.selectionTranslationTargetLanguage.length <= 64 &&
     (page.selectionTranslationMode === "fast" ||
       page.selectionTranslationMode === "ai") &&
+    (page.selectionTranslationAiResponseMode === "stream" ||
+      page.selectionTranslationAiResponseMode === "batch") &&
+    typeof page.selectionTranslationModelOverride === "string" &&
+    page.selectionTranslationModelOverride.length <= 256 &&
+    (page.selectionTranslationDisplayMode === "translated" ||
+      page.selectionTranslationDisplayMode === "bilingual") &&
     typeof subtitles.enabled === "boolean" &&
     typeof subtitles.floatingButtonEnabled === "boolean" &&
     typeof subtitles.sourceLanguage === "string" &&

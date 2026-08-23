@@ -186,14 +186,15 @@
     "message": "Set the default appearance of the in-page subtitle layer."
   },
   "settingsTabPage": { "message": "Page translation" },
+  "settingsTabSelection": { "message": "Selection translation" },
   "settingsTabVideo": { "message": "Video subtitles" },
   "settingsTabProfiles": { "message": "Site profiles" },
   "settingsTabProvider": { "message": "Translation service" },
   "settingsTabOcrRuntimes": { "message": "OCR runtimes" },
-  "settingsTabVisibility": { "message": "Visibility" },
-  "visibilitySettingsTitle": { "message": "Visibility memory" },
+  "settingsTabVisibility": { "message": "General" },
+  "visibilitySettingsTitle": { "message": "General settings" },
   "visibilitySettingsDescription": {
-    "message": "Manage floating-control visibility and hidden items from this browsing session."
+    "message": "Manage the interface language, floating controls, session visibility recovery, and update checks."
   },
   "ocrRuntimesTitle": { "message": "OCR language packs" },
   "ocrRuntimesDescription": {
@@ -298,6 +299,9 @@
   "selectionTranslationMode": { "message": "Selection translation mode" },
   "selectionTranslationDescription": {
     "message": "Show a translation button after you select ordinary page text. Text is sent only after you click the button."
+  },
+  "selectionTranslationSettingsNote": {
+    "message": "These language, quality, and model choices apply only to selection translation."
   },
   "selectionTranslate": { "message": "Translate selected text" },
   "selectionTranslationTitle": { "message": "Selection translation" },
@@ -762,6 +766,10 @@
   "imageTranslationPrivacy": {
     "message": "Images are recognized locally. Only recognized text is sent to the selected translation provider; image pixels are never uploaded."
   },
+  "imageRuntimeMissingWarning": {
+    "message": "No OCR language pack is installed. Install one before translating text in images."
+  },
+  "imageRuntimeOpenSettings": { "message": "Open OCR runtimes" },
   "imageModelOverride": { "message": "AI model override" },
   "imageModelInherit": { "message": "Inherit the global model" },
   "imageModelOverrideHelp": {
@@ -803,7 +811,7 @@
     "message": "The image is blank and cannot be recognized."
   },
   "imageStatusRuntimeMissing": {
-    "message": "Install the local recognition package in Settings, then retry."
+    "message": "No OCR language pack is installed. Open Settings > OCR runtimes, install a language pack, then retry."
   },
   "imageStatusNoText": {
     "message": "No readable text was found in this image."

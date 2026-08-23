@@ -54,6 +54,17 @@
               __MSG_settingsTabPage__
             </button>
             <button
+              id="selection-settings-tab"
+              class="settings-tab"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              aria-controls="selection-settings-panel"
+              tabindex="-1"
+            >
+              __MSG_settingsTabSelection__
+            </button>
+            <button
               id="video-settings-tab"
               class="settings-tab"
               type="button"
@@ -342,21 +353,6 @@
                 aria-label="__MSG_autoTranslateSitesTitle__"
               ></ul>
             </div>
-            <div class="toggle-option selection-translation-option">
-              <label class="switch-label" for="selection-translation-enabled">
-                <input
-                  id="selection-translation-enabled"
-                  name="selection-translation-enabled"
-                  type="checkbox"
-                  aria-describedby="selection-translation-description"
-                />
-                <span aria-hidden="true"></span>
-                <b>__MSG_selectionTranslationEnabled__</b>
-              </label>
-              <p id="selection-translation-description">
-                __MSG_selectionTranslationDescription__
-              </p>
-            </div>
             <div class="form-grid two-columns">
               <label class="field-label" for="page-source-language">
                 <span>__MSG_sourceLanguage__</span>
@@ -379,16 +375,6 @@
                   <option value="ai">__MSG_modeAi__</option>
                 </select>
               </label>
-              <label class="field-label" for="selection-translation-mode">
-                <span>__MSG_selectionTranslationMode__</span>
-                <select
-                  id="selection-translation-mode"
-                  name="selection-translation-mode"
-                >
-                  <option value="fast">__MSG_modeFast__</option>
-                  <option value="ai">__MSG_modeAi__</option>
-                </select>
-              </label>
               <label class="field-label" for="page-response-mode">
                 <span>__MSG_aiResponseMode__</span>
                 <select id="page-response-mode" name="page-response-mode">
@@ -402,6 +388,110 @@
                   <option value="translated">__MSG_pageDisplayReplace__</option>
                   <option value="bilingual">__MSG_pageDisplayAppend__</option>
                 </select>
+              </label>
+            </div>
+          </section>
+
+          <section
+            id="selection-settings-panel"
+            class="settings-section tab-panel"
+            role="tabpanel"
+            aria-labelledby="selection-settings-tab"
+            tabindex="0"
+            hidden
+          >
+            <div class="section-heading section-heading-with-control">
+              <div>
+                <h2>__MSG_selectionTranslationTitle__</h2>
+                <p id="selection-translation-description">
+                  __MSG_selectionTranslationDescription__
+                </p>
+              </div>
+              <label class="switch-label" for="selection-translation-enabled">
+                <input
+                  id="selection-translation-enabled"
+                  name="selection-translation-enabled"
+                  type="checkbox"
+                  aria-describedby="selection-translation-description"
+                />
+                <span aria-hidden="true"></span>
+                <b>__MSG_selectionTranslationEnabled__</b>
+              </label>
+            </div>
+
+            <p class="section-note">__MSG_selectionTranslationSettingsNote__</p>
+            <div class="form-grid two-columns">
+              <label
+                class="field-label"
+                for="selection-translation-source-language"
+              >
+                <span>__MSG_sourceLanguage__</span>
+                <select
+                  id="selection-translation-source-language"
+                  name="selection-translation-source-language"
+                ></select>
+              </label>
+              <label
+                class="field-label"
+                for="selection-translation-target-language"
+              >
+                <span>__MSG_targetLanguage__</span>
+                <select
+                  id="selection-translation-target-language"
+                  name="selection-translation-target-language"
+                ></select>
+              </label>
+              <label class="field-label" for="selection-translation-mode">
+                <span>__MSG_selectionTranslationMode__</span>
+                <select
+                  id="selection-translation-mode"
+                  name="selection-translation-mode"
+                >
+                  <option value="fast">__MSG_modeFast__</option>
+                  <option value="ai">__MSG_modeAi__</option>
+                </select>
+              </label>
+              <label
+                class="field-label"
+                for="selection-translation-response-mode"
+              >
+                <span>__MSG_aiResponseMode__</span>
+                <select
+                  id="selection-translation-response-mode"
+                  name="selection-translation-response-mode"
+                >
+                  <option value="stream">__MSG_responseModeStream__</option>
+                  <option value="batch">__MSG_responseModeBatch__</option>
+                </select>
+              </label>
+              <label
+                class="field-label"
+                for="selection-translation-display-mode"
+              >
+                <span>__MSG_displayMode__</span>
+                <select
+                  id="selection-translation-display-mode"
+                  name="selection-translation-display-mode"
+                >
+                  <option value="translated">__MSG_displayTranslated__</option>
+                  <option value="bilingual">__MSG_displayBilingual__</option>
+                </select>
+              </label>
+              <label
+                class="field-label provider-prompt"
+                for="selection-translation-model-override"
+              >
+                <span>__MSG_imageModelOverride__</span>
+                <input
+                  id="selection-translation-model-override"
+                  name="selection-translation-model-override"
+                  type="text"
+                  maxlength="256"
+                  autocomplete="off"
+                  spellcheck="false"
+                  placeholder="__MSG_imageModelInherit__"
+                />
+                <small>__MSG_imageModelOverrideHelp__</small>
               </label>
             </div>
           </section>
@@ -521,6 +611,21 @@
                 <path d="m9 12 2 2 4-4" />
               </svg>
               <p>__MSG_imageTranslationPrivacy__</p>
+            </div>
+            <div
+              id="image-runtime-warning"
+              class="image-runtime-warning"
+              role="status"
+              hidden
+            >
+              <p>__MSG_imageRuntimeMissingWarning__</p>
+              <button
+                id="image-runtime-open-settings"
+                class="button button-secondary"
+                type="button"
+              >
+                __MSG_imageRuntimeOpenSettings__
+              </button>
             </div>
             <div class="form-grid two-columns">
               <label class="field-label" for="image-source-language">

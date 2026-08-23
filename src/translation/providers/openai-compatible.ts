@@ -305,7 +305,7 @@ function endpoint(baseUrl: string): string {
     : `${normalized}/chat/completions`;
 }
 
-function responseFormat() {
+function responseFormat(expectedResults: number) {
   return {
     type: "json_schema",
     json_schema: {
@@ -317,6 +317,8 @@ function responseFormat() {
         properties: {
           results: {
             type: "array",
+            minItems: expectedResults,
+            maxItems: expectedResults,
             items: {
               type: "array",
               items: { type: "string" },
@@ -1320,7 +1322,9 @@ export class OpenAICompatibleProvider implements TranslationProvider {
       const requestPayload: Record<string, unknown> = {
         ...payload,
         ...(responseFormatMode === "json-schema"
-          ? { response_format: responseFormat() }
+          ? {
+              response_format: responseFormat(wireRequest.segments.length),
+            }
           : responseFormatMode === "json-object"
             ? { response_format: jsonObjectResponseFormat() }
             : {}),

@@ -112,7 +112,7 @@ const STYLE = `
   .translated-text[hidden],
   .error[hidden],
   .copy-button[hidden],
-  [hidden] { display: none; }
+  [hidden] { display: none !important; }
   .card-header,
   .card-actions {
     display: flex;
@@ -316,11 +316,18 @@ function selectionConfigurationChanged(
   return (
     previous.page.selectionTranslationEnabled !==
       next.page.selectionTranslationEnabled ||
-    previous.page.sourceLanguage !== next.page.sourceLanguage ||
-    previous.page.targetLanguage !== next.page.targetLanguage ||
+    previous.page.selectionTranslationSourceLanguage !==
+      next.page.selectionTranslationSourceLanguage ||
+    previous.page.selectionTranslationTargetLanguage !==
+      next.page.selectionTranslationTargetLanguage ||
     previous.page.selectionTranslationMode !==
       next.page.selectionTranslationMode ||
-    previous.page.aiResponseMode !== next.page.aiResponseMode ||
+    previous.page.selectionTranslationAiResponseMode !==
+      next.page.selectionTranslationAiResponseMode ||
+    previous.page.selectionTranslationModelOverride !==
+      next.page.selectionTranslationModelOverride ||
+    previous.page.selectionTranslationDisplayMode !==
+      next.page.selectionTranslationDisplayMode ||
     previous.provider.fastProvider !== next.provider.fastProvider ||
     previous.provider.aiProvider !== next.provider.aiProvider ||
     previous.provider.baseUrl !== next.provider.baseUrl ||
@@ -388,6 +395,7 @@ export class SelectionTranslation {
   private readonly root: ShadowRoot;
   private readonly trigger: HTMLButtonElement;
   private readonly card: HTMLElement;
+  private readonly originalSection: HTMLElement;
   private readonly originalText: HTMLParagraphElement;
   private readonly translatedText: HTMLParagraphElement;
   private readonly loading: HTMLElement;
@@ -466,6 +474,7 @@ export class SelectionTranslation {
     `;
     this.trigger = this.required<HTMLButtonElement>(".translate-trigger");
     this.card = this.required<HTMLElement>(".card");
+    this.originalSection = this.required<HTMLElement>(".original-section");
     this.originalText = this.required<HTMLParagraphElement>(".original-text");
     this.translatedText =
       this.required<HTMLParagraphElement>(".translated-text");
@@ -649,6 +658,8 @@ export class SelectionTranslation {
     this.host.dataset.state = state;
     this.trigger.hidden = true;
     this.card.hidden = false;
+    this.originalSection.hidden =
+      this.settings.page.selectionTranslationDisplayMode === "translated";
     this.originalText.textContent = snapshot.text;
     this.loading.hidden = state !== "loading";
     this.translatedText.hidden = state !== "translated";
@@ -712,9 +723,10 @@ export class SelectionTranslation {
     ) {
       return undefined;
     }
-    return [settings.page.sourceLanguage, settings.page.targetLanguage].join(
-      "\u001f",
-    );
+    return [
+      settings.page.selectionTranslationSourceLanguage,
+      settings.page.selectionTranslationTargetLanguage,
+    ].join("\u001f");
   }
 
   private ensureLocalProvider(
@@ -771,12 +783,18 @@ export class SelectionTranslation {
     this.showCard("loading");
     this.card.focus({ preventScroll: true });
     const request: TranslationRequest = {
-      sourceLanguage: this.settings.page.sourceLanguage,
-      targetLanguage: this.settings.page.targetLanguage,
+      sourceLanguage: this.settings.page.selectionTranslationSourceLanguage,
+      targetLanguage: this.settings.page.selectionTranslationTargetLanguage,
       mode: this.settings.page.selectionTranslationMode,
-      responseMode: this.settings.page.aiResponseMode,
+      responseMode: this.settings.page.selectionTranslationAiResponseMode,
       scope: `selection:${location.origin}${location.pathname}`,
       segments: [{ id: SELECTION_SEGMENT_ID, text: snapshot.text }],
+      ...(this.settings.page.selectionTranslationMode === "ai" &&
+      this.settings.page.selectionTranslationModelOverride
+        ? {
+            modelOverride: this.settings.page.selectionTranslationModelOverride,
+          }
+        : {}),
     };
     let hasSuccessfulResult = false;
     const applySuccessfulResult = (result: TranslationResult): boolean => {

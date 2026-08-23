@@ -46,6 +46,9 @@
 * {
   box-sizing: border-box;
 }
+[hidden] {
+  display: none !important;
+}
 html:not([data-localized="true"]) {
   visibility: hidden;
 }
@@ -257,6 +260,25 @@ h1 {
   border-radius: 0;
   background: transparent;
   color: var(--muted);
+}
+.image-runtime-warning {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 14px 8px 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--primary);
+  background: color-mix(in srgb, var(--primary) 6%, transparent);
+}
+.image-runtime-warning p {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+}
+.image-runtime-warning .button {
+  flex: 0 0 auto;
 }
 .privacy-note svg {
   flex: 0 0 20px;
@@ -596,12 +618,6 @@ output {
   font-size: 13px;
   overflow-wrap: anywhere;
 }
-.selection-translation-option {
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border);
-}
-
 .ocr-settings {
   display: flex;
   min-height: 88px;
@@ -1361,14 +1377,12 @@ textarea {
   color: var(--primary);
 }
 
-.selection-translation-option,
 .auto-translate-site-rules,
 .site-profiles-section,
 .data-section {
   border-top-color: var(--border);
 }
 
-.selection-translation-option,
 .auto-translate-site-rules {
   margin-right: 8px;
   margin-left: 8px;
@@ -1666,7 +1680,6 @@ textarea {
 
   .form-grid,
   .toggle-option,
-  .selection-translation-option,
   .auto-translate-site-rules,
   .ocr-settings,
   .visibility-list,

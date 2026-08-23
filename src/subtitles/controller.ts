@@ -56,6 +56,11 @@ import { subscribeTranslationProgress } from "@/src/translation/progress-channel
 import { browser } from "wxt/browser";
 import { runtimeId } from "@/src/shared/runtime-id";
 import { localizeRuntimeError } from "@/src/shared/runtime-errors";
+import {
+  requiresAutomaticHanDetection,
+  strongScriptSourceLanguageHint,
+  supportedSourceLanguageHint,
+} from "@/src/translation/language-detection";
 
 export interface SubtitleTranslationCache {
   get(key: string): Promise<string | undefined>;
@@ -204,27 +209,20 @@ function translationSourceLanguage(
   settings: SubtitleSettings,
 ): string {
   const resolved = resolvedSourceLanguage(track, settings);
-  if (track.source !== "ocr" || resolved !== "auto") return resolved;
+  if (resolved !== "auto") return resolved;
   const sample = cues
     .map((cue) => cue.originalText)
     .join(" ")
     .slice(0, 1_000);
-  return automaticOcrTranslationSourceLanguage(sample);
-}
-
-function automaticOcrTranslationSourceLanguage(sample: string): string {
-  if (/\p{Script=Hangul}/u.test(sample)) return "ko";
-  if (/[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(sample)) return "ja";
-  // Han-only text is ambiguous: natural Japanese captions frequently contain
-  // no kana. Let Chrome's local LanguageDetector resolve it instead of
-  // poisoning Japanese translations and cache entries as Simplified Chinese.
-  return "auto";
-}
-
-function requiresAutomaticHanDetection(sample: string): boolean {
+  const declaredLanguage = supportedSourceLanguageHint(
+    document.documentElement.lang,
+  );
   return (
-    /\p{Script=Han}/u.test(sample) &&
-    !/[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(sample)
+    strongScriptSourceLanguageHint(
+      sample,
+      declaredLanguage,
+      track.source !== "ocr",
+    ) ?? "auto"
   );
 }
 
@@ -310,7 +308,8 @@ function cacheKey(
   const effectiveSourceLanguage =
     sourceLanguageOverride ??
     (track.source === "ocr" && resolvedLanguage === "auto"
-      ? automaticOcrTranslationSourceLanguage(segment.text)
+      ? (strongScriptSourceLanguageHint(segment.text, undefined, false) ??
+        resolvedLanguage)
       : resolvedLanguage);
   return [
     "subtitle-v1",
