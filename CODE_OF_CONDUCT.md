@@ -1,59 +1,81 @@
-# 贡献者行为准则
+# Contributor Code of Conduct
 
-## 我们的承诺
+## Our Pledge
 
-我们承诺为所有参与者提供开放、友善、包容且无骚扰的社区环境，不因年龄、体型、
-残障、族裔、性别特征、性别认同与表达、经验水平、教育程度、社会经济状况、国籍、
-个人外貌、种族、宗教或性与性取向而区别对待。
+We pledge to provide an open, welcoming, inclusive, and harassment-free
+community environment for everyone, regardless of age, body size, disability,
+ethnicity, sex characteristics, gender identity and expression, level of
+experience, education, socioeconomic status, nationality, personal appearance,
+race, religion, or sexual identity and orientation.
 
-我们会以有助于建立开放、友善、多元、包容和健康社区的方式行事与互动。
+We will act and interact in ways that contribute to an open, welcoming,
+diverse, inclusive, and healthy community.
 
-## 行为标准
+## Our Standards
 
-有助于营造积极环境的行为包括：
+Examples of behavior that contributes to a positive environment include:
 
-- 展示同理心和善意；
-- 尊重不同观点、经历和语言背景；
-- 提供并礼貌接受建设性反馈；
-- 承担责任，向受影响者道歉并从经历中学习；
-- 优先考虑整个社区，而不仅是个人利益。
+- Demonstrating empathy and kindness;
+- Respecting differing opinions, experiences, and language backgrounds;
+- Giving and gracefully accepting constructive feedback;
+- Accepting responsibility, apologizing to those affected, and learning from
+  the experience;
+- Focusing on what is best for the community as a whole, not only for
+  individual interests.
 
-不可接受的行为包括：
+Examples of unacceptable behavior include:
 
-- 带有性暗示的言语或图像，以及不受欢迎的性关注或挑逗；
-- 挑衅、侮辱、贬损性评论，以及人身或政治攻击；
-- 公开或私下骚扰；
-- 未经明确许可发布他人的私人信息；
-- 在专业环境中可合理视为不当的其他行为。
+- The use of sexualized language or imagery, and sexual attention or advances
+  of any kind;
+- Trolling, insulting or derogatory comments, and personal or political
+  attacks;
+- Public or private harassment;
+- Publishing another person's private information without explicit permission;
+- Other conduct that could reasonably be considered inappropriate in a
+  professional setting.
 
-## 执行责任
+## Enforcement Responsibilities
 
-项目维护者负责解释和执行本准则，并会对其认为不当、威胁、冒犯或有害的行为采取
-公平且适当的纠正措施。维护者有权删除、编辑或拒绝不符合本准则的评论、提交、代码、
-issue 和其他贡献，并在适当时说明处理理由。
+Project maintainers are responsible for clarifying and enforcing this Code of
+Conduct. They will take fair and appropriate corrective action in response to
+behavior they consider inappropriate, threatening, offensive, or harmful.
+Maintainers have the right and responsibility to remove, edit, or reject
+comments, commits, code, issues, and other contributions that do not comply
+with this Code of Conduct, and will communicate the reasons for moderation
+decisions when appropriate.
 
-## 适用范围
+## Scope
 
-本准则适用于项目空间，也适用于个人在公共场合代表本项目或社区的情形，例如使用
-项目官方账号、从官方邮箱发言或作为指定代表参加活动。
+This Code of Conduct applies within all project spaces. It also applies when an
+individual officially represents the project or its community in public,
+including when using an official project account, posting through an official
+email address, or acting as an appointed representative at an event.
 
-## 报告与执行
+## Reporting and Enforcement
 
-如需报告辱骂、骚扰或其他不可接受的行为，请联系项目维护者。需要保密时，可通过
-GitHub 仓库 **Security** 页面的 **Report a vulnerability** 私下提交，并在标题中
-注明“Code of Conduct”。如果该入口不可用，请创建不含敏感细节的 issue，请求私下
-联系渠道。
+Instances of abusive, harassing, or otherwise unacceptable behavior may be
+reported to the project maintainers. When confidentiality is required, use
+**Report a vulnerability** on the GitHub repository's **Security** page and
+include “Code of Conduct” in the report title. If that option is unavailable,
+open an issue without sensitive details and request a private contact channel.
 
-所有投诉都会得到审查和调查，并以适合具体情况的方式处理。维护者有义务保护报告者
-的隐私和安全。善意报告者不会因提交报告而受到报复。
+All complaints will be reviewed and investigated, and will result in a response
+that is necessary and appropriate to the circumstances. Maintainers are
+obligated to respect the privacy and security of the reporter. Good-faith
+reporters will not face retaliation for submitting a report.
 
-## 执行指南
+## Enforcement Guidelines
 
-维护者会依据影响、持续时间和行为模式采取与情形相称的措施，包括私下提醒、正式
-警告、临时限制互动，或永久移除社区参与权限。对直接威胁他人安全、持续骚扰或明显
-违反社区标准的行为，可以立即采取更严格措施。
+Maintainers will use measures proportionate to the impact, duration, and pattern
+of the behavior. These measures may include a private reminder, a formal
+warning, a temporary restriction on interaction, or permanent removal of
+community participation privileges. More serious action may be taken
+immediately in response to direct threats to another person's safety,
+persistent harassment, or clear violations of community standards.
 
-## 来源
+## Attribution
 
-本准则改编自 [Contributor Covenant 2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct.html)。
-其社区影响指南参考了 [Mozilla 的行为准则执行阶梯](https://github.com/mozilla/diversity)。
+This Code of Conduct is adapted from the
+[Contributor Covenant, version 2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct.html).
+Its community impact guidance also draws from
+[Mozilla's code of conduct enforcement ladder](https://github.com/mozilla/diversity).
