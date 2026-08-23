@@ -38,7 +38,10 @@ import type {
 import { browser } from "wxt/browser";
 import { runtimeId } from "@/src/shared/runtime-id";
 import { NorixorTransError } from "@/src/shared/errors";
-import { supportedSourceLanguageHint } from "@/src/translation/language-detection";
+import {
+  detectDominantSourceLanguage,
+  supportedSourceLanguageHint,
+} from "@/src/translation/language-detection";
 
 type StatusListener = (status: PageStatus) => void;
 
@@ -1369,6 +1372,23 @@ export class PageTranslationSession {
     const documentSegments = [...allDocumentSegments].sort(
       (left, right) => left.documentOrder - right.documentOrder,
     );
+    const declaredSourceLanguage = supportedSourceLanguageHint(
+      document.documentElement.lang,
+    );
+    const sourceLanguage =
+      settings.page.sourceLanguage === "auto"
+        ? ((await detectDominantSourceLanguage(
+            documentSegments.map((segment) => segment.text),
+            declaredSourceLanguage,
+          )) ?? "auto")
+        : settings.page.sourceLanguage;
+    if (
+      signal.aborted ||
+      this.controller !== controller ||
+      pageTranslationScope() !== translationScope
+    ) {
+      return;
+    }
 
     const prioritizedSegments = prioritizeSegmentsForViewport(segments);
     const contextualizedSegments = pageTranslationSegments(
@@ -1376,7 +1396,7 @@ export class PageTranslationSession {
       prioritizedSegments,
       settings.page.mode === "ai",
     );
-    const configurationIdentity = `${translationScope}\u001f${pageTranslationConfigurationIdentity(settings)}`;
+    const configurationIdentity = `${translationScope}\u001f${pageTranslationConfigurationIdentity(settings)}\u001f${sourceLanguage}`;
     const translationsByReuseIdentity =
       this.translationsByConfiguration.get(configurationIdentity) ??
       new Map<string, string>();
@@ -1607,6 +1627,7 @@ export class PageTranslationSession {
                   attemptedBatch,
                   documentSegments,
                   settings,
+                  sourceLanguage,
                   signal,
                   applyOwnedResult,
                   localProvider,
@@ -1735,6 +1756,7 @@ export class PageTranslationSession {
     segments: PageSegment[],
     documentSegments: PageSegment[],
     settings: ContentSettings,
+    sourceLanguage: string,
     signal: AbortSignal,
     onProgress?: (result: TranslationResult) => void,
     localProvider?: ChromeLocalProvider,
@@ -1781,7 +1803,7 @@ export class PageTranslationSession {
       }
     };
     const request = {
-      sourceLanguage: settings.page.sourceLanguage,
+      sourceLanguage,
       targetLanguage: settings.page.targetLanguage,
       mode: settings.page.mode,
       responseMode: settings.page.aiResponseMode,

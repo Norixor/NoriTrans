@@ -12,6 +12,7 @@ export default defineConfig({
   }),
   manifestVersion: 3,
   manifest: {
+    key: "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAiKBRSYHP1GlVr5yrbbVEHAVRkRsT1VUHBQlc88Lh8QZwY/VCoC4XqF9AA3rG1VxgKtCcsx0/rZqIXZFK1VoHtFRiq227WlkHBBw3FgtxRKlylD5EgUBWm2h1QQ/zTcngCmucCk+4U/97qCVzhZGElvvY6zzOsTL4gNHvvi3VxsHnlk/1XmukRmVnUiowshxupxbR4hGNRmfFtOS3ZgyW7sL6Vh540YxNaulx72/5RADZVlifwhd0eMm6N/NQW1qGQm0Z+bDpQdx6AVpgRXknKP1+2DsvNU5RAbaT3Pvb1RT+atjzEfehBm2w4gKRkxDmKXxqTHXVUQzZgHDuwd758wIDAQAB",
     name: "__MSG_extensionName__",
     description: "__MSG_extensionDescription__",
     default_locale: "en",

@@ -1,5 +1,5 @@
 import { NorixorTransError } from "@/src/shared/errors";
-import { strongScriptSourceLanguageHint } from "@/src/translation/language-detection";
+import { dominantScriptSourceLanguageHint } from "@/src/translation/language-detection";
 import {
   assertValidProtectedTranslation,
   protectedTextParts,
@@ -582,7 +582,7 @@ export class ChromeLocalProvider implements TranslationProvider {
       .map((segment) => segment.text)
       .join(" ")
       .slice(0, 1000);
-    const scriptHint = strongScriptSourceLanguageHint(
+    const scriptHint = dominantScriptSourceLanguageHint(
       text,
       this.options.fallbackSourceLanguage,
     );
@@ -622,7 +622,7 @@ export class ChromeLocalProvider implements TranslationProvider {
         error.code === "provider_unavailable"
       ) {
         const fallback =
-          strongScriptSourceLanguageHint(
+          dominantScriptSourceLanguageHint(
             text,
             this.options.fallbackSourceLanguage,
           ) ?? this.options.fallbackSourceLanguage;

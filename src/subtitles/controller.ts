@@ -57,8 +57,9 @@ import { browser } from "wxt/browser";
 import { runtimeId } from "@/src/shared/runtime-id";
 import { localizeRuntimeError } from "@/src/shared/runtime-errors";
 import {
+  detectDominantSourceLanguage,
+  dominantScriptSourceLanguageHint,
   requiresAutomaticHanDetection,
-  strongScriptSourceLanguageHint,
   supportedSourceLanguageHint,
 } from "@/src/translation/language-detection";
 
@@ -218,7 +219,7 @@ function translationSourceLanguage(
     document.documentElement.lang,
   );
   return (
-    strongScriptSourceLanguageHint(
+    dominantScriptSourceLanguageHint(
       sample,
       declaredLanguage,
       track.source !== "ocr",
@@ -308,7 +309,7 @@ function cacheKey(
   const effectiveSourceLanguage =
     sourceLanguageOverride ??
     (track.source === "ocr" && resolvedLanguage === "auto"
-      ? (strongScriptSourceLanguageHint(segment.text, undefined, false) ??
+      ? (dominantScriptSourceLanguageHint(segment.text, undefined, false) ??
         resolvedLanguage)
       : resolvedLanguage);
   return [
@@ -645,6 +646,7 @@ export class SubtitleController {
   private ocrLocalProvider: ChromeLocalProvider | undefined;
   private ocrLocalProviderTargetLanguage = "";
   private ocrDetectedSourceLanguage = "";
+  private detectedFullTrackSourceLanguage = "";
   private readonly ocrResolvedSourceLanguageByCueId = new Map<string, string>();
   private readonly inFlightCueIds = new Set<string>();
   private readonly pendingStreamCueIds = new Set<string>();
@@ -1657,6 +1659,16 @@ export class SubtitleController {
 
   private async translateFullTrack(track: SubtitleTrack): Promise<void> {
     const run = this.beginSession();
+    this.detectedFullTrackSourceLanguage = "";
+    if (resolvedSourceLanguage(track, this.settings) === "auto") {
+      this.detectedFullTrackSourceLanguage =
+        (await detectDominantSourceLanguage(
+          track.cues.map((cue) => cue.originalText),
+          supportedSourceLanguageHint(document.documentElement.lang),
+          track.source !== "ocr",
+        )) ?? "";
+      if (run !== this.session) return;
+    }
     const mode = translationModeForTrack(track, this.settings);
     const mediaTitle = mediaTitleForTranslation(track, mode);
     const mediaScope = translationCacheScope(this.cacheScope(), mediaTitle);
@@ -1725,7 +1737,7 @@ export class SubtitleController {
                       "primary",
                       this.providerSettings,
                     ),
-                    translationSourceLanguage(track, [cue], this.settings),
+                    this.runtimeTranslationSourceLanguage(track, [cue]),
                   ),
                   PROVIDER_CACHE_READ_TIMEOUT_MS,
                 )
@@ -2467,6 +2479,13 @@ export class SubtitleController {
     track: SubtitleTrack,
     cues: readonly SubtitleCue[],
   ): string {
+    if (
+      track.completeness === "full" &&
+      this.settings.sourceLanguage === "auto" &&
+      this.detectedFullTrackSourceLanguage
+    ) {
+      return this.detectedFullTrackSourceLanguage;
+    }
     if (track.source === "ocr" && this.settings.sourceLanguage === "auto") {
       const resolvedLanguages = new Set(
         cues

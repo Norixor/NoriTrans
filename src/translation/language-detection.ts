@@ -1,5 +1,14 @@
 import { SOURCE_LANGUAGES } from "@/src/shared/languages";
 
+const LANGUAGE_SAMPLE_MAX_CHARACTERS = 20_000;
+
+interface ScriptCounts {
+  han: number;
+  hangul: number;
+  kana: number;
+  latin: number;
+}
+
 function normalizedLanguageParts(code: string): string[] {
   return code
     .trim()
@@ -39,22 +48,139 @@ export function supportedSourceLanguageHint(code: string): string | undefined {
   )?.code;
 }
 
-/** Returns only high-confidence Unicode script matches suitable for bypassing a model. */
-export function strongScriptSourceLanguageHint(
-  text: string,
+/** Builds one bounded document-level sample instead of detecting each request batch. */
+export function buildLanguageDetectionSample(
+  texts: readonly string[],
+  maxCharacters = LANGUAGE_SAMPLE_MAX_CHARACTERS,
+): string {
+  const parts: string[] = [];
+  let remaining = Math.max(0, maxCharacters);
+  for (const text of texts) {
+    const separatorLength = parts.length > 0 ? 1 : 0;
+    if (remaining <= separatorLength) break;
+    const normalized = text.normalize("NFKC").replace(/\s+/gu, " ").trim();
+    if (!normalized) continue;
+    const part = normalized.slice(0, remaining - separatorLength);
+    parts.push(part);
+    remaining -= part.length + separatorLength;
+  }
+  return parts.join(" ").slice(0, maxCharacters);
+}
+
+function countScripts(text: string): ScriptCounts {
+  return {
+    han: text.match(/\p{Script=Han}/gu)?.length ?? 0,
+    hangul: text.match(/\p{Script=Hangul}/gu)?.length ?? 0,
+    kana: text.match(/[\p{Script=Hiragana}\p{Script=Katakana}]/gu)?.length ?? 0,
+    latin: text.match(/\p{Script=Latin}/gu)?.length ?? 0,
+  };
+}
+
+function chineseLanguage(declaredLanguage: string | undefined): string {
+  return declaredLanguage === "zh-Hant" ? "zh-Hant" : "zh-CN";
+}
+
+/** Returns the dominant supported script family without loading a detector model. */
+export function dominantScriptSourceLanguageHint(
+  texts: string | readonly string[],
   declaredLanguage: string | undefined,
   resolveAmbiguousHan = true,
 ): string | undefined {
-  if (/[\uac00-\ud7af\u1100-\u11ff]/u.test(text)) return "ko";
-  if (/[\u3040-\u30ff\u31f0-\u31ff]/u.test(text)) return "ja";
-  if (/[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/u.test(text)) {
-    if (declaredLanguage === "ja" || declaredLanguage === "ko") {
-      return declaredLanguage;
-    }
-    if (!resolveAmbiguousHan) return undefined;
-    return declaredLanguage === "zh-Hant" ? "zh-Hant" : "zh-CN";
+  const sample =
+    typeof texts === "string" ? texts : buildLanguageDetectionSample(texts);
+  const counts = countScripts(sample);
+  const candidates: Array<{ language: string; count: number }> = [];
+
+  if (counts.kana > 0) {
+    candidates.push({ language: "ja", count: counts.kana + counts.han });
+  } else if (counts.han > 0 && resolveAmbiguousHan) {
+    candidates.push({
+      language:
+        declaredLanguage === "ja" || declaredLanguage === "ko"
+          ? declaredLanguage
+          : chineseLanguage(declaredLanguage),
+      count: counts.han,
+    });
+  } else if (
+    counts.han > 0 &&
+    (declaredLanguage === "zh-CN" || declaredLanguage === "zh-Hant")
+  ) {
+    candidates.push({
+      language: chineseLanguage(declaredLanguage),
+      count: counts.han,
+    });
   }
-  return undefined;
+
+  if (counts.hangul > 0) {
+    candidates.push({ language: "ko", count: counts.hangul });
+  }
+  if (counts.latin > 0 && declaredLanguage) {
+    const declaredPrimary = supportedSourceLanguageHint(declaredLanguage);
+    if (["en", "es", "fr", "de"].includes(declaredPrimary ?? "")) {
+      candidates.push({ language: declaredPrimary!, count: counts.latin });
+    }
+  }
+
+  candidates.sort((left, right) => right.count - left.count);
+  const dominant = candidates[0];
+  if (!dominant || dominant.count === 0) return undefined;
+  const runnerUp = candidates[1];
+  if (runnerUp && runnerUp.count === dominant.count) {
+    return candidates.find(
+      (candidate) => candidate.language === declaredLanguage,
+    )?.language;
+  }
+  return dominant.language;
+}
+
+/**
+ * Detects the dominant language with Chrome's CLD implementation and falls
+ * back to deterministic script counts when the native result is unavailable.
+ */
+export async function detectDominantSourceLanguage(
+  texts: string | readonly string[],
+  declaredLanguage: string | undefined,
+  resolveAmbiguousHan = true,
+): Promise<string | undefined> {
+  const sample =
+    typeof texts === "string"
+      ? texts
+          .normalize("NFKC")
+          .replace(/\s+/gu, " ")
+          .trim()
+          .slice(0, LANGUAGE_SAMPLE_MAX_CHARACTERS)
+      : buildLanguageDetectionSample(texts);
+  if (!sample) return declaredLanguage;
+
+  try {
+    const result = await chrome.i18n.detectLanguage(sample);
+    const candidates = result.languages
+      .map((candidate) => ({
+        language: supportedSourceLanguageHint(candidate.language),
+        percentage: candidate.percentage,
+      }))
+      .sort((left, right) => right.percentage - left.percentage);
+    const dominant = candidates[0];
+    const runnerUp = candidates[1];
+    if (
+      dominant?.language &&
+      (result.isReliable || dominant.percentage >= 40) &&
+      (!runnerUp || dominant.percentage > runnerUp.percentage)
+    ) {
+      return dominant.language === "zh-CN"
+        ? chineseLanguage(declaredLanguage)
+        : dominant.language;
+    }
+  } catch {
+    // Content scripts on restricted pages can lack this API. Script counting
+    // remains deterministic and does not require a downloaded model.
+  }
+
+  return dominantScriptSourceLanguageHint(
+    sample,
+    declaredLanguage,
+    resolveAmbiguousHan,
+  );
 }
 
 /** Identifies Han-only samples that still need statistical language detection. */
