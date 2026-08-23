@@ -1,5 +1,9 @@
 import { NorixorTransError } from "@/src/shared/errors";
-import { assertValidProtectedTranslation } from "@/src/translation/protected-text";
+import {
+  assertValidProtectedTranslation,
+  protectedTextParts,
+  rebuildProtectedTranslation,
+} from "@/src/translation/protected-text";
 import type {
   ProviderCapabilities,
   TranslationProvider,
@@ -338,14 +342,51 @@ export class ChromeLocalProvider implements TranslationProvider {
     }
 
     return Promise.all(
-      segments.map(async (segment) => {
-        const translatedText = await this.withTranslationPermit(signal, () =>
-          translator.translate(segment.text, { signal }),
+      segments.map((segment) =>
+        this.translateSegment(translator, segment, signal),
+      ),
+    );
+  }
+
+  private async translateSegment(
+    translator: ChromeTranslatorInstance,
+    segment: TranslationRequest["segments"][number],
+    signal: AbortSignal,
+  ): Promise<TranslationResult> {
+    const translatedText = await this.withTranslationPermit(signal, () =>
+      translator.translate(segment.text, { signal }),
+    );
+    try {
+      assertValidProtectedTranslation(segment, translatedText);
+      return { id: segment.id, translatedText };
+    } catch (error) {
+      if (
+        !(error instanceof NorixorTransError) ||
+        error.code !== "invalid_response" ||
+        segment.format !== "protected-text-v1"
+      ) {
+        throw error;
+      }
+    }
+
+    // Chrome's local model may legitimately reorder private-use markers while
+    // translating an inline-heavy sentence. Retry only that sentence's text
+    // parts, then rebuild the exact source-node contract locally.
+    const translatedParts = await Promise.all(
+      protectedTextParts(segment.text).map((part) => {
+        if (!/[\p{L}\p{N}]/u.test(part)) return Promise.resolve(part);
+        return this.withTranslationPermit(signal, () =>
+          translator.translate(part, { signal }),
         );
-        assertValidProtectedTranslation(segment, translatedText);
-        return { id: segment.id, translatedText };
       }),
     );
+    return {
+      id: segment.id,
+      translatedText: rebuildProtectedTranslation(
+        segment.text,
+        translatedParts,
+      ),
+    };
   }
 
   async dispose(): Promise<void> {

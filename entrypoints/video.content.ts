@@ -268,14 +268,18 @@ export function shouldHideNativeSubtitles(
   overlayVisible: boolean,
 ): boolean {
   if (!settings.enabled || !settings.hideNativeSubtitles) return false;
+  // Keep the site's caption layer hidden while a newly mounted or replaced
+  // player is still being discovered. Toggling it back on during this short
+  // state exposes one native cue before the translated overlay resumes.
+  if (status.state === "waiting") return true;
   if (!["translating", "ready", "partial"].includes(status.state)) {
     return false;
   }
-  // In translated-only mode the extension owns the native-caption surface
-  // for the whole active task. Waiting for each new cue's translation would
-  // expose the site's original caption for a few frames and visibly flicker.
-  if (settings.displayMode === "translated") return status.total > 0;
-  return overlayVisible;
+  // Once a task owns the caption surface, keep the website layer hidden across
+  // cue gaps in every display mode. Bilingual/original text comes from our own
+  // synchronized overlay; exposing the website cue while translation catches
+  // up causes the native subtitle to flash for a few frames.
+  return status.total > 0 || overlayVisible;
 }
 
 interface ChildFrameStatusRecord {

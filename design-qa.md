@@ -1,4 +1,4 @@
-# NorixorTrans 0.1.118 Design QA
+# NorixorTrans 0.1.119 Design QA
 
 ## Source targets
 
@@ -17,15 +17,15 @@
 
 ## Local checks
 
-- `pnpm build`: passed for Chrome MV3, version 0.1.118.
-- `pnpm zip`: passed for `.output/norixortrans-0.1.118-chrome.zip`.
+- `pnpm build`: passed for Chrome MV3, version 0.1.119.
+- `pnpm zip`: passed for `.output/norixortrans-0.1.119-chrome.zip`.
 - Automated behavior tests were not run, following the current project acceptance instruction.
 
 ## Browser comparison status
 
 The implementation screenshot is not available in this pass. Reloading the unpacked extension requires opening Chrome's internal extension-management page, and the connected browser session blocked navigation to `chrome://extensions/` by security policy. No workaround or alternate browser session was used.
 
-Consequently, same-viewport pixel comparison, overflow inspection, hover/focus state screenshots, dark-theme rendering and console interaction checks remain pending until the user manually reloads 0.1.118. Source-level dimensions can be checked locally, but this is not equivalent to browser-rendered visual acceptance.
+Consequently, same-viewport pixel comparison, overflow inspection, hover/focus state screenshots, dark-theme rendering and console interaction checks remain pending until the user manually reloads 0.1.119. Source-level dimensions can be checked locally, but this is not equivalent to browser-rendered visual acceptance.
 
 ## Open visual checks after reload
 
