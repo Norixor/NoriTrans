@@ -1,6 +1,13 @@
 {
   "extensionName": { "message": "NorixorTrans" },
   "documentLanguage": { "message": "en" },
+  "uiLanguage": { "message": "Interface language" },
+  "uiLanguageDescription": {
+    "message": "Use the browser language by default, or choose one language for every NorixorTrans interface."
+  },
+  "uiLanguageAuto": { "message": "Follow browser" },
+  "uiLanguageEnglish": { "message": "English" },
+  "uiLanguageChineseSimplified": { "message": "简体中文" },
   "extensionDescription": {
     "message": "Translate web pages and video subtitles quickly and accurately."
   },
@@ -452,7 +459,7 @@
     "message": "Formats, allowed host suffixes, URL substrings, and optional complete-file substrings. New user profiles keep these arrays empty."
   },
   "profileCaptureNarrowOnly": {
-    "message": "Security boundary: a built-in override keeps the same ID and parser. Match and capture scope may only stay equivalent or become narrower. Tencent Video remains OCR-only."
+    "message": "Security boundary: a built-in override keeps the same ID and parser. Match and capture scope may only stay equivalent or become narrower."
   },
   "profileJsonCopied": { "message": "JSON copied." },
   "profileCopyFailed": { "message": "JSON could not be copied." },
@@ -502,7 +509,7 @@
     "message": "parser is not on the production allowlist"
   },
   "profileValidationTencentOcrOnly": {
-    "message": "Tencent Video only supports user-initiated local OCR"
+    "message": "this site does not support subtitle Profile capture rules"
   },
   "profileValidationOverrideNarrowOnly": {
     "message": "new profiles must be DOM-only, and built-in overrides may only narrow the original match and capture scope"
@@ -822,6 +829,9 @@
   "updateSettingsTitle": { "message": "Version updates" },
   "updateSettingsDescription": {
     "message": "Check the latest stable GitHub release without adding extension permissions."
+  },
+  "updateUnpackedInstallHint": {
+    "message": "To keep local settings, replace the files inside the directory already loaded by Chrome, then click Reload. Loading a different directory creates a second extension with separate data."
   },
   "updateAutoCheck": { "message": "Automatically check for updates" },
   "updateAutoCheckDescription": {

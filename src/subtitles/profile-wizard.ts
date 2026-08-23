@@ -4,7 +4,7 @@ import {
   isWithinVideoCaptionArea,
   normalizedDomCaptionText,
 } from "@/src/subtitles/dom-candidate";
-import { browser } from "wxt/browser";
+import { message } from "@/src/shared/i18n";
 
 export interface SubtitleProfileWizardOptions {
   onSave(profile: SubtitleSiteProfile): Promise<void> | void;
@@ -44,10 +44,6 @@ const SKIP_TAGS = new Set([
   "CODE",
   "PRE",
 ]);
-
-function message(key: string, substitutions?: string[]): string {
-  return browser.i18n.getMessage(key as never, substitutions) || key;
-}
 
 function stepMessage(current: 1 | 2): string {
   return message("profileWizardStep", [String(current), "2"]);

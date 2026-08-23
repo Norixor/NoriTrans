@@ -351,6 +351,9 @@ function isAppSettings(value: unknown): value is AppSettings {
   )
     return false;
   return (
+    (value.uiLanguage === "auto" ||
+      value.uiLanguage === "en" ||
+      value.uiLanguage === "zh-CN") &&
     (provider.fastProvider === "chrome-local" ||
       provider.fastProvider === "openai-compatible") &&
     provider.aiProvider === "openai-compatible" &&

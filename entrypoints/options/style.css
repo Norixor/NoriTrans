@@ -166,6 +166,18 @@ h1 {
   font-size: 12px;
   line-height: 1.5;
 }
+.visibility-row .update-install-hint {
+  max-width: 680px;
+  margin-top: 7px;
+  color: var(--text);
+}
+.compact-select {
+  flex: 0 0 auto;
+}
+.compact-select select {
+  width: 180px;
+  min-height: 38px;
+}
 .floating-recovery-action {
   display: grid;
   flex: 0 0 auto;
@@ -1038,6 +1050,10 @@ textarea:focus-visible {
     align-items: stretch;
     flex-direction: column;
     gap: 10px;
+  }
+  .compact-select,
+  .compact-select select {
+    width: 100%;
   }
   .form-grid.two-columns {
     grid-template-columns: 1fr;

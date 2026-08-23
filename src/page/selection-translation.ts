@@ -1,5 +1,6 @@
 import type { TranslationResponse } from "@/src/messaging/protocol";
 import { localizeRuntimeError } from "@/src/shared/runtime-errors";
+import { message } from "@/src/shared/i18n";
 import { runtimeId } from "@/src/shared/runtime-id";
 import type { ContentSettings } from "@/src/shared/settings";
 import { ChromeLocalProvider } from "@/src/translation/providers/chrome-local";
@@ -245,7 +246,7 @@ export interface SelectionTranslationDependencies {
 }
 
 function defaultMessage(key: string): string {
-  return browser.i18n.getMessage(key as never) || key;
+  return message(key);
 }
 
 function isExcludedNode(node: Node | null): boolean {
@@ -492,6 +493,10 @@ export class SelectionTranslation {
         this.releaseLocalProvider();
       }
     }
+  }
+
+  refreshLocale(): void {
+    this.localizeUi();
   }
 
   dismiss(restoreFocus = false): void {

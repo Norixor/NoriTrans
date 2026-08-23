@@ -5,8 +5,8 @@ import type {
   SubtitlePosition,
   SubtitleSettings,
 } from "@/src/shared/settings";
+import { message } from "@/src/shared/i18n";
 import { cleanTranslatedText } from "@/src/translation/output";
-import { browser } from "wxt/browser";
 
 export type SubtitleOverlayState =
   | "waiting"
@@ -198,8 +198,6 @@ const STYLE = `
 `;
 
 function stateMessage(state: SubtitleOverlayState): string {
-  const message = (key: string): string =>
-    browser?.i18n?.getMessage(key as never) || key;
   switch (state) {
     case "waiting":
       return message("subtitleWaiting");
@@ -314,8 +312,7 @@ export class SubtitleOverlay {
     this.ocrRegionGuide.className = "ocr-region-guide";
     this.ocrRegionGuide.setAttribute("aria-hidden", "true");
 
-    const dragLabel =
-      browser?.i18n?.getMessage("subtitleDragHandle") || "Move subtitles";
+    const dragLabel = message("subtitleDragHandle");
 
     this.cueCard = document.createElement("div");
     this.cueCard.className = "cue-card";
@@ -358,6 +355,12 @@ export class SubtitleOverlay {
     window.addEventListener("resize", this.updateAnchor);
     window.addEventListener("scroll", this.updateAnchor, true);
     window.addEventListener("blur", this.cancelActiveDrag);
+  }
+
+  refreshLocale(): void {
+    const dragLabel = message("subtitleDragHandle");
+    this.cueCard.setAttribute("aria-label", dragLabel);
+    this.cueCard.title = dragLabel;
   }
 
   private readonly mount = (): void => {
@@ -916,9 +919,7 @@ export class SubtitleOverlay {
       this.customPosition = { ...previous.startCustomPosition };
       this.host.dataset.position = previous.startPosition;
       this.updateAnchor();
-      this.status.textContent =
-        browser?.i18n?.getMessage("subtitlePositionSaveFailed" as never) ||
-        "Could not save subtitle position.";
+      this.status.textContent = message("subtitlePositionSaveFailed");
       this.status.hidden = false;
       this.status.dataset.visible = "true";
       this.status.dataset.positionError = "true";

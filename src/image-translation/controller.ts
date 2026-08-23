@@ -15,6 +15,7 @@ import {
 } from "@/src/ocr/types";
 import type { ContentSettings } from "@/src/shared/settings";
 import { NorixorTransError } from "@/src/shared/errors";
+import { message } from "@/src/shared/i18n";
 import { runtimeId } from "@/src/shared/runtime-id";
 import { ChromeLocalProvider } from "@/src/translation/providers/chrome-local";
 import { subscribeTranslationProgress } from "@/src/translation/progress-channel";
@@ -84,10 +85,6 @@ interface ImageRecord {
   boxes: SpatialSegment[];
   controller: AbortController | undefined;
   status: ImageTranslationStatus;
-}
-
-function message(key: string): string {
-  return browser.i18n.getMessage(key as never) || key;
 }
 
 function abortError(): DOMException {
@@ -601,6 +598,20 @@ export class ImageTranslationController {
     ) {
       this.clearAll("cancelled");
     }
+  }
+
+  refreshLocale(): void {
+    this.translateButton.setAttribute(
+      "aria-label",
+      message("imageTranslateAction"),
+    );
+    this.translateButton.title = message("imageTranslateAction");
+    this.clearButton.textContent = message(
+      this.activeImage &&
+        this.records.get(this.activeImage)?.status.state === "translating"
+        ? "imageCancelAction"
+        : "imageClearAction",
+    );
   }
 
   async startCurrent(): Promise<ImageTranslationStatus> {

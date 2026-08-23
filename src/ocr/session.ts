@@ -32,6 +32,7 @@ import {
 } from "@/src/ocr/types";
 import { browser } from "wxt/browser";
 import { runtimeId } from "@/src/shared/runtime-id";
+import { message } from "@/src/shared/i18n";
 
 export interface OcrSessionOptions {
   enabled: boolean;
@@ -58,10 +59,6 @@ const OCR_CANDIDATE_SIMILARITY = 0.7;
 const MAX_CONSECUTIVE_SAMPLE_ERRORS = 3;
 const NON_VIDEO_STABLE_SAMPLES = 3;
 const NON_VIDEO_PROBE_INTERVAL_MS = 2_000;
-
-function message(key: string): string {
-  return browser.i18n.getMessage(key as never) || key;
-}
 
 function isCaptureResponse(value: unknown): value is OcrCaptureResponse {
   return (

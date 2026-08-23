@@ -5,42 +5,19 @@ import {
   SOURCE_LANGUAGES,
   TARGET_LANGUAGES,
 } from "@/src/shared/languages";
+import {
+  currentUiLocale,
+  initializeUiLanguage,
+  localizeDocument,
+  message,
+} from "@/src/shared/i18n";
 import { loadSettings } from "@/src/shared/settings";
 import { browser } from "wxt/browser";
-
-function localizeDocument(): void {
-  const resolveMessages = (value: string): string =>
-    value.replace(
-      /__MSG_([^_]+(?:_[^_]+)*)__/g,
-      (placeholder, key: string) =>
-        chrome.i18n.getMessage(key) || String(placeholder),
-    );
-  const walker = document.createTreeWalker(document, NodeFilter.SHOW_TEXT);
-  let textNode = walker.nextNode();
-  while (textNode) {
-    if (textNode.nodeValue?.includes("__MSG_")) {
-      textNode.nodeValue = resolveMessages(textNode.nodeValue);
-    }
-    textNode = walker.nextNode();
-  }
-  for (const node of document.querySelectorAll<HTMLElement>("*")) {
-    for (const attribute of Array.from(node.attributes)) {
-      if (attribute.value.includes("__MSG_")) {
-        node.setAttribute(attribute.name, resolveMessages(attribute.value));
-      }
-    }
-  }
-  document.documentElement.dataset.localized = "true";
-}
 
 function element<T extends HTMLElement>(id: string): T {
   const value = document.querySelector<T>(`#${id}`);
   if (!value) throw new Error(`Missing popup element: ${id}`);
   return value;
-}
-
-function message(key: string, substitutions?: string | string[]): string {
-  return chrome.i18n.getMessage(key, substitutions) || key;
 }
 
 function isPageStatus(value: unknown): value is PageStatus {
@@ -224,7 +201,7 @@ async function initialize(): Promise<void> {
   const languageLabel = (code: string): string =>
     code === "auto"
       ? message("languageAuto")
-      : displayLanguageName(code, chrome.i18n.getUILanguage());
+      : displayLanguageName(code, currentUiLocale());
   for (const language of SOURCE_LANGUAGES) {
     sourceSelect.add(new Option(languageLabel(language.code), language.code));
   }
@@ -445,6 +422,10 @@ async function initialize(): Promise<void> {
     if (areaName !== "local" || !changes.settings) return;
     void loadSettings()
       .then((nextSettings) => {
+        if (nextSettings.uiLanguage !== settings.uiLanguage) {
+          window.location.reload();
+          return;
+        }
         settings = nextSettings;
         syncForm();
       })
@@ -475,8 +456,12 @@ async function initialize(): Promise<void> {
   );
 }
 
-localizeDocument();
-void initialize().catch(() => {
+void (async () => {
+  await initializeUiLanguage();
+  localizeDocument();
+  await initialize();
+})().catch(() => {
+  document.documentElement.dataset.localized = "true";
   const actionMessage = document.querySelector<HTMLElement>("#action-message");
   if (actionMessage) {
     actionMessage.dataset.tone = "error";

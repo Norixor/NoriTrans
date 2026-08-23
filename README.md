@@ -67,6 +67,8 @@ Then open `chrome://extensions`, enable **Developer mode**, choose **Load unpack
 
 Unpacked builds do not update automatically. Keep the same extension directory if you want Chrome to preserve the same local development installation.
 
+When upgrading an unpacked release, replace the files inside the directory that Chrome already loaded and click **Reload** on `chrome://extensions`. Do not load the new release from a second directory: Chrome derives an unpacked extension's identity from its directory, so a different directory creates a separate installation with separate local settings.
+
 ## Provider and privacy model
 
 | Capability                    | Processing location                 | Data sent externally                                                                    |

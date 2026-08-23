@@ -9,6 +9,12 @@ import {
   SOURCE_LANGUAGES,
   TARGET_LANGUAGES,
 } from "@/src/shared/languages";
+import {
+  currentUiLocale,
+  initializeUiLanguage,
+  localizeDocument,
+  message,
+} from "@/src/shared/i18n";
 import type { SubtitleSiteProfile } from "@/src/subtitles/profiles/types";
 import {
   isBuiltInProfileOverride,
@@ -30,39 +36,10 @@ import type { ExtensionUpdateStatus } from "@/src/update/checker";
 import { browser } from "wxt/browser";
 import { DirtyControlTracker } from "./dirty-control-tracker";
 
-function localizeDocument(): void {
-  const resolveMessages = (value: string): string =>
-    value.replace(
-      /__MSG_([^_]+(?:_[^_]+)*)__/g,
-      (placeholder, key: string) =>
-        chrome.i18n.getMessage(key) || String(placeholder),
-    );
-  const walker = document.createTreeWalker(document, NodeFilter.SHOW_TEXT);
-  let textNode = walker.nextNode();
-  while (textNode) {
-    if (textNode.nodeValue?.includes("__MSG_")) {
-      textNode.nodeValue = resolveMessages(textNode.nodeValue);
-    }
-    textNode = walker.nextNode();
-  }
-  for (const node of document.querySelectorAll<HTMLElement>("*")) {
-    for (const attribute of Array.from(node.attributes)) {
-      if (attribute.value.includes("__MSG_")) {
-        node.setAttribute(attribute.name, resolveMessages(attribute.value));
-      }
-    }
-  }
-  document.documentElement.dataset.localized = "true";
-}
-
 function element<T extends HTMLElement>(id: string): T {
   const value = document.querySelector<T>(`#${id}`);
   if (!value) throw new Error(`Missing options element: ${id}`);
   return value;
-}
-
-function message(key: string, substitutions?: string | string[]): string {
-  return chrome.i18n.getMessage(key, substitutions) || key;
 }
 
 function isSuccessfulResponse(value: unknown): value is { ok: true } {
@@ -296,6 +273,7 @@ async function initialize(): Promise<void> {
   const visibilitySettingsPanel = element<HTMLElement>(
     "visibility-settings-panel",
   );
+  const uiLanguage = element<HTMLSelectElement>("ui-language");
   const fastProvider = element<HTMLSelectElement>("fast-provider");
   const baseUrl = element<HTMLInputElement>("base-url");
   const apiKey = element<HTMLInputElement>("api-key");
@@ -483,7 +461,7 @@ async function initialize(): Promise<void> {
   const languageLabel = (code: string): string =>
     code === "auto"
       ? message("languageAuto")
-      : displayLanguageName(code, chrome.i18n.getUILanguage());
+      : displayLanguageName(code, currentUiLocale());
   for (const language of SOURCE_LANGUAGES) {
     pageSourceLanguage.add(
       new Option(languageLabel(language.code), language.code),
@@ -624,6 +602,7 @@ async function initialize(): Promise<void> {
   };
 
   const syncForm = (): void => {
+    uiLanguage.value = settings.uiLanguage;
     fastProvider.value = settings.provider.fastProvider;
     baseUrl.value = settings.provider.baseUrl;
     apiKey.value = settings.provider.apiKey;
@@ -673,6 +652,10 @@ async function initialize(): Promise<void> {
 
   const readForm = (): AppSettings => ({
     ...settings,
+    uiLanguage:
+      uiLanguage.value === "en" || uiLanguage.value === "zh-CN"
+        ? uiLanguage.value
+        : "auto",
     provider: {
       fastProvider:
         fastProvider.value === "openai-compatible"
@@ -746,9 +729,11 @@ async function initialize(): Promise<void> {
     },
   });
 
-  const persist = async (requestPermission = false): Promise<void> => {
+  const persist = async (requestPermission = false): Promise<boolean> => {
     const submittedSettings = readForm();
     const submittedDirtyVersions = dirtyControls.snapshot();
+    const languageChanged =
+      submittedSettings.uiLanguage !== settings.uiLanguage;
     settings = submittedSettings;
     if (!isAllowedProviderBaseUrl(submittedSettings.provider.baseUrl)) {
       throw new Error("provider-url-invalid");
@@ -762,6 +747,7 @@ async function initialize(): Promise<void> {
       throw new Error("settings-save-failed");
     }
     dirtyControls.confirm(submittedDirtyVersions);
+    return languageChanged;
   };
 
   const showFeedback = (
@@ -774,7 +760,7 @@ async function initialize(): Promise<void> {
   };
 
   const runtimeLanguageLabel = (runtime: OcrRuntimeStatus): string => {
-    const localizedLabel = chrome.i18n.getMessage(runtime.labelKey);
+    const localizedLabel = message(runtime.labelKey);
     if (localizedLabel) return localizedLabel;
     const languageCodes: Record<string, string> = {
       eng: "en",
@@ -788,7 +774,7 @@ async function initialize(): Promise<void> {
     };
     const languageCode = languageCodes[runtime.language];
     return languageCode
-      ? displayLanguageName(languageCode, chrome.i18n.getUILanguage())
+      ? displayLanguageName(languageCode, currentUiLocale())
       : runtime.language;
   };
 
@@ -800,7 +786,7 @@ async function initialize(): Promise<void> {
   };
 
   const formatRuntimeSize = (bytes: number): string => {
-    const locale = chrome.i18n.getUILanguage();
+    const locale = currentUiLocale();
     if (bytes < 1024) {
       return new Intl.NumberFormat(locale, {
         style: "unit",
@@ -1523,8 +1509,9 @@ async function initialize(): Promise<void> {
         if (ocrEnabled.checked) {
           await requestOcrCapturePermission();
         }
-        await persist(true);
+        const languageChanged = await persist(true);
         showFeedback(saveMessage, "settingsSaved", "success");
+        if (languageChanged) window.location.reload();
       } catch (error) {
         showFeedback(
           saveMessage,
@@ -1619,7 +1606,7 @@ async function initialize(): Promise<void> {
       connectionDiagnosticText.textContent = "";
       showFeedback(testMessage, "connectionTesting");
       try {
-        await persist(true);
+        const languageChanged = await persist(true);
         const response: unknown = await browser.runtime.sendMessage({
           type: "TEST_CONNECTION",
         });
@@ -1636,6 +1623,7 @@ async function initialize(): Promise<void> {
           return;
         }
         showFeedback(testMessage, "connectionSucceeded", "success");
+        if (languageChanged) window.location.reload();
       } catch (error) {
         showFeedback(
           testMessage,
@@ -1856,8 +1844,12 @@ async function initialize(): Promise<void> {
   void loadOcrRuntimes(true).finally(scheduleOcrRuntimePolling);
 }
 
-localizeDocument();
-void initialize().catch(() => {
+void (async () => {
+  await initializeUiLanguage();
+  localizeDocument();
+  await initialize();
+})().catch(() => {
+  document.documentElement.dataset.localized = "true";
   const feedback = document.querySelector<HTMLElement>("#save-message");
   if (feedback) {
     feedback.dataset.tone = "error";

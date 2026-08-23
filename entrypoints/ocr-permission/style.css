@@ -40,6 +40,10 @@
   box-sizing: border-box;
 }
 
+html:not([data-localized]) {
+  visibility: hidden;
+}
+
 body {
   min-height: 100vh;
   margin: 0;

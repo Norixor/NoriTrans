@@ -907,6 +907,29 @@
             <div class="visibility-list">
               <div class="visibility-row">
                 <div>
+                  <strong id="ui-language-label">__MSG_uiLanguage__</strong>
+                  <p id="ui-language-description">
+                    __MSG_uiLanguageDescription__
+                  </p>
+                </div>
+                <label class="compact-select" for="ui-language">
+                  <select
+                    id="ui-language"
+                    name="ui-language"
+                    aria-labelledby="ui-language-label"
+                    aria-describedby="ui-language-description"
+                  >
+                    <option value="auto">__MSG_uiLanguageAuto__</option>
+                    <option value="en">__MSG_uiLanguageEnglish__</option>
+                    <option value="zh-CN">
+                      __MSG_uiLanguageChineseSimplified__
+                    </option>
+                  </select>
+                </label>
+              </div>
+
+              <div class="visibility-row">
+                <div>
                   <strong id="floating-control-label"
                     >__MSG_floatingControlEnabled__</strong
                   >
@@ -971,6 +994,9 @@
                 <div>
                   <strong>__MSG_updateSettingsTitle__</strong>
                   <p>__MSG_updateSettingsDescription__</p>
+                  <p class="update-install-hint">
+                    __MSG_updateUnpackedInstallHint__
+                  </p>
                 </div>
                 <div class="update-status-actions">
                   <output id="update-status" class="feedback" aria-live="polite"

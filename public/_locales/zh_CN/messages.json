@@ -1,6 +1,13 @@
 {
   "extensionName": { "message": "NorixorTrans" },
   "documentLanguage": { "message": "zh-CN" },
+  "uiLanguage": { "message": "界面语言" },
+  "uiLanguageDescription": {
+    "message": "默认跟随浏览器，也可以为 NorixorTrans 的全部界面指定一种语言。"
+  },
+  "uiLanguageAuto": { "message": "跟随浏览器" },
+  "uiLanguageEnglish": { "message": "English" },
+  "uiLanguageChineseSimplified": { "message": "简体中文" },
   "extensionDescription": { "message": "快速、准确地翻译网页和视频字幕。" },
   "commandTranslatePage": { "message": "翻译当前页面" },
   "commandRestorePage": { "message": "恢复当前页面原文" },
@@ -414,7 +421,7 @@
     "message": "格式、允许的主机后缀、URL 子串及可选的完整文件子串；新建用户 Profile 的这些数组必须为空。"
   },
   "profileCaptureNarrowOnly": {
-    "message": "安全边界：内置覆盖必须保持相同 ID 与 parser，match 和 capture 范围只能等价或收紧。腾讯视频始终仅支持主动 OCR。"
+    "message": "安全边界：内置覆盖必须保持相同 ID 与 parser，match 和 capture 范围只能等价或收紧。"
   },
   "profileJsonCopied": { "message": "JSON 已复制。" },
   "profileCopyFailed": { "message": "JSON 复制失败。" },
@@ -454,7 +461,7 @@
   },
   "profileValidationParser": { "message": "parser 不在生产白名单中" },
   "profileValidationTencentOcrOnly": {
-    "message": "腾讯视频仅支持用户主动启用的本地 OCR"
+    "message": "当前站点不支持字幕 Profile 采集规则"
   },
   "profileValidationOverrideNarrowOnly": {
     "message": "新 Profile 必须为 DOM-only，内置覆盖只能收紧原有 match 与 capture 范围"
@@ -746,6 +753,9 @@
   "updateSettingsTitle": { "message": "版本更新" },
   "updateSettingsDescription": {
     "message": "无需新增扩展权限，检查 GitHub 上的最新正式版本。"
+  },
+  "updateUnpackedInstallHint": {
+    "message": "要保留本地设置，请替换 Chrome 当前已加载目录内的文件，然后点击“重新加载”。加载另一个目录会创建数据相互独立的第二个扩展。"
   },
   "updateAutoCheck": { "message": "自动检查更新" },
   "updateAutoCheckDescription": {

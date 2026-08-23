@@ -10,6 +10,7 @@ import {
   type SubtitleSettings,
 } from "@/src/shared/settings";
 import { languageTagsMatch } from "@/src/shared/languages";
+import { message } from "@/src/shared/i18n";
 import { Html5TextTrackAdapter } from "@/src/subtitles/adapters/html5";
 import { NetflixSubtitleAdapter } from "@/src/subtitles/adapters/netflix";
 import type { SubtitleAdapter } from "@/src/subtitles/adapters/types";
@@ -1024,6 +1025,10 @@ export class SubtitleController {
     this.renderCurrentCue();
   }
 
+  refreshLocale(): void {
+    this.overlay.refreshLocale();
+  }
+
   getStatus(): SubtitleStatus {
     return { ...this.status };
   }
@@ -2009,11 +2014,7 @@ export class SubtitleController {
           }
         }
         if (destination === "primary" && track.source === "ocr") {
-          const unavailableMessage =
-            browser.i18n.getMessage(
-              "ocrLocalTranslationUnavailable" as never,
-            ) ||
-            "OCR recognized text, but Chrome local translation is not ready for this language pair.";
+          const unavailableMessage = message("ocrLocalTranslationUnavailable");
           this.overlay.clearNotice(unavailableMessage);
           this.translationFailureMessage = undefined;
           this.translationFailureDetails = undefined;
@@ -2049,11 +2050,7 @@ export class SubtitleController {
               total: track.cues.length,
               completed: this.translated.size,
               failed: this.failed.size,
-              message:
-                browser.i18n.getMessage(
-                  "ocrPreparingTranslationModel" as never,
-                  ["0"] as never,
-                ) || "Preparing local translation model… 0%",
+              message: message("ocrPreparingTranslationModel", "0"),
             });
           }
           const localProvider =
@@ -2108,14 +2105,14 @@ export class SubtitleController {
           if (isTranslationResponse(response) && response.error) {
             this.translationFailureMessage = localizeRuntimeError(
               response.error.message,
-              (key) => browser.i18n.getMessage(key as never),
+              message,
             );
             this.translationFailureDetails =
               response.error.details ??
               `Provider error code: ${response.error.code}. This subtitle batch received ${processedCueIds.size} of ${cues.length} requested result IDs; ${cues.length - processedCueIds.size} result IDs were missing when the request failed.`;
           } else {
-            this.translationFailureMessage = browser.i18n.getMessage(
-              "runtimeErrorInvalidResponse" as never,
+            this.translationFailureMessage = message(
+              "runtimeErrorInvalidResponse",
             );
             this.translationFailureDetails = `The translation response envelope was invalid or incomplete. Response type: ${Array.isArray(response) ? "array" : typeof response}.`;
           }
@@ -2131,8 +2128,8 @@ export class SubtitleController {
       if (run !== this.session) return;
       const validated = validateResults(cues, results);
       if (!validated) {
-        this.translationFailureMessage ||= browser.i18n.getMessage(
-          "runtimeErrorInvalidResponse" as never,
+        this.translationFailureMessage ||= message(
+          "runtimeErrorInvalidResponse",
         );
         this.translationFailureDetails ||= [
           `Expected IDs: ${cues.map((cue) => cue.id).join(", ")}`,
@@ -2166,18 +2163,14 @@ export class SubtitleController {
           }
         }
         if (destination === "primary" && track.source === "ocr") {
-          const unavailableMessage =
-            browser.i18n.getMessage(
-              "ocrLocalTranslationUnavailable" as never,
-            ) ||
-            "OCR recognized text, but Chrome local translation is not ready for this language pair.";
+          const unavailableMessage = message("ocrLocalTranslationUnavailable");
           if (!this.overlay.hasVisibleTranslation()) {
             this.translationFailureMessage = unavailableMessage;
             this.overlay.showNotice(unavailableMessage);
           }
         } else if (destination === "primary") {
-          this.translationFailureMessage ||= browser.i18n.getMessage(
-            "runtimeErrorRequestFailed" as never,
+          this.translationFailureMessage ||= message(
+            "runtimeErrorRequestFailed",
           );
           this.translationFailureDetails ||= `The Provider request failed before a valid response was received. Failure type: ${error instanceof Error ? error.name : typeof error}.`;
         }
@@ -2438,11 +2431,7 @@ export class SubtitleController {
           total: track.cues.length,
           completed: this.translated.size,
           failed: this.failed.size,
-          message:
-            browser.i18n.getMessage(
-              "ocrPreparingTranslationModel" as never,
-              [String(percent)] as never,
-            ) || `Preparing local translation model… ${percent}%`,
+          message: message("ocrPreparingTranslationModel", String(percent)),
         });
       },
       onSourceLanguageResolved: (sourceLanguage, request) => {
@@ -2684,10 +2673,7 @@ export class SubtitleController {
       status.source !== "ocr"
         ? {
             ...status,
-            message:
-              browser.i18n.getMessage(
-                "subtitleFastFallbackNoFullTrack" as never,
-              ) || "Full subtitles unavailable; using fast translation.",
+            message: message("subtitleFastFallbackNoFullTrack"),
           }
         : status;
     const visibleStatus: SubtitleStatus =

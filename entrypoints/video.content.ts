@@ -30,13 +30,20 @@ import type {
 } from "@/src/shared/settings";
 import { isSiteAutoTranslateEnabled } from "@/src/shared/auto-translate-sites";
 import {
+  configureUiLanguage,
+  message as localizedMessage,
+} from "@/src/shared/i18n";
+import {
   localizeRuntimeError,
   runtimeErrorToken,
   safeRuntimeErrorToken,
 } from "@/src/shared/runtime-errors";
 import { runtimeId } from "@/src/shared/runtime-id";
 import { removeStaleRuntimeUi } from "@/src/shared/runtime-ui-cleanup";
-import { UnifiedFloatingControl } from "@/src/shared/unified-floating-control";
+import {
+  UnifiedFloatingControl,
+  type UnifiedFloatingControlOptions,
+} from "@/src/shared/unified-floating-control";
 import { createSubtitleAdapters } from "@/src/subtitles/adapters";
 import { SUBTITLE_DISCOVERY_CONTROL_EVENT } from "@/src/subtitles/adapters/captured";
 import { ProfileDomSubtitleAdapter } from "@/src/subtitles/adapters/profile-dom";
@@ -225,9 +232,7 @@ function successfulResponse(value: unknown): value is { ok: true } {
 }
 
 function localizedRuntimeMessage(value: unknown): string {
-  return localizeRuntimeError(value, (key) =>
-    browser.i18n.getMessage(key as never),
-  );
+  return localizeRuntimeError(value, localizedMessage);
 }
 
 function pageTranslationConfigurationChanged(
@@ -598,7 +603,10 @@ async function runEmbeddedFrame(
         return controller.cancelTranslationTask();
       case "SETTINGS_UPDATED": {
         const previousSettings = settings;
+        const languageChanged =
+          previousSettings.uiLanguage !== message.settings.uiLanguage;
         settings = message.settings;
+        if (languageChanged) configureUiLanguage(settings.uiLanguage);
         const wasAutomaticPageSession = pageFollowsNavigation;
         if (
           currentPageAutoTranslate(previousSettings) &&
@@ -622,6 +630,7 @@ async function runEmbeddedFrame(
         }
         pageSession.updateSettings(settings);
         selectionTranslation.updateSettings(settings);
+        if (languageChanged) selectionTranslation.refreshLocale();
         setSubtitleDiscoveryEnabled(
           settings.subtitles.enabled,
           settings.subtitles.sourceLanguage,
@@ -631,6 +640,7 @@ async function runEmbeddedFrame(
           providerCacheContext(settings),
           settings.provider,
         );
+        if (languageChanged) controller.refreshLocale();
         subtitleStatus = controller.getStatus();
         syncNativeSubtitleVisibility();
         if (
@@ -700,6 +710,7 @@ export default defineContentScript({
     await ensureMainWorldCaptureHook();
 
     let settings = await loadContentSettings();
+    configureUiLanguage(settings.uiLanguage);
     if (window.__norixorTransVideoReady) return;
     window.__norixorTransVideoReady = true;
     if (window.top !== window) {
@@ -871,9 +882,7 @@ export default defineContentScript({
     const startOcr = async () => {
       const subtitleStatus = aggregateSubtitleStatus();
       if (subtitleStatus.total > 0 && subtitleStatus.source !== "ocr") {
-        const reason =
-          browser.i18n.getMessage("ocrExistingSubtitlesAvailable" as never) ||
-          "Existing subtitles are already available. Stop them before starting image OCR.";
+        const reason = localizedMessage("ocrExistingSubtitlesAvailable");
         controller.showNotice(reason);
         return ocrSession.rejectStart(reason);
       }
@@ -886,7 +895,7 @@ export default defineContentScript({
       onStatus: (status) =>
         floatingControlRef.current?.updateImageStatus(status),
     });
-    const floatingControl = new UnifiedFloatingControl({
+    const floatingControlOptions: UnifiedFloatingControlOptions = {
       settings,
       onPageTranslate: () => broadcastContentCommand("PAGE_TRANSLATE"),
       onPageRestore: () => broadcastContentCommand("PAGE_RESTORE"),
@@ -1079,7 +1088,12 @@ export default defineContentScript({
           throw new Error(runtimeErrorToken("settings_save_failed"));
         }
       },
-    });
+    };
+    const createFloatingControl = (): UnifiedFloatingControl => {
+      floatingControlOptions.settings = settings;
+      return new UnifiedFloatingControl(floatingControlOptions);
+    };
+    let floatingControl = createFloatingControl();
     floatingControlRef.current = floatingControl;
     floatingControl.updateImageStatus(imageController.getStatus());
 
@@ -1113,8 +1127,7 @@ export default defineContentScript({
         ) {
           ocrSession.stop("idle");
           controller.showNotice(
-            browser.i18n.getMessage("ocrExistingSubtitlesAvailable" as never) ||
-              "Existing subtitles are available; image OCR has been stopped.",
+            localizedMessage("ocrExistingSubtitlesAvailable"),
           );
         }
       },
@@ -1354,8 +1367,11 @@ export default defineContentScript({
           return { ok: true };
         case "SETTINGS_UPDATED": {
           const previousSettings = settings;
+          const languageChanged =
+            previousSettings.uiLanguage !== message.settings.uiLanguage;
           const wasOcrEnabled = settings.ocr.enabled;
           settings = message.settings;
+          if (languageChanged) configureUiLanguage(settings.uiLanguage);
           if (!settings.subtitles.enabled) {
             subtitleCancellationRequested = false;
           }
@@ -1382,6 +1398,7 @@ export default defineContentScript({
           }
           pageSession.updateSettings(settings);
           selectionTranslation.updateSettings(settings);
+          if (languageChanged) selectionTranslation.refreshLocale();
           setSubtitleDiscoveryEnabled(
             settings.subtitles.enabled,
             settings.subtitles.sourceLanguage,
@@ -1391,6 +1408,7 @@ export default defineContentScript({
             providerCacheContext(settings),
             settings.provider,
           );
+          if (languageChanged) controller.refreshLocale();
           topSubtitleStatus = controller.getStatus();
           syncNativeSubtitleVisibility(topSubtitleStatus);
           ocrSession.setEnabled(settings.ocr.enabled);
@@ -1399,7 +1417,17 @@ export default defineContentScript({
             controller.invalidateMedia();
           }
           imageController.updateSettings(settings);
-          floatingControl.updateSettings(settings);
+          if (languageChanged) {
+            imageController.refreshLocale();
+            delete floatingControlRef.current;
+            floatingControl.destroy();
+            floatingControl = createFloatingControl();
+            floatingControlRef.current = floatingControl;
+            floatingControl.updateImageStatus(imageController.getStatus());
+            refreshAggregatedStatusUi();
+          } else {
+            floatingControl.updateSettings(settings);
+          }
           if (floatingEnabled()) floatingControl.show();
           else floatingControl.hide();
           if (

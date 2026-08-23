@@ -5,7 +5,7 @@ import {
   type ScreenRect,
 } from "@/src/ocr/geometry";
 import type { NormalizedOcrRegion } from "@/src/ocr/types";
-import { browser } from "wxt/browser";
+import { message } from "@/src/shared/i18n";
 
 const STYLE = `
   :host { all: initial; position: fixed !important; z-index: 2147483647 !important; inset: 0 !important; display: block !important; width: auto !important; height: auto !important; max-width: none !important; max-height: none !important; overflow: visible !important; contain: none !important; writing-mode: horizontal-tb !important; text-orientation: mixed !important; pointer-events: auto !important; }
@@ -25,10 +25,6 @@ const STYLE = `
 `;
 
 const READY_TIMEOUT_MS = 5_000;
-
-function message(key: string): string {
-  return browser.i18n.getMessage(key as never) || key;
-}
 
 function mediaBounds(target: HTMLElement): ScreenRect | null {
   const rect = target.getBoundingClientRect();

@@ -2,6 +2,7 @@ import type { PageStatus, SubtitleStatus } from "@/src/messaging/protocol";
 import type { ExtensionUpdateStatus } from "@/src/update/checker";
 import type { OcrStatus } from "@/src/ocr/types";
 import type { ImageTranslationStatus } from "@/src/image-translation/controller";
+import { currentUiLocale, message } from "@/src/shared/i18n";
 import {
   displayLanguageName,
   SOURCE_LANGUAGES,
@@ -137,10 +138,6 @@ function contentViewportHeight(): number {
       typeof value === "number" && Number.isFinite(value) && value > 0,
   );
   return Math.max(1, Math.min(...candidates));
-}
-
-function message(key: string, substitutions?: string | string[]): string {
-  return browser.i18n.getMessage(key as never, substitutions) || key;
 }
 
 function pageStateMessage(state: PageStatus["state"]): string {
@@ -420,7 +417,7 @@ export class UnifiedFloatingControl {
     style.textContent = UNIFIED_FLOATING_CONTROL_STYLE;
     const control = document.createElement("div");
     control.className = "control";
-    const uiLocale = browser.i18n.getUILanguage();
+    const uiLocale = currentUiLocale();
 
     this.panel.id = "norixortrans-floating-panel";
     this.panel.className = "panel";

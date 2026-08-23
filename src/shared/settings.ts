@@ -7,6 +7,11 @@ import { normalizeAutoTranslateSitePatterns } from "@/src/shared/auto-translate-
 export type DisplayMode = "translated" | "bilingual";
 export type SubtitleDisplayMode = "translated" | "bilingual" | "original";
 export type SubtitlePosition = "top" | "center" | "bottom" | "custom";
+export type UiLanguage = "auto" | "en" | "zh-CN";
+
+export function normalizeUiLanguage(value: unknown): UiLanguage {
+  return value === "en" || value === "zh-CN" ? value : "auto";
+}
 
 export interface SubtitleCustomPosition {
   x: number;
@@ -67,6 +72,7 @@ export interface ImageTranslationSettings {
 }
 
 export interface AppSettings {
+  uiLanguage: UiLanguage;
   provider: ProviderSettings;
   page: PageSettings;
   subtitles: SubtitleSettings;
@@ -77,6 +83,7 @@ export interface AppSettings {
 export type ContentProviderSettings = Omit<ProviderSettings, "apiKey">;
 
 export interface ContentSettings {
+  uiLanguage: UiLanguage;
   provider: ContentProviderSettings;
   page: PageSettings;
   subtitles: SubtitleSettings;
@@ -96,6 +103,7 @@ export const DEFAULT_SYSTEM_PROMPT =
   "Translate accurately. Preserve meaning, tone, names, terminology, punctuation, and formatting. Use context only for consistency.";
 
 export const DEFAULT_SETTINGS: AppSettings = {
+  uiLanguage: "auto",
   provider: {
     fastProvider: "chrome-local",
     aiProvider: "openai-compatible",
@@ -162,6 +170,7 @@ export function isAllowedProviderBaseUrl(value: string): boolean {
 
 export function toContentSettings(settings: AppSettings): ContentSettings {
   return {
+    uiLanguage: settings.uiLanguage,
     provider: {
       fastProvider: settings.provider.fastProvider,
       aiProvider: settings.provider.aiProvider,
@@ -216,6 +225,7 @@ export function mergeSettings(value: unknown): AppSettings {
     : {};
 
   return {
+    uiLanguage: normalizeUiLanguage(value.uiLanguage),
     provider: {
       fastProvider,
       aiProvider: "openai-compatible",
