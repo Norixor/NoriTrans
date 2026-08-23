@@ -40,6 +40,7 @@ import { runtimeId } from "@/src/shared/runtime-id";
 import { NorixorTransError } from "@/src/shared/errors";
 import {
   detectDominantSourceLanguage,
+  isPredominantlyTargetScript,
   supportedSourceLanguageHint,
 } from "@/src/translation/language-detection";
 
@@ -1372,13 +1373,49 @@ export class PageTranslationSession {
     const documentSegments = [...allDocumentSegments].sort(
       (left, right) => left.documentOrder - right.documentOrder,
     );
+    const skipTargetScript =
+      settings.page.sourceLanguage === "auto" &&
+      settings.page.mode === "fast" &&
+      settings.provider.fastProvider === "chrome-local";
+    const skippedSegments = skipTargetScript
+      ? segments.filter((segment) =>
+          isPredominantlyTargetScript(
+            segment.text,
+            settings.page.targetLanguage,
+          ),
+        )
+      : [];
+    const skippedSet = new Set(skippedSegments);
+    const translatableSegments =
+      skippedSegments.length > 0
+        ? segments.filter((segment) => !skippedSet.has(segment))
+        : segments;
+    if (skippedSegments.length > 0) {
+      this.renderer.clearPending(skippedSegments);
+      for (const segment of skippedSegments) {
+        this.status.completed += 1;
+        this.segmentOutcomes.set(segment, "completed");
+      }
+      this.update({ ...this.status, state: "translating" });
+    }
+    if (translatableSegments.length === 0) return;
+
+    const detectionSegments = skipTargetScript
+      ? documentSegments.filter(
+          (segment) =>
+            !isPredominantlyTargetScript(
+              segment.text,
+              settings.page.targetLanguage,
+            ),
+        )
+      : documentSegments;
     const declaredSourceLanguage = supportedSourceLanguageHint(
       document.documentElement.lang,
     );
     const sourceLanguage =
       settings.page.sourceLanguage === "auto"
         ? ((await detectDominantSourceLanguage(
-            documentSegments.map((segment) => segment.text),
+            detectionSegments.map((segment) => segment.text),
             declaredSourceLanguage,
           )) ?? "auto")
         : settings.page.sourceLanguage;
@@ -1390,7 +1427,8 @@ export class PageTranslationSession {
       return;
     }
 
-    const prioritizedSegments = prioritizeSegmentsForViewport(segments);
+    const prioritizedSegments =
+      prioritizeSegmentsForViewport(translatableSegments);
     const contextualizedSegments = pageTranslationSegments(
       documentSegments,
       prioritizedSegments,

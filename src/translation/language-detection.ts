@@ -76,6 +76,33 @@ function countScripts(text: string): ScriptCounts {
   };
 }
 
+/** Returns true when the visible text is already dominated by the target script. */
+export function isPredominantlyTargetScript(
+  text: string,
+  targetLanguage: string,
+): boolean {
+  const counts = countScripts(text.normalize("NFKC"));
+  const primary = normalizedLanguageParts(targetLanguage)[0];
+  if (primary === "zh") {
+    return (
+      counts.han > 0 &&
+      counts.kana === 0 &&
+      counts.hangul === 0 &&
+      counts.han >= counts.latin
+    );
+  }
+  if (primary === "ja") {
+    return (
+      counts.kana > 0 &&
+      counts.kana + counts.han >= counts.latin + counts.hangul
+    );
+  }
+  if (primary === "ko") {
+    return counts.hangul > 0 && counts.hangul >= counts.latin + counts.kana;
+  }
+  return false;
+}
+
 function chineseLanguage(declaredLanguage: string | undefined): string {
   return declaredLanguage === "zh-Hant" ? "zh-Hant" : "zh-CN";
 }
