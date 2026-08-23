@@ -146,6 +146,6 @@ The NorixorTrans name, logo, product identity, and files under `assets/branding/
 
 <p align="center">
   <a href="https://github.com/Norixor/NorixorTrans">
-    <img src="https://img.shields.io/badge/GitHub-Star_NorixorTrans-181717?style=for-the-badge&amp;logo=github" alt="Star NorixorTrans on GitHub" />
+    <img src="https://img.shields.io/github/stars/Norixor/NorixorTrans?style=for-the-badge&amp;logo=github&amp;label=Star" alt="Star NorixorTrans on GitHub" />
   </a>
 </p>

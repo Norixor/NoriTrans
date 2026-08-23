@@ -146,6 +146,6 @@ NorixorTrans 名称、Logo、产品标识和 `assets/branding/` 下的文件不�
 
 <p align="center">
   <a href="https://github.com/Norixor/NorixorTrans">
-    <img src="https://img.shields.io/badge/GitHub-Star_NorixorTrans-181717?style=for-the-badge&amp;logo=github" alt="在 GitHub 上为 NorixorTrans 点 Star" />
+    <img src="https://img.shields.io/github/stars/Norixor/NorixorTrans?style=for-the-badge&amp;logo=github&amp;label=Star" alt="在 GitHub 上为 NorixorTrans 点 Star" />
   </a>
 </p>
