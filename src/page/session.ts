@@ -39,6 +39,10 @@ import { browser } from "wxt/browser";
 import { runtimeId } from "@/src/shared/runtime-id";
 import { NorixorTransError } from "@/src/shared/errors";
 import {
+  translationDiagnostic,
+  translationRuntimeDiagnosticContext,
+} from "@/src/shared/diagnostics";
+import {
   detectDominantSourceLanguage,
   isPredominantlyTargetScript,
   supportedSourceLanguageHint,
@@ -341,6 +345,8 @@ function pageTranslationConfigurationIdentity(
         ? settings.provider.aiProvider
         : settings.provider.fastProvider,
     baseUrl: settings.provider.baseUrl,
+    microsoftRegion: settings.provider.microsoftRegion,
+    deeplPlan: settings.provider.deeplPlan,
     model: settings.provider.model,
     systemPrompt: settings.provider.systemPrompt,
   });
@@ -1131,6 +1137,21 @@ export class PageTranslationSession {
   async translate(settings: ContentSettings): Promise<PageStatus> {
     this.restore();
     this.settings = settings;
+    const runtimeContext = translationRuntimeDiagnosticContext();
+    if (
+      settings.page.mode === "fast" &&
+      settings.provider.fastProvider === "chrome-local" &&
+      runtimeContext.frame === "child" &&
+      runtimeContext.translatorPolicy === false
+    ) {
+      translationDiagnostic("PageTranslation", "restricted-frame-skipped", {
+        ...runtimeContext,
+        configuredSourceLanguage: settings.page.sourceLanguage,
+        targetLanguage: settings.page.targetLanguage,
+      });
+      this.update({ state: "idle", total: 0, completed: 0, failed: 0 });
+      return this.getStatus();
+    }
     this.configureLocalProvider(settings);
     const controller = new AbortController();
     this.controller = controller;
@@ -1376,7 +1397,8 @@ export class PageTranslationSession {
     const skipTargetScript =
       settings.page.sourceLanguage === "auto" &&
       settings.page.mode === "fast" &&
-      settings.provider.fastProvider === "chrome-local";
+      (settings.provider.fastProvider === "chrome-local" ||
+        settings.provider.fastProvider === "bergamot-local");
     const skippedSegments = skipTargetScript
       ? segments.filter((segment) =>
           isPredominantlyTargetScript(
@@ -1419,6 +1441,30 @@ export class PageTranslationSession {
             declaredSourceLanguage,
           )) ?? "auto")
         : settings.page.sourceLanguage;
+    if (
+      settings.page.mode === "fast" &&
+      settings.provider.fastProvider === "chrome-local"
+    ) {
+      translationDiagnostic("PageTranslation", "plan", {
+        ...translationRuntimeDiagnosticContext(),
+        configuredSourceLanguage: settings.page.sourceLanguage,
+        declaredSourceLanguage: declaredSourceLanguage ?? "",
+        resolvedSourceLanguage: sourceLanguage,
+        targetLanguage: settings.page.targetLanguage,
+        inputSegments: segments.length,
+        inputCharacters: segments.reduce(
+          (total, segment) => total + segment.text.length,
+          0,
+        ),
+        targetScriptSkippedSegments: skippedSegments.length,
+        targetScriptSkippedCharacters: skippedSegments.reduce(
+          (total, segment) => total + segment.text.length,
+          0,
+        ),
+        translatableSegments: translatableSegments.length,
+        detectionSegments: detectionSegments.length,
+      });
+    }
     if (
       signal.aborted ||
       this.controller !== controller ||
@@ -1914,6 +1960,18 @@ export class PageTranslationSession {
           reportExpandedProgress(result);
         }
       }
+      translationDiagnostic("PageTranslation", "chrome-local-cache", {
+        ...translationRuntimeDiagnosticContext(),
+        sourceLanguage: request.sourceLanguage,
+        targetLanguage: request.targetLanguage,
+        requestedSegments: cacheEntries.length,
+        requestedCharacters: cacheEntries.reduce(
+          (total, entry) => total + entry.segment.text.length,
+          0,
+        ),
+        cacheHits: cached.length,
+        cacheMisses: missing.length,
+      });
       if (missing.length > 0) {
         const keys = new Map(
           missing.map(({ segment, key }) => [segment.id, key]),
@@ -2589,6 +2647,18 @@ export class PageTranslationSession {
             : this.status.failed > 0
               ? "partial"
               : "translated";
+    if (
+      this.settings?.page.mode === "fast" &&
+      this.settings.provider.fastProvider === "chrome-local"
+    ) {
+      translationDiagnostic("PageTranslation", "terminal-status", {
+        ...translationRuntimeDiagnosticContext(),
+        state,
+        total: this.status.total,
+        completed: this.status.completed,
+        failed: this.status.failed,
+      });
+    }
     this.update({
       ...statusWithoutMessage,
       state,

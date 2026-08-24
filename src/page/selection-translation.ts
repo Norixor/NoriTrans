@@ -331,6 +331,8 @@ function selectionConfigurationChanged(
     previous.provider.fastProvider !== next.provider.fastProvider ||
     previous.provider.aiProvider !== next.provider.aiProvider ||
     previous.provider.baseUrl !== next.provider.baseUrl ||
+    previous.provider.microsoftRegion !== next.provider.microsoftRegion ||
+    previous.provider.deeplPlan !== next.provider.deeplPlan ||
     previous.provider.model !== next.provider.model ||
     previous.provider.systemPrompt !== next.provider.systemPrompt ||
     previous.provider.timeoutMs !== next.provider.timeoutMs

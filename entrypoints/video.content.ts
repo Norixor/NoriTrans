@@ -66,6 +66,7 @@ import {
 } from "@/src/subtitles/profiles/registry";
 import type { SubtitleSiteProfile } from "@/src/subtitles/profiles/types";
 import { MAIN_WORLD_CAPTURE_PROFILE_IDS } from "@/src/subtitles/profiles/catalog";
+import { queryDocumentTranslationCapabilities } from "@/src/translation/provider-capabilities";
 import { browser } from "wxt/browser";
 import { defineContentScript } from "wxt/utils/define-content-script";
 import { injectScript } from "wxt/utils/inject-script";
@@ -101,7 +102,11 @@ function providerCacheContext(settings: ContentSettings) {
   return {
     fastProviderId: settings.provider.fastProvider,
     aiProviderId: settings.provider.aiProvider,
-    baseUrl: settings.provider.baseUrl,
+    baseUrl: [
+      settings.provider.baseUrl,
+      settings.provider.microsoftRegion,
+      settings.provider.deeplPlan,
+    ].join("\u001f"),
     model: settings.provider.model,
     promptVersion: subtitlePromptVersion(settings.provider.systemPrompt),
   };
@@ -569,6 +574,11 @@ async function runEmbeddedFrame(
     switch (message.type) {
       case "CONTENT_RUNTIME_INFO":
         return { version: browser.runtime.getManifest().version };
+      case "TRANSLATION_CAPABILITIES_GET":
+        return queryDocumentTranslationCapabilities().then((capabilities) => ({
+          ok: true,
+          capabilities,
+        }));
       case "PAGE_TRANSLATE":
         translatePage(true);
         return pageStatus;
@@ -895,53 +905,63 @@ export default defineContentScript({
       onStatus: (status) =>
         floatingControlRef.current?.updateImageStatus(status),
     });
+    const adoptQuickSettingsResponse = async (
+      response: unknown,
+    ): Promise<void> => {
+      if (!successfulResponse(response)) {
+        throw new Error(runtimeErrorToken("settings_save_failed"));
+      }
+      settings =
+        typeof response === "object" &&
+        response !== null &&
+        "settings" in response &&
+        isContentSettings(response.settings)
+          ? response.settings
+          : await loadContentSettings();
+      pageSession.updateSettings(settings);
+      selectionTranslation.updateSettings(settings);
+      controller.updateSettings(
+        settings.subtitles,
+        providerCacheContext(settings),
+        settings.provider,
+      );
+      controller.updateOcrSettings(settings.ocr);
+      imageController.updateSettings(settings);
+      floatingControlRef.current?.updateSettings(settings);
+    };
     const floatingControlOptions: UnifiedFloatingControlOptions = {
       settings,
       onPageTranslate: () => broadcastContentCommand("PAGE_TRANSLATE"),
       onPageRestore: () => broadcastContentCommand("PAGE_RESTORE"),
       onAutoTranslateChange: setAutoTranslate,
-      onPageSettingsChange: async (patch) => {
+      onPageSettingsChange: async (patch, fastProvider) => {
         const response: unknown = await browser.runtime.sendMessage({
           type: "PAGE_QUICK_SETTINGS_SET",
           sourceLanguage: patch.sourceLanguage,
           targetLanguage: patch.targetLanguage,
           mode: settings.page.mode,
+          fastProvider,
           responseMode: settings.page.aiResponseMode,
           displayMode: patch.displayMode,
           selectionTranslationEnabled: patch.selectionTranslationEnabled,
           selectionTranslationMode: patch.selectionTranslationMode,
         });
-        if (!successfulResponse(response)) {
-          throw new Error(runtimeErrorToken("settings_save_failed"));
-        }
-        settings = {
-          ...settings,
-          page: { ...settings.page, ...patch },
-        };
-        pageSession.updateSettings(settings);
-        selectionTranslation.updateSettings(settings);
+        await adoptQuickSettingsResponse(response);
       },
-      onPageModeChange: async (mode) => {
+      onPageModeChange: async (mode, fastProvider) => {
         const response: unknown = await browser.runtime.sendMessage({
           type: "PAGE_QUICK_SETTINGS_SET",
           sourceLanguage: settings.page.sourceLanguage,
           targetLanguage: settings.page.targetLanguage,
           mode,
+          fastProvider,
           responseMode: settings.page.aiResponseMode,
           displayMode: settings.page.displayMode,
           selectionTranslationEnabled:
             settings.page.selectionTranslationEnabled,
           selectionTranslationMode: settings.page.selectionTranslationMode,
         });
-        if (!successfulResponse(response)) {
-          throw new Error(runtimeErrorToken("settings_save_failed"));
-        }
-        settings = {
-          ...settings,
-          page: { ...settings.page, mode },
-        };
-        pageSession.updateSettings(settings);
-        selectionTranslation.updateSettings(settings);
+        await adoptQuickSettingsResponse(response);
       },
       onPageResponseModeChange: async (responseMode) => {
         const response: unknown = await browser.runtime.sendMessage({
@@ -965,25 +985,20 @@ export default defineContentScript({
         pageSession.updateSettings(settings);
         selectionTranslation.updateSettings(settings);
       },
-      onSubtitleSettingsChange: async (patch) => {
+      onSubtitleSettingsChange: async (patch, fastProvider) => {
         const response: unknown = await browser.runtime.sendMessage({
           type: "SUBTITLE_QUICK_SETTINGS_SET",
           sourceLanguage: patch.sourceLanguage,
           targetLanguage: patch.targetLanguage,
           mode: patch.mode,
+          fastProvider,
           responseMode: patch.aiResponseMode,
           displayMode: patch.displayMode,
           hideNativeSubtitles: patch.hideNativeSubtitles,
           fontScale: patch.fontScale,
           backgroundOpacity: patch.backgroundOpacity,
         });
-        if (!successfulResponse(response)) {
-          throw new Error(runtimeErrorToken("settings_save_failed"));
-        }
-        settings = {
-          ...settings,
-          subtitles: { ...settings.subtitles, ...patch },
-        };
+        await adoptQuickSettingsResponse(response);
         setSubtitleDiscoveryEnabled(
           settings.subtitles.enabled,
           settings.subtitles.sourceLanguage,
@@ -995,7 +1010,7 @@ export default defineContentScript({
         );
         topSubtitleStatus = controller.getStatus();
         syncNativeSubtitleVisibility(topSubtitleStatus);
-        ocrSession.setSourceLanguage(settings.subtitles.sourceLanguage);
+        ocrSession.setSourceLanguage(settings.ocr.sourceLanguage);
       },
       onSubtitleStart: () => broadcastContentCommand("SUBTITLE_START"),
       onSubtitleCancel: () => broadcastContentCommand("SUBTITLE_CANCEL"),
@@ -1004,8 +1019,8 @@ export default defineContentScript({
         profileWizard = new SubtitleProfileWizard({ onSave: saveProfile });
         profileWizard.start();
       },
-      onOcrEnabledChange: async (enabled) => {
-        if (enabled) {
+      onOcrSettingsChange: async (ocrSettings) => {
+        if (ocrSettings.enabled && !settings.ocr.enabled) {
           const permission: unknown = await browser.runtime.sendMessage({
             type: "OCR_PERMISSION_REQUEST",
           });
@@ -1020,14 +1035,16 @@ export default defineContentScript({
         }
         const response: unknown = await browser.runtime.sendMessage({
           type: "OCR_SETTINGS_SET",
-          enabled,
+          ...ocrSettings,
         });
         if (!successfulResponse(response)) {
           throw new Error(runtimeErrorToken("settings_save_failed"));
         }
-        settings = { ...settings, ocr: { enabled } };
-        ocrSession.setEnabled(enabled);
-        if (!enabled) controller.invalidateMedia();
+        settings = { ...settings, ocr: ocrSettings };
+        ocrSession.setEnabled(ocrSettings.enabled);
+        ocrSession.setSourceLanguage(ocrSettings.sourceLanguage);
+        controller.updateOcrSettings(ocrSettings);
+        if (!ocrSettings.enabled) controller.invalidateMedia();
       },
       onOcrStart: async () => {
         await startOcr();
@@ -1036,16 +1053,13 @@ export default defineContentScript({
         ocrSession.stop("cancelled");
         controller.invalidateMedia();
       },
-      onImageSettingsChange: async (patch) => {
+      onImageSettingsChange: async (patch, fastProvider) => {
         const response: unknown = await browser.runtime.sendMessage({
           type: "IMAGE_TRANSLATION_SETTINGS_SET",
           ...patch,
+          fastProvider,
         });
-        if (!successfulResponse(response)) {
-          throw new Error(runtimeErrorToken("settings_save_failed"));
-        }
-        settings = { ...settings, imageTranslation: { ...patch } };
-        imageController.updateSettings(settings);
+        await adoptQuickSettingsResponse(response);
       },
       onImageStart: async () => {
         await imageController.startCurrent();
@@ -1100,6 +1114,7 @@ export default defineContentScript({
     const ocrAdapter = new OcrSubtitleAdapter();
     const controller = new SubtitleController({
       settings: settings.subtitles,
+      ocrSettings: settings.ocr,
       adapters: [...createSubtitleAdapters(siteProfiles, location), ocrAdapter],
       providerCacheContext: providerCacheContext(settings),
       providerSettings: settings.provider,
@@ -1151,7 +1166,7 @@ export default defineContentScript({
     let pendingOcrStopNotice: string | undefined;
     const ocrSession = new OcrSession({
       enabled: settings.ocr.enabled,
-      sourceLanguage: settings.subtitles.sourceLanguage,
+      sourceLanguage: settings.ocr.sourceLanguage,
       adapter: ocrAdapter,
       onStatus: (status) => {
         const running = [
@@ -1289,6 +1304,11 @@ export default defineContentScript({
       switch (message.type) {
         case "CONTENT_RUNTIME_INFO":
           return { version: browser.runtime.getManifest().version };
+        case "TRANSLATION_CAPABILITIES_GET":
+          return {
+            ok: true,
+            capabilities: await queryDocumentTranslationCapabilities(),
+          };
         case "PAGE_TRANSLATE":
           await setManualTranslationIntent(true).catch(() => undefined);
           translatePage(true);
@@ -1412,7 +1432,8 @@ export default defineContentScript({
           topSubtitleStatus = controller.getStatus();
           syncNativeSubtitleVisibility(topSubtitleStatus);
           ocrSession.setEnabled(settings.ocr.enabled);
-          ocrSession.setSourceLanguage(settings.subtitles.sourceLanguage);
+          ocrSession.setSourceLanguage(settings.ocr.sourceLanguage);
+          controller.updateOcrSettings(settings.ocr);
           if (wasOcrEnabled && !settings.ocr.enabled) {
             controller.invalidateMedia();
           }

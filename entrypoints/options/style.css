@@ -315,6 +315,34 @@ h1 {
   margin: 0;
   font-size: 13px;
 }
+.local-engine-summary {
+  display: flex;
+  min-height: 64px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin: 16px 8px 0;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.local-engine-summary strong {
+  font-size: 14px;
+}
+.local-engine-summary p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.local-runtime-identity {
+  align-items: center;
+  justify-content: space-between;
+}
+.local-runtime-identity small {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
 .runtime-list-shell {
   margin-top: 18px;
   border: 1px solid var(--border);
@@ -457,6 +485,10 @@ h1 {
   font-size: 12px;
   overflow-wrap: anywhere;
 }
+.runtime-status .runtime-progress-copy {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
 .runtime-action {
   display: flex;
   justify-content: flex-end;
@@ -501,6 +533,12 @@ h1 {
 }
 .provider-prompt {
   grid-column: 1 / -1;
+}
+.provider-subheading {
+  margin: 20px 0 0;
+  font-size: 14px;
+  font-weight: 750;
+  color: var(--text-muted);
 }
 .form-grid .form-grid {
   margin-top: 0;

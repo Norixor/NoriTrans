@@ -11,10 +11,24 @@ import {
 } from "@/src/shared/languages";
 import type {
   ContentSettings,
+  FastProviderId,
   ImageTranslationSettings,
+  OcrSettings,
   PageSettings,
   SubtitleSettings,
 } from "@/src/shared/settings";
+import {
+  parseTranslationMethod,
+  TRANSLATION_METHODS,
+  translationMethodValue,
+} from "@/src/shared/translation-methods";
+import {
+  providerLanguagePairAvailable,
+  providerSourceLanguageAvailable,
+  providerTargetLanguageAvailable,
+  queryDocumentTranslationCapabilities,
+  type TranslationCapabilities,
+} from "@/src/translation/provider-capabilities";
 import {
   autoTranslateSitePatternForHostname,
   isSiteAutoTranslateEnabled,
@@ -48,6 +62,7 @@ export type SubtitleSettingsPatch = Pick<
 >;
 
 export type ImageSettingsPatch = ImageTranslationSettings;
+export type OcrSettingsPatch = OcrSettings;
 
 export interface FloatingControlPosition {
   x: number;
@@ -59,19 +74,30 @@ export interface UnifiedFloatingControlOptions {
   onPageTranslate(): Promise<void> | void;
   onPageRestore(): Promise<void> | void;
   onAutoTranslateChange(enabled: boolean): Promise<void> | void;
-  onPageSettingsChange(settings: PageSettingsPatch): Promise<void> | void;
-  onPageModeChange(mode: "fast" | "ai"): Promise<void> | void;
+  onPageSettingsChange(
+    settings: PageSettingsPatch,
+    fastProvider?: FastProviderId,
+  ): Promise<void> | void;
+  onPageModeChange(
+    mode: "fast" | "ai",
+    fastProvider?: FastProviderId,
+  ): Promise<void> | void;
   onPageResponseModeChange(mode: "stream" | "batch"): Promise<void> | void;
   onSubtitleSettingsChange(
     settings: SubtitleSettingsPatch,
+    fastProvider?: FastProviderId,
   ): Promise<void> | void;
   onSubtitleStart(): Promise<void> | void;
   onSubtitleCancel(): Promise<void> | void;
   onCreateProfile(): Promise<void> | void;
+  onOcrSettingsChange?(settings: OcrSettingsPatch): Promise<void> | void;
   onOcrEnabledChange?(enabled: boolean): Promise<void> | void;
   onOcrStart?(): Promise<void> | void;
   onOcrStop?(): Promise<void> | void;
-  onImageSettingsChange?(settings: ImageSettingsPatch): Promise<void> | void;
+  onImageSettingsChange?(
+    settings: ImageSettingsPatch,
+    fastProvider?: FastProviderId,
+  ): Promise<void> | void;
   onImageStart?(): Promise<void> | void;
   onImageCancelOrClear?(): Promise<void> | void;
   loadPosition?(): Promise<FloatingControlPosition | undefined>;
@@ -230,6 +256,12 @@ function createOption(value: string, messageKey: string): HTMLOptionElement {
   return option;
 }
 
+function createTranslationMethodOptions(): HTMLOptionElement[] {
+  return TRANSLATION_METHODS.map(({ value, labelKey }) =>
+    createOption(value, labelKey),
+  );
+}
+
 function createLanguageOption(
   language: LanguageOption,
   locale: string,
@@ -294,6 +326,7 @@ export class UnifiedFloatingControl {
   private readonly pageTargetLanguageSelect = document.createElement("select");
   private readonly pageModeSelect = document.createElement("select");
   private readonly pageResponseModeSelect = document.createElement("select");
+  private pageResponseModeField: HTMLElement | undefined;
   private readonly pageDisplayModeSelect = document.createElement("select");
   private readonly selectionTranslationEnabled =
     document.createElement("input");
@@ -308,6 +341,7 @@ export class UnifiedFloatingControl {
   private readonly modeSelect = document.createElement("select");
   private readonly subtitleResponseModeSelect =
     document.createElement("select");
+  private subtitleResponseModeField: HTMLElement | undefined;
   private readonly displaySelect = document.createElement("select");
   private readonly hideNativeCheckbox = document.createElement("input");
   private readonly subtitleFontDecreaseButton =
@@ -329,6 +363,9 @@ export class UnifiedFloatingControl {
   private readonly ocrDiagnostic = document.createElement("details");
   private readonly ocrDiagnosticText = document.createElement("pre");
   private readonly ocrEnabledCheckbox = document.createElement("input");
+  private readonly ocrSourceLanguageSelect = document.createElement("select");
+  private readonly ocrTargetLanguageSelect = document.createElement("select");
+  private readonly ocrProviderSelect = document.createElement("select");
   private readonly ocrStartButton = document.createElement("button");
   private readonly ocrStopButton = document.createElement("button");
   private readonly imageStatusRow = document.createElement("div");
@@ -389,7 +426,16 @@ export class UnifiedFloatingControl {
     PendingSettingsPatch<ContentSettings["ocr"]> | undefined;
   private pendingImageSettings:
     PendingSettingsPatch<ImageTranslationSettings> | undefined;
+  private pendingPageFastProvider: FastProviderId | undefined;
+  private pendingSubtitleFastProvider: FastProviderId | undefined;
+  private pendingImageFastProvider: FastProviderId | undefined;
   private siteAutoTranslateBusy = false;
+  private translationCapabilities: TranslationCapabilities = {
+    chromePairs: [],
+    installedBergamotPackIds: [],
+  };
+  private translationCapabilitiesReady = false;
+  private translationCapabilitiesRevision = 0;
 
   constructor(private readonly options: UnifiedFloatingControlOptions) {
     this.settings = options.settings;
@@ -556,9 +602,9 @@ export class UnifiedFloatingControl {
     const pageModeField = this.createSelectField(
       message("translationMode"),
       this.pageModeSelect,
-      [createOption("fast", "modeFast"), createOption("ai", "modeAi")],
+      createTranslationMethodOptions(),
     );
-    const pageResponseModeField = this.createSelectField(
+    this.pageResponseModeField = this.createSelectField(
       message("aiResponseMode"),
       this.pageResponseModeSelect,
       [
@@ -577,7 +623,7 @@ export class UnifiedFloatingControl {
     const selectionTranslationModeField = this.createSelectField(
       message("selectionTranslationMode"),
       this.selectionTranslationModeSelect,
-      [createOption("fast", "modeFast"), createOption("ai", "modeAi")],
+      createTranslationMethodOptions(),
     );
     selectionTranslationModeField.classList.add("field-wide");
     const selectionTranslationLabel = document.createElement("label");
@@ -597,7 +643,7 @@ export class UnifiedFloatingControl {
       pageSourceLanguageField,
       pageTargetLanguageField,
       pageModeField,
-      pageResponseModeField,
+      this.pageResponseModeField,
       pageDisplayModeField,
       autoLabel,
       selectionTranslationModeField,
@@ -649,9 +695,9 @@ export class UnifiedFloatingControl {
     const modeField = this.createSelectField(
       message("translationMode"),
       this.modeSelect,
-      [createOption("fast", "modeFast"), createOption("ai", "modeAi")],
+      createTranslationMethodOptions(),
     );
-    const subtitleResponseModeField = this.createSelectField(
+    this.subtitleResponseModeField = this.createSelectField(
       message("aiResponseMode"),
       this.subtitleResponseModeSelect,
       [
@@ -700,7 +746,7 @@ export class UnifiedFloatingControl {
       subtitleSourceLanguageField,
       subtitleTargetLanguageField,
       modeField,
-      subtitleResponseModeField,
+      this.subtitleResponseModeField,
       displayField,
       hideNativeLabel,
       subtitleAppearance,
@@ -733,6 +779,35 @@ export class UnifiedFloatingControl {
     ocrEnabledLabel.append(this.ocrEnabledCheckbox, ocrEnabledText);
     const ocrControls = document.createElement("div");
     ocrControls.className = "ocr-controls";
+    const ocrSettingsGrid = document.createElement("div");
+    ocrSettingsGrid.className = "settings-grid";
+    const ocrSourceLanguageField = this.createSelectField(
+      message("ocrSourceLanguage"),
+      this.ocrSourceLanguageSelect,
+      SOURCE_LANGUAGES.map((language) =>
+        createLanguageOption(language, uiLocale),
+      ),
+    );
+    const ocrTargetLanguageField = this.createSelectField(
+      message("ocrTargetLanguage"),
+      this.ocrTargetLanguageSelect,
+      TARGET_LANGUAGES.map((language) =>
+        createLanguageOption(language, uiLocale),
+      ),
+    );
+    const ocrProviderField = this.createSelectField(
+      message("ocrTranslationProvider"),
+      this.ocrProviderSelect,
+      [
+        createOption("chrome-local", "providerChromeLocal"),
+        createOption("bergamot-local", "providerBergamotLocal"),
+      ],
+    );
+    ocrSettingsGrid.append(
+      ocrSourceLanguageField,
+      ocrTargetLanguageField,
+      ocrProviderField,
+    );
     const ocrActions = document.createElement("div");
     ocrActions.className = "actions";
     this.ocrStartButton.type = "button";
@@ -743,7 +818,12 @@ export class UnifiedFloatingControl {
     ocrActions.append(this.ocrStartButton, this.ocrStopButton);
     this.configureDiagnostic(this.ocrDiagnostic, this.ocrDiagnosticText);
     ocrSummary.append(this.ocrStatusRow);
-    ocrControls.append(ocrEnabledLabel, ocrActions, this.ocrDiagnostic);
+    ocrControls.append(
+      ocrEnabledLabel,
+      ocrSettingsGrid,
+      ocrActions,
+      this.ocrDiagnostic,
+    );
     this.ocrDetails.append(ocrSummary, ocrControls);
     this.videoPanel.append(
       this.subtitleStatusRow,
@@ -790,7 +870,7 @@ export class UnifiedFloatingControl {
     const imageModeField = this.createSelectField(
       message("translationMode"),
       this.imageModeSelect,
-      [createOption("fast", "modeFast"), createOption("ai", "modeAi")],
+      createTranslationMethodOptions(),
     );
     const imageDisplayField = this.createSelectField(
       message("displayMode"),
@@ -1000,7 +1080,16 @@ export class UnifiedFloatingControl {
       void this.options.onCreateProfile();
     });
     this.ocrEnabledCheckbox.addEventListener("change", () => {
-      void this.changeOcrEnabled();
+      void this.changeOcrSettings();
+    });
+    this.ocrSourceLanguageSelect.addEventListener("change", () => {
+      void this.changeOcrSettings();
+    });
+    this.ocrTargetLanguageSelect.addEventListener("change", () => {
+      void this.changeOcrSettings();
+    });
+    this.ocrProviderSelect.addEventListener("change", () => {
+      void this.changeOcrSettings();
     });
     this.ocrStartButton.addEventListener("click", () => {
       this.preferredTaskTarget = "video";
@@ -1056,7 +1145,29 @@ export class UnifiedFloatingControl {
     this.restoreStoredPosition();
     void this.restorePersistedPosition();
     void this.refreshUpdateStatus();
+    void this.refreshTranslationCapabilities();
     this.handleFullscreenChange();
+  }
+
+  private async refreshTranslationCapabilities(): Promise<void> {
+    const revision = ++this.translationCapabilitiesRevision;
+    try {
+      const capabilities = await queryDocumentTranslationCapabilities();
+      if (revision !== this.translationCapabilitiesRevision) return;
+      this.translationCapabilities = capabilities;
+      this.translationCapabilitiesReady = true;
+      this.renderPageSettings();
+      this.renderSubtitleSettings();
+      this.renderOcrSettings();
+      this.renderImageSettings();
+    } catch {
+      if (revision !== this.translationCapabilitiesRevision) return;
+      this.translationCapabilitiesReady = true;
+      this.renderPageSettings();
+      this.renderSubtitleSettings();
+      this.renderOcrSettings();
+      this.renderImageSettings();
+    }
   }
 
   private renderUpdateStatus(status: ExtensionUpdateStatus): void {
@@ -1085,6 +1196,67 @@ export class UnifiedFloatingControl {
     }
   }
 
+  private syncLanguagePairOptions(
+    sourceSelect: HTMLSelectElement,
+    targetSelect: HTMLSelectElement,
+    sourceLanguage: string,
+    targetLanguage: string,
+    provider: FastProviderId,
+  ): void {
+    const locale = currentUiLocale();
+    const sourceOptions = SOURCE_LANGUAGES.filter(
+      ({ code }) =>
+        !this.translationCapabilitiesReady ||
+        providerSourceLanguageAvailable(
+          provider,
+          code,
+          this.translationCapabilities,
+        ),
+    ).map((language) => createLanguageOption(language, locale));
+    const targetOptions = TARGET_LANGUAGES.filter(
+      ({ code }) =>
+        !this.translationCapabilitiesReady ||
+        providerTargetLanguageAvailable(
+          provider,
+          code,
+          this.translationCapabilities,
+        ),
+    ).map((language) => createLanguageOption(language, locale));
+    sourceSelect.replaceChildren(...sourceOptions);
+    targetSelect.replaceChildren(...targetOptions);
+    this.selectLanguageValue(sourceSelect, sourceLanguage);
+    this.selectLanguageValue(targetSelect, targetLanguage);
+  }
+
+  private selectLanguageValue(select: HTMLSelectElement, value: string): void {
+    if (![...select.options].some((option) => option.value === value)) {
+      const unavailable = createLanguageOption(
+        { code: value },
+        currentUiLocale(),
+      );
+      unavailable.disabled = true;
+      unavailable.textContent = `${unavailable.textContent} · ${message("languageUnavailable")}`;
+      select.prepend(unavailable);
+    }
+    select.value = value;
+  }
+
+  private pairAvailable(
+    provider: FastProviderId,
+    sourceLanguage: string,
+    targetLanguage: string,
+  ): boolean {
+    return (
+      !this.translationCapabilitiesReady ||
+      providerLanguagePairAvailable(
+        provider,
+        sourceLanguage,
+        targetLanguage,
+        this.translationCapabilities,
+      )
+    );
+  }
+
   updateSettings(settings: ContentSettings): void {
     this.pageSettingsRevision += 1;
     this.subtitleSettingsRevision += 1;
@@ -1106,15 +1278,31 @@ export class UnifiedFloatingControl {
       settings,
       location.hostname,
     );
-    this.pageSourceLanguageSelect.value = settings.sourceLanguage;
-    this.pageTargetLanguageSelect.value = settings.targetLanguage;
-    this.pageModeSelect.value = settings.mode;
+    const fastProvider =
+      this.pendingPageFastProvider ?? this.settings.provider.fastProvider;
+    const pageProvider =
+      settings.mode === "ai" ? "openai-compatible" : fastProvider;
+    this.syncLanguagePairOptions(
+      this.pageSourceLanguageSelect,
+      this.pageTargetLanguageSelect,
+      settings.sourceLanguage,
+      settings.targetLanguage,
+      pageProvider,
+    );
+    this.pageModeSelect.value = translationMethodValue(
+      settings.mode,
+      fastProvider,
+    );
     this.pageResponseModeSelect.value = settings.aiResponseMode;
+    if (this.pageResponseModeField)
+      this.pageResponseModeField.hidden = settings.mode !== "ai";
     this.pageDisplayModeSelect.value = settings.displayMode;
     this.selectionTranslationEnabled.checked =
       settings.selectionTranslationEnabled;
-    this.selectionTranslationModeSelect.value =
-      settings.selectionTranslationMode;
+    this.selectionTranslationModeSelect.value = translationMethodValue(
+      settings.selectionTranslationMode,
+      fastProvider,
+    );
     this.setPageSettingsDisabled(this.pendingPageSettings !== undefined);
   }
 
@@ -1123,10 +1311,21 @@ export class UnifiedFloatingControl {
       ...this.settings.subtitles,
       ...this.pendingSubtitleSettings?.patch,
     };
-    this.subtitleSourceLanguageSelect.value = settings.sourceLanguage;
-    this.subtitleTargetLanguageSelect.value = settings.targetLanguage;
-    this.modeSelect.value = settings.mode;
+    const fastProvider =
+      this.pendingSubtitleFastProvider ?? this.settings.provider.fastProvider;
+    const provider =
+      settings.mode === "ai" ? "openai-compatible" : fastProvider;
+    this.syncLanguagePairOptions(
+      this.subtitleSourceLanguageSelect,
+      this.subtitleTargetLanguageSelect,
+      settings.sourceLanguage,
+      settings.targetLanguage,
+      provider,
+    );
+    this.modeSelect.value = translationMethodValue(settings.mode, fastProvider);
     this.subtitleResponseModeSelect.value = settings.aiResponseMode;
+    if (this.subtitleResponseModeField)
+      this.subtitleResponseModeField.hidden = settings.mode !== "ai";
     this.displaySelect.value = settings.displayMode;
     this.hideNativeCheckbox.checked = settings.hideNativeSubtitles;
     this.subtitleFontScaleValue.textContent = message(
@@ -1148,6 +1347,14 @@ export class UnifiedFloatingControl {
       ...this.pendingOcrSettings?.patch,
     };
     this.ocrEnabledCheckbox.checked = settings.enabled;
+    this.syncLanguagePairOptions(
+      this.ocrSourceLanguageSelect,
+      this.ocrTargetLanguageSelect,
+      settings.sourceLanguage,
+      settings.targetLanguage,
+      settings.provider,
+    );
+    this.ocrProviderSelect.value = settings.provider;
     this.syncOcrButtons();
   }
 
@@ -1157,9 +1364,21 @@ export class UnifiedFloatingControl {
       ...this.pendingImageSettings?.patch,
     };
     this.imageEnabledCheckbox.checked = settings.enabled;
-    this.imageSourceLanguageSelect.value = settings.sourceLanguage;
-    this.imageTargetLanguageSelect.value = settings.targetLanguage;
-    this.imageModeSelect.value = settings.mode;
+    const fastProvider =
+      this.pendingImageFastProvider ?? this.settings.provider.fastProvider;
+    const provider =
+      settings.mode === "ai" ? "openai-compatible" : fastProvider;
+    this.syncLanguagePairOptions(
+      this.imageSourceLanguageSelect,
+      this.imageTargetLanguageSelect,
+      settings.sourceLanguage,
+      settings.targetLanguage,
+      provider,
+    );
+    this.imageModeSelect.value = translationMethodValue(
+      settings.mode,
+      fastProvider,
+    );
     this.imageModelOverrideInput.value = settings.modelOverride;
     this.imageDisplayModeSelect.value = settings.displayMode;
     const disabled = this.pendingImageSettings !== undefined;
@@ -1175,10 +1394,12 @@ export class UnifiedFloatingControl {
 
   private beginPageSettingsChange(
     patch: Partial<PageSettings>,
+    fastProvider?: FastProviderId,
   ): PendingSettingsPatch<PageSettings> | undefined {
     if (this.pendingPageSettings) return undefined;
     const pending = { revision: this.pageSettingsRevision, patch };
     this.pendingPageSettings = pending;
+    this.pendingPageFastProvider = fastProvider;
     this.renderPageSettings();
     return pending;
   }
@@ -1191,19 +1412,28 @@ export class UnifiedFloatingControl {
     if (succeeded && this.pageSettingsRevision === pending.revision) {
       this.settings = {
         ...this.settings,
+        provider: this.pendingPageFastProvider
+          ? {
+              ...this.settings.provider,
+              fastProvider: this.pendingPageFastProvider,
+            }
+          : this.settings.provider,
         page: { ...this.settings.page, ...pending.patch },
       };
     }
     this.pendingPageSettings = undefined;
+    this.pendingPageFastProvider = undefined;
     this.renderPageSettings();
   }
 
   private beginSubtitleSettingsChange(
     patch: Partial<SubtitleSettings>,
+    fastProvider?: FastProviderId,
   ): PendingSettingsPatch<SubtitleSettings> | undefined {
     if (this.pendingSubtitleSettings) return undefined;
     const pending = { revision: this.subtitleSettingsRevision, patch };
     this.pendingSubtitleSettings = pending;
+    this.pendingSubtitleFastProvider = fastProvider;
     this.renderSubtitleSettings();
     return pending;
   }
@@ -1216,10 +1446,17 @@ export class UnifiedFloatingControl {
     if (succeeded && this.subtitleSettingsRevision === pending.revision) {
       this.settings = {
         ...this.settings,
+        provider: this.pendingSubtitleFastProvider
+          ? {
+              ...this.settings.provider,
+              fastProvider: this.pendingSubtitleFastProvider,
+            }
+          : this.settings.provider,
         subtitles: { ...this.settings.subtitles, ...pending.patch },
       };
     }
     this.pendingSubtitleSettings = undefined;
+    this.pendingSubtitleFastProvider = undefined;
     this.renderSubtitleSettings();
   }
 
@@ -1252,12 +1489,12 @@ export class UnifiedFloatingControl {
     if (this.pendingImageSettings) return;
     const sourceLanguage = this.imageSourceLanguageSelect.value;
     const targetLanguage = this.imageTargetLanguageSelect.value;
-    const mode = this.imageModeSelect.value;
+    const method = parseTranslationMethod(this.imageModeSelect.value);
     const displayMode = this.imageDisplayModeSelect.value;
     if (
       !SOURCE_LANGUAGES.some((language) => language.code === sourceLanguage) ||
       !TARGET_LANGUAGES.some((language) => language.code === targetLanguage) ||
-      (mode !== "fast" && mode !== "ai") ||
+      !method ||
       (displayMode !== "translated" && displayMode !== "bilingual")
     ) {
       return;
@@ -1266,10 +1503,11 @@ export class UnifiedFloatingControl {
       enabled: this.imageEnabledCheckbox.checked,
       sourceLanguage,
       targetLanguage,
-      mode,
+      mode: method.mode,
       modelOverride: this.imageModelOverrideInput.value.trim().slice(0, 256),
       displayMode,
     };
+    this.pendingImageFastProvider = method.fastProvider;
     const pending = {
       revision: this.imageSettingsRevision,
       patch,
@@ -1278,7 +1516,11 @@ export class UnifiedFloatingControl {
     this.renderImageSettings();
     let succeeded = false;
     try {
-      await this.options.onImageSettingsChange?.(patch);
+      if (method.fastProvider) {
+        await this.options.onImageSettingsChange?.(patch, method.fastProvider);
+      } else {
+        await this.options.onImageSettingsChange?.(patch);
+      }
       succeeded = true;
     } catch {
       this.imageStatusRow.dataset.state = "error";
@@ -1288,6 +1530,12 @@ export class UnifiedFloatingControl {
         if (succeeded && this.imageSettingsRevision === pending.revision) {
           this.settings = {
             ...this.settings,
+            provider: this.pendingImageFastProvider
+              ? {
+                  ...this.settings.provider,
+                  fastProvider: this.pendingImageFastProvider,
+                }
+              : this.settings.provider,
             imageTranslation: {
               ...this.settings.imageTranslation,
               ...pending.patch,
@@ -1295,6 +1543,7 @@ export class UnifiedFloatingControl {
           };
         }
         this.pendingImageSettings = undefined;
+        this.pendingImageFastProvider = undefined;
         this.renderImageSettings();
       }
     }
@@ -1823,12 +2072,14 @@ export class UnifiedFloatingControl {
     const displayMode = this.pageDisplayModeSelect.value;
     const selectionTranslationEnabled =
       this.selectionTranslationEnabled.checked;
-    const selectionTranslationMode = this.selectionTranslationModeSelect.value;
+    const selectionMethod = parseTranslationMethod(
+      this.selectionTranslationModeSelect.value,
+    );
     if (
       !SOURCE_LANGUAGES.some((language) => language.code === sourceLanguage) ||
       !TARGET_LANGUAGES.some((language) => language.code === targetLanguage) ||
       (displayMode !== "translated" && displayMode !== "bilingual") ||
-      (selectionTranslationMode !== "fast" && selectionTranslationMode !== "ai")
+      !selectionMethod
     ) {
       return;
     }
@@ -1837,13 +2088,23 @@ export class UnifiedFloatingControl {
       targetLanguage,
       displayMode,
       selectionTranslationEnabled,
-      selectionTranslationMode,
+      selectionTranslationMode: selectionMethod.mode,
     };
-    const pending = this.beginPageSettingsChange(patch);
+    const pending = this.beginPageSettingsChange(
+      patch,
+      selectionMethod.fastProvider,
+    );
     if (!pending) return;
     let succeeded = false;
     try {
-      await this.options.onPageSettingsChange(patch);
+      if (selectionMethod.fastProvider) {
+        await this.options.onPageSettingsChange(
+          patch,
+          selectionMethod.fastProvider,
+        );
+      } else {
+        await this.options.onPageSettingsChange(patch);
+      }
       succeeded = true;
     } catch {
       this.pageStatusRow.dataset.state = "error";
@@ -1855,13 +2116,20 @@ export class UnifiedFloatingControl {
 
   private async changePageMode(): Promise<void> {
     if (this.pendingPageSettings) return;
-    const mode = this.pageModeSelect.value;
-    if (mode !== "fast" && mode !== "ai") return;
-    const pending = this.beginPageSettingsChange({ mode });
+    const method = parseTranslationMethod(this.pageModeSelect.value);
+    if (!method) return;
+    const pending = this.beginPageSettingsChange(
+      { mode: method.mode },
+      method.fastProvider,
+    );
     if (!pending) return;
     let succeeded = false;
     try {
-      await this.options.onPageModeChange(mode);
+      if (method.fastProvider) {
+        await this.options.onPageModeChange(method.mode, method.fastProvider);
+      } else {
+        await this.options.onPageModeChange(method.mode);
+      }
       succeeded = true;
     } catch {
       this.pageStatusRow.dataset.state = "error";
@@ -1896,7 +2164,8 @@ export class UnifiedFloatingControl {
     this.pageTargetLanguageSelect.disabled = disabled;
     this.pageModeSelect.disabled = disabled;
     this.pageResponseModeSelect.disabled =
-      disabled || this.pageModeSelect.value !== "ai";
+      disabled ||
+      parseTranslationMethod(this.pageModeSelect.value)?.mode !== "ai";
     this.pageDisplayModeSelect.disabled = disabled;
     this.autoTranslate.disabled = disabled || this.siteAutoTranslateBusy;
     this.selectionTranslationEnabled.disabled = disabled;
@@ -1907,13 +2176,13 @@ export class UnifiedFloatingControl {
     if (this.pendingSubtitleSettings) return;
     const sourceLanguage = this.subtitleSourceLanguageSelect.value;
     const targetLanguage = this.subtitleTargetLanguageSelect.value;
-    const mode = this.modeSelect.value;
+    const method = parseTranslationMethod(this.modeSelect.value);
     const aiResponseMode = this.subtitleResponseModeSelect.value;
     const displayMode = this.displaySelect.value;
     if (
       !SOURCE_LANGUAGES.some((language) => language.code === sourceLanguage) ||
       !TARGET_LANGUAGES.some((language) => language.code === targetLanguage) ||
-      (mode !== "fast" && mode !== "ai") ||
+      !method ||
       (aiResponseMode !== "stream" && aiResponseMode !== "batch") ||
       (displayMode !== "original" &&
         displayMode !== "translated" &&
@@ -1924,18 +2193,25 @@ export class UnifiedFloatingControl {
     const patch: SubtitleSettingsPatch = {
       sourceLanguage,
       targetLanguage,
-      mode,
+      mode: method.mode,
       aiResponseMode,
       displayMode,
       hideNativeSubtitles: this.hideNativeCheckbox.checked,
       fontScale: this.settings.subtitles.fontScale,
       backgroundOpacity: this.settings.subtitles.backgroundOpacity,
     };
-    const pending = this.beginSubtitleSettingsChange(patch);
+    const pending = this.beginSubtitleSettingsChange(
+      patch,
+      method.fastProvider,
+    );
     if (!pending) return;
     let succeeded = false;
     try {
-      await this.options.onSubtitleSettingsChange(patch);
+      if (method.fastProvider) {
+        await this.options.onSubtitleSettingsChange(patch, method.fastProvider);
+      } else {
+        await this.options.onSubtitleSettingsChange(patch);
+      }
       succeeded = true;
     } catch {
       this.subtitleStatusRow.dataset.state = "error";
@@ -1991,7 +2267,7 @@ export class UnifiedFloatingControl {
     this.subtitleTargetLanguageSelect.disabled = disabled;
     this.modeSelect.disabled = disabled;
     this.subtitleResponseModeSelect.disabled =
-      disabled || this.modeSelect.value !== "ai";
+      disabled || parseTranslationMethod(this.modeSelect.value)?.mode !== "ai";
     this.displaySelect.disabled = disabled;
     this.hideNativeCheckbox.disabled = disabled;
     this.subtitleFontDecreaseButton.disabled = disabled;
@@ -2000,20 +2276,44 @@ export class UnifiedFloatingControl {
     this.subtitleOpacityIncreaseButton.disabled = disabled;
   }
 
-  private async changeOcrEnabled(): Promise<void> {
-    const enabled = this.ocrEnabledCheckbox.checked;
-    const pending = this.beginOcrSettingsChange({ enabled });
+  private async changeOcrSettings(): Promise<void> {
+    const patch: OcrSettingsPatch = {
+      enabled: this.ocrEnabledCheckbox.checked,
+      sourceLanguage: this.ocrSourceLanguageSelect.value,
+      targetLanguage: this.ocrTargetLanguageSelect.value,
+      provider:
+        this.ocrProviderSelect.value === "bergamot-local"
+          ? "bergamot-local"
+          : "chrome-local",
+    };
+    if (
+      !SOURCE_LANGUAGES.some(
+        (language) => language.code === patch.sourceLanguage,
+      ) ||
+      !TARGET_LANGUAGES.some(
+        (language) => language.code === patch.targetLanguage,
+      ) ||
+      (patch.provider !== "chrome-local" && patch.provider !== "bergamot-local")
+    ) {
+      this.renderOcrSettings();
+      return;
+    }
+    const pending = this.beginOcrSettingsChange(patch);
     if (!pending) return;
     let succeeded = false;
     try {
-      await this.options.onOcrEnabledChange?.(enabled);
+      if (this.options.onOcrSettingsChange) {
+        await this.options.onOcrSettingsChange(patch);
+      } else {
+        await this.options.onOcrEnabledChange?.(patch.enabled);
+      }
       succeeded = true;
     } catch {
       this.updateOcrStatus({
         state: "error",
         recognized: 0,
         message: message(
-          enabled ? "ocrCapturePermissionRequired" : "settingsSaveFailed",
+          patch.enabled ? "ocrCapturePermissionRequired" : "settingsSaveFailed",
         ),
       });
     } finally {
@@ -2064,13 +2364,23 @@ export class UnifiedFloatingControl {
   private syncSubtitleTaskButtons(): void {
     const status = this.currentSubtitleStatus;
     const retry = status.failed > 0 && status.state !== "cancelled";
+    const provider =
+      this.settings.subtitles.mode === "ai"
+        ? "openai-compatible"
+        : this.settings.provider.fastProvider;
+    const pairAvailable = this.pairAvailable(
+      provider,
+      this.settings.subtitles.sourceLanguage,
+      this.settings.subtitles.targetLanguage,
+    );
     this.subtitleStartButton.textContent = message(
       retry ? "retryFailedSubtitles" : "startSubtitleTranslation",
     );
     this.subtitleStartButton.disabled =
       this.subtitleTaskBusy ||
       status.state === "translating" ||
-      status.state === "ready";
+      status.state === "ready" ||
+      !pairAvailable;
     this.subtitleCancelButton.disabled =
       this.subtitleCancelBusy ||
       status.total === 0 ||
@@ -2090,16 +2400,37 @@ export class UnifiedFloatingControl {
       "active",
     ].includes(this.currentOcrStatus.state);
     this.ocrEnabledCheckbox.disabled = this.pendingOcrSettings !== undefined;
-    this.ocrStartButton.disabled = !enabled || running;
+    this.ocrSourceLanguageSelect.disabled =
+      this.pendingOcrSettings !== undefined;
+    this.ocrTargetLanguageSelect.disabled =
+      this.pendingOcrSettings !== undefined;
+    this.ocrProviderSelect.disabled = this.pendingOcrSettings !== undefined;
+    this.ocrStartButton.disabled =
+      !enabled ||
+      running ||
+      !this.pairAvailable(
+        this.settings.ocr.provider,
+        this.settings.ocr.sourceLanguage,
+        this.settings.ocr.targetLanguage,
+      );
     this.ocrStopButton.disabled = !running;
   }
 
   private syncImageButtons(): void {
     const running = this.imageTaskActive();
+    const provider =
+      this.settings.imageTranslation.mode === "ai"
+        ? "openai-compatible"
+        : this.settings.provider.fastProvider;
     this.imageStartButton.disabled =
       !this.settings.imageTranslation.enabled ||
       running ||
-      !this.currentImageStatus.hasCurrentImage;
+      !this.currentImageStatus.hasCurrentImage ||
+      !this.pairAvailable(
+        provider,
+        this.settings.imageTranslation.sourceLanguage,
+        this.settings.imageTranslation.targetLanguage,
+      );
     this.imageCancelButton.disabled =
       !this.currentImageStatus.hasCurrentImage ||
       ["disabled", "idle", "available"].includes(this.currentImageStatus.state);
@@ -2243,7 +2574,18 @@ export class UnifiedFloatingControl {
     const translating =
       this.currentPageStatus.state === "scanning" ||
       this.currentPageStatus.state === "translating";
-    this.translateButton.disabled = this.pageBusy || translating;
+    const provider =
+      this.settings.page.mode === "ai"
+        ? "openai-compatible"
+        : this.settings.provider.fastProvider;
+    this.translateButton.disabled =
+      this.pageBusy ||
+      translating ||
+      !this.pairAvailable(
+        provider,
+        this.settings.page.sourceLanguage,
+        this.settings.page.targetLanguage,
+      );
     this.restoreButton.textContent = message(
       translating ? "cancelPageTranslation" : "widgetRestore",
     );

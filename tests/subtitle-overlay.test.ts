@@ -9,6 +9,15 @@ import {
 } from "@/src/subtitles/overlay";
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("@/src/shared/i18n", () => ({
+  message: (key: string) => {
+    if (key === "subtitleDragHandle") return "Move subtitles";
+    if (key === "subtitlePositionSaveFailed")
+      return "Could not save subtitle position.";
+    return key;
+  },
+}));
+
 describe("subtitle overlay display modes", () => {
   it("shows only the requested original, translated, or bilingual lines", () => {
     expect(subtitleCueVisibility("original", true, true)).toEqual({

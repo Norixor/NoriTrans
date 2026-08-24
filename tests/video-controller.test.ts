@@ -80,6 +80,12 @@ vi.mock("wxt/browser", () => ({
   },
 }));
 
+vi.mock("@/src/shared/i18n", () => ({
+  configureUiLanguage: vi.fn(),
+  currentUiLocale: () => "en",
+  message: (key: string) => key,
+}));
+
 function translationRequestFromMessage(
   message: unknown,
 ): { mode: unknown; segments: unknown[] } | null {
@@ -316,17 +322,15 @@ describe("SubtitleController", () => {
           destroy: vi.fn(),
         }),
     };
-    (
-      globalThis as typeof globalThis & { LanguageDetector?: unknown }
-    ).LanguageDetector = {
-      availability: () => Promise.resolve("available"),
-      create: () =>
-        Promise.resolve({
-          detect: () =>
-            Promise.resolve([{ detectedLanguage: "en", confidence: 0.99 }]),
-          destroy: vi.fn(),
-        }),
-    };
+    vi.stubGlobal("chrome", {
+      i18n: {
+        detectLanguage: () =>
+          Promise.resolve({
+            isReliable: true,
+            languages: [{ language: "en", percentage: 99 }],
+          }),
+      },
+    });
   });
 
   it("stores and renders an AI subtitle progress event before the batch finishes", async () => {
@@ -2156,28 +2160,26 @@ describe("SubtitleController", () => {
   });
 
   it("separates automatic OCR cache entries by the detected source language", async () => {
-    (
-      globalThis as typeof globalThis & { LanguageDetector?: unknown }
-    ).LanguageDetector = {
-      availability: () => Promise.resolve("available"),
-      create: () =>
-        Promise.resolve({
-          detect: (text: string) =>
-            Promise.resolve([
+    vi.stubGlobal("chrome", {
+      i18n: {
+        detectLanguage: (text: string) =>
+          Promise.resolve({
+            isReliable: true,
+            languages: [
               {
-                detectedLanguage: text.includes("subtítulo")
+                language: text.includes("subtítulo")
                   ? "es"
                   : text.includes("日本字幕")
                     ? "ja"
                     : /\p{Script=Han}/u.test(text)
                       ? "zh"
                       : "en",
-                confidence: 0.99,
+                percentage: 99,
               },
-            ]),
-          destroy: vi.fn(),
-        }),
-    };
+            ],
+          }),
+      },
+    });
     const player = document.createElement("iframe");
     document.body.append(player);
     const adapter = new StreamAdapter();
@@ -2186,6 +2188,11 @@ describe("SubtitleController", () => {
     );
     const controller = new SubtitleController({
       settings: { ...SETTINGS, sourceLanguage: "auto", targetLanguage: "en" },
+      ocrSettings: {
+        ...DEFAULT_SETTINGS.ocr,
+        sourceLanguage: "auto",
+        targetLanguage: "en",
+      },
       adapters: [adapter],
       cache: { get: () => Promise.resolve(undefined), set: cacheSet },
     });
@@ -2279,22 +2286,20 @@ describe("SubtitleController", () => {
   });
 
   it("retries mixed-language OCR cues with matching Translator and cache languages", async () => {
-    (
-      globalThis as typeof globalThis & { LanguageDetector?: unknown }
-    ).LanguageDetector = {
-      availability: () => Promise.resolve("available"),
-      create: () =>
-        Promise.resolve({
-          detect: (text: string) =>
-            Promise.resolve([
+    vi.stubGlobal("chrome", {
+      i18n: {
+        detectLanguage: (text: string) =>
+          Promise.resolve({
+            isReliable: true,
+            languages: [
               {
-                detectedLanguage: /\p{Script=Han}/u.test(text) ? "zh" : "en",
-                confidence: 0.99,
+                language: /\p{Script=Han}/u.test(text) ? "zh" : "en",
+                percentage: 99,
               },
-            ]),
-          destroy: vi.fn(),
-        }),
-    };
+            ],
+          }),
+      },
+    });
     const unavailableCreate = vi.fn();
     (globalThis as typeof globalThis & { Translator?: unknown }).Translator = {
       availability: () => Promise.resolve("unavailable"),
@@ -2308,6 +2313,11 @@ describe("SubtitleController", () => {
     );
     const controller = new SubtitleController({
       settings: { ...SETTINGS, sourceLanguage: "auto", targetLanguage: "de" },
+      ocrSettings: {
+        ...DEFAULT_SETTINGS.ocr,
+        sourceLanguage: "auto",
+        targetLanguage: "de",
+      },
       adapters: [adapter],
       cache: { get: () => Promise.resolve(undefined), set: cacheSet },
     });

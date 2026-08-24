@@ -66,6 +66,10 @@ vi.mock("wxt/browser", () => ({
   },
 }));
 
+vi.mock("@/src/shared/i18n", () => ({
+  message: (key: string) => key,
+}));
+
 afterEach(() => {
   vi.useRealTimers();
   preparedOcrFrames.fingerprints = [];

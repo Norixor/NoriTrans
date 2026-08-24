@@ -1,0 +1,578 @@
+{
+  "schemaVersion": 1,
+  "source": "Mozilla translations GCS release exports",
+  "bundles": [
+    {
+      "from": "en",
+      "to": "es",
+      "version": "3.0",
+      "architecture": "base-memory",
+      "artifacts": [
+        {
+          "id": "gcs-adfe7537501b8c0cd403d951ae8bdff4",
+          "kind": "lex",
+          "name": "lex.50.50.enes.s2t.bin.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/en-es/retrain_hr_fix_names_CUAEXUHoQum_cFqh-ZAryw/exported/lex.50.50.enes.s2t.bin.gz",
+          "compressedBytes": 2265250,
+          "compressedSha256": "37a067966f28ff0ba430fddb7412bc5b07afa2cd2fd5a46d9ad74045a1a06380",
+          "decompressedBytes": 4198436,
+          "decompressedSha256": "7d51237c0a07027dcd61643cfbbb0f8c48597d19907ef53d2cae9d6bec2cf25c"
+        },
+        {
+          "id": "gcs-b28420de50071eab347e0acda48dbce0",
+          "kind": "model",
+          "name": "model.enes.intgemm.alphas.bin.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/en-es/retrain_hr_fix_names_CUAEXUHoQum_cFqh-ZAryw/exported/model.enes.intgemm.alphas.bin.gz",
+          "compressedBytes": 22698792,
+          "compressedSha256": "fe4025fde24a4d5f80533cfb7acd53d0eb7f194dfc2d8f427f0d4563cfb6ac06",
+          "decompressedBytes": 31561787,
+          "decompressedSha256": "3b1c399511c01c84c36fae5c0524df44096288efdc8236e182b5c97d7ad2244c"
+        },
+        {
+          "id": "gcs-1897c8e5e12d365011adefe3c31b7176",
+          "kind": "vocab",
+          "name": "vocab.enes.spm.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/en-es/retrain_hr_fix_names_CUAEXUHoQum_cFqh-ZAryw/exported/vocab.enes.spm.gz",
+          "compressedBytes": 409312,
+          "compressedSha256": "ae2760c04bc6eb5362b16e5c2f145c376bb04bac421c33ba3c0766805e6f03b3",
+          "decompressedBytes": 816054,
+          "decompressedSha256": "5ae254fa9b15aa182e70fd2a6186b1333c63a29a48043a9224c6aa4fcac058ad"
+        }
+      ]
+    },
+    {
+      "from": "es",
+      "to": "en",
+      "version": "3.0",
+      "architecture": "base-memory",
+      "artifacts": [
+        {
+          "id": "gcs-24ab3aaeb3b36e5b633678b9984abb20",
+          "kind": "lex",
+          "name": "lex.50.50.esen.s2t.bin.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/es-en/retrain_hr_HbNjJ60BTwmVTbhfFxuduA/exported/lex.50.50.esen.s2t.bin.gz",
+          "compressedBytes": 2543246,
+          "compressedSha256": "3d7856bfa3b12804bdc80f12fd828fd9062c462113ab73fbf87c5c3b68420813",
+          "decompressedBytes": 4636248,
+          "decompressedSha256": "e2610211d3b9577d012638fe7e7e74ed7b4b708ce96b9e792e67c282a6492daa"
+        },
+        {
+          "id": "gcs-e58df63da220a2e19f3ed17d6c57e1d5",
+          "kind": "model",
+          "name": "model.esen.intgemm.alphas.bin.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/es-en/retrain_hr_HbNjJ60BTwmVTbhfFxuduA/exported/model.esen.intgemm.alphas.bin.gz",
+          "compressedBytes": 23288494,
+          "compressedSha256": "54247f1e057180bca1d404dfd5c12836f65bc96cef7af98e59e55acb8bd093b1",
+          "decompressedBytes": 31561787,
+          "decompressedSha256": "4aed7734152ae0045d1a69ae49c86cfda18f53c61f90e95e1d1de1c7c7c3b033"
+        },
+        {
+          "id": "gcs-390876a8e19e8b9200f3c058321448bc",
+          "kind": "vocab",
+          "name": "vocab.esen.spm.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/es-en/retrain_hr_HbNjJ60BTwmVTbhfFxuduA/exported/vocab.esen.spm.gz",
+          "compressedBytes": 409312,
+          "compressedSha256": "1658b529b8858cf2e1e8cef2c4e2d69654d77b5f714ac52205864b336dfeb3ee",
+          "decompressedBytes": 816054,
+          "decompressedSha256": "5ae254fa9b15aa182e70fd2a6186b1333c63a29a48043a9224c6aa4fcac058ad"
+        }
+      ]
+    },
+    {
+      "from": "en",
+      "to": "fr",
+      "version": "3.0",
+      "architecture": "base-memory",
+      "artifacts": [
+        {
+          "id": "gcs-658b782ccd873fc3329b6aec88b5d1be",
+          "kind": "lex",
+          "name": "lex.50.50.enfr.s2t.bin.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/en-fr/retrain_hr_NLIxDbE1TBGyOTI-zwZagw/exported/lex.50.50.enfr.s2t.bin.gz",
+          "compressedBytes": 2297334,
+          "compressedSha256": "055987f0b585b61c4914fb4469e2392fda0b25d3f7784275974f920e7b631997",
+          "decompressedBytes": 4372936,
+          "decompressedSha256": "2585ed98d3af0bc949865aedeb390493d591f56870814376e73e4144c41ed059"
+        },
+        {
+          "id": "gcs-cfe4efb4aae11c0d964224ae2f8b2519",
+          "kind": "model",
+          "name": "model.enfr.intgemm.alphas.bin.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/en-fr/retrain_hr_NLIxDbE1TBGyOTI-zwZagw/exported/model.enfr.intgemm.alphas.bin.gz",
+          "compressedBytes": 23045432,
+          "compressedSha256": "22cdaf3dc9a1da6e5818b5576737182467f3cd97e6fd6f94e4273eb7b56d1e3f",
+          "decompressedBytes": 31561787,
+          "decompressedSha256": "6322e296d4fecfe395a8d5723da4ec37ecbe6d7613bb1dfcf4b28e2a47498b68"
+        },
+        {
+          "id": "gcs-392bdcbfd7ac07cd4b270d3f0bd66b14",
+          "kind": "vocab",
+          "name": "vocab.enfr.spm.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/en-fr/retrain_hr_NLIxDbE1TBGyOTI-zwZagw/exported/vocab.enfr.spm.gz",
+          "compressedBytes": 409706,
+          "compressedSha256": "5dcadaad8191fb4eb7677bce07098a20221dec95976a4db796f3a17cc82b4541",
+          "decompressedBytes": 814404,
+          "decompressedSha256": "783abf3abe075afdf8d85d233994bef2c3a064e935ab1bed946820aff6ac002a"
+        }
+      ]
+    },
+    {
+      "from": "fr",
+      "to": "en",
+      "version": "3.0",
+      "architecture": "base-memory",
+      "artifacts": [
+        {
+          "id": "gcs-0cd60309083f563aea24430a0b5caafd",
+          "kind": "lex",
+          "name": "lex.50.50.fren.s2t.bin.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/fr-en/retrain_hr_EFgIftH_RrCyzl5gjemVNg/exported/lex.50.50.fren.s2t.bin.gz",
+          "compressedBytes": 2649934,
+          "compressedSha256": "395aa7767220e1bcfc085f2b2787ff98005d0075e55451f1e0832885e3d9642a",
+          "decompressedBytes": 4824120,
+          "decompressedSha256": "87c6752ea908f5f0347c10ac0cf7d80d9c2f4f20c81c90168f3e8230b56d4440"
+        },
+        {
+          "id": "gcs-2226e756b787e15f3423da9e6c73a1e3",
+          "kind": "model",
+          "name": "model.fren.intgemm.alphas.bin.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/fr-en/retrain_hr_EFgIftH_RrCyzl5gjemVNg/exported/model.fren.intgemm.alphas.bin.gz",
+          "compressedBytes": 23175075,
+          "compressedSha256": "06b1eeedd3944260d00a393d12ec7192490c5b7c930b97212faf4d5f5c90a2ee",
+          "decompressedBytes": 31561787,
+          "decompressedSha256": "15f997bc0d13808b0b0fbd0786e684a3c8a52adcd8071844b76123fdacbf2b90"
+        },
+        {
+          "id": "gcs-b57c51cff40b3b14718ed62ea5ce38bc",
+          "kind": "vocab",
+          "name": "vocab.fren.spm.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/fr-en/retrain_hr_EFgIftH_RrCyzl5gjemVNg/exported/vocab.fren.spm.gz",
+          "compressedBytes": 409706,
+          "compressedSha256": "8d15b219ffd32327b4cabf0d94a05a4fecb8923a4f386badbcbe5e86ede453a7",
+          "decompressedBytes": 814404,
+          "decompressedSha256": "783abf3abe075afdf8d85d233994bef2c3a064e935ab1bed946820aff6ac002a"
+        }
+      ]
+    },
+    {
+      "from": "en",
+      "to": "de",
+      "version": "3.0",
+      "architecture": "base-memory",
+      "artifacts": [
+        {
+          "id": "gcs-e67b01460d5da6c1a5d141d71a1ef9e0",
+          "kind": "lex",
+          "name": "lex.50.50.ende.s2t.bin.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/en-de/retrain_hr_fix_names_SCgGhxUPQ2WAECHLRtzrMg/exported/lex.50.50.ende.s2t.bin.gz",
+          "compressedBytes": 2314750,
+          "compressedSha256": "0370d79cda6fed5dfa8f9b2a0009459bd2766893825bb5b8b5114169d18da6c4",
+          "decompressedBytes": 4347672,
+          "decompressedSha256": "7ed39f1cffbd68a27ddf05bbfe068de2060f1d7e69f1a20e27ae923551dd7393"
+        },
+        {
+          "id": "gcs-90f110baa635657dc01ae7c0c0ae08c0",
+          "kind": "model",
+          "name": "model.ende.intgemm.alphas.bin.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/en-de/retrain_hr_fix_names_SCgGhxUPQ2WAECHLRtzrMg/exported/model.ende.intgemm.alphas.bin.gz",
+          "compressedBytes": 22992073,
+          "compressedSha256": "e3a74458faba3ab2752ed8355c5e3979f13395279c8fc1bd3f54a3c2316e4975",
+          "decompressedBytes": 31561787,
+          "decompressedSha256": "8df29d9494d19f47fd5d97c6a73474c6f657e9f81c1a607c431d02befdf3810f"
+        },
+        {
+          "id": "gcs-ebb8584fcefdc4dfdbdf90e7dc003c7d",
+          "kind": "vocab",
+          "name": "vocab.ende.spm.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/en-de/retrain_hr_fix_names_SCgGhxUPQ2WAECHLRtzrMg/exported/vocab.ende.spm.gz",
+          "compressedBytes": 413879,
+          "compressedSha256": "3b2ddbfac73f994f151a8994447d6b3d41ab0d3435da56f79c233f34d03e45c2",
+          "decompressedBytes": 810073,
+          "decompressedSha256": "69f730becafa48e3bb2c244eab66456877c08959a02f2bd5519b5a3088b62f9c"
+        }
+      ]
+    },
+    {
+      "from": "de",
+      "to": "en",
+      "version": "3.0",
+      "architecture": "base-memory",
+      "artifacts": [
+        {
+          "id": "gcs-044b08bcc4f6ec05760134926063dbf3",
+          "kind": "lex",
+          "name": "lex.50.50.deen.s2t.bin.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/de-en/retrain_hr2_WZOW24i4QJmIib61LeHfwg/exported/lex.50.50.deen.s2t.bin.gz",
+          "compressedBytes": 2626658,
+          "compressedSha256": "231e9caf62e0e867775d5f4c1f4cfae21e37c70d9bf2bd628fa468aeeb2ba869",
+          "decompressedBytes": 4945796,
+          "decompressedSha256": "113b98460468360cca68c042e1cddf49c4e1931cbb975ed04349c9a3bd607010"
+        },
+        {
+          "id": "gcs-ff2bf0273d2e478c3e2c7b0cbc793bb6",
+          "kind": "model",
+          "name": "model.deen.intgemm.alphas.bin.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/de-en/retrain_hr2_WZOW24i4QJmIib61LeHfwg/exported/model.deen.intgemm.alphas.bin.gz",
+          "compressedBytes": 22403755,
+          "compressedSha256": "38b245bcfc23f6d61fd98a187436ea1320a38f41896df411b103df3e83f51681",
+          "decompressedBytes": 31561787,
+          "decompressedSha256": "3e6f7c2c2425d10824797270b382bee718ff34af2cab9308841c82ca46dc6f20"
+        },
+        {
+          "id": "gcs-ce97a55559eefd8edcb59e6f127ecf7f",
+          "kind": "vocab",
+          "name": "vocab.deen.spm.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/de-en/retrain_hr2_WZOW24i4QJmIib61LeHfwg/exported/vocab.deen.spm.gz",
+          "compressedBytes": 413879,
+          "compressedSha256": "88dcd7fdbf20dc60837ce837244d0d55b20f7079f2cbd2ba8e63530632028310",
+          "decompressedBytes": 810073,
+          "decompressedSha256": "69f730becafa48e3bb2c244eab66456877c08959a02f2bd5519b5a3088b62f9c"
+        }
+      ]
+    },
+    {
+      "from": "en",
+      "to": "ja",
+      "version": "3.0",
+      "architecture": "base-memory",
+      "artifacts": [
+        {
+          "id": "gcs-22c3ec0f7e5a197024b83843e30a1e37",
+          "kind": "lex",
+          "name": "lex.50.50.enja.s2t.bin.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/en-ja/llmaat_finetune10M_qe8_f2_ApiGGQIwTKuF9i_k3n9Q2Q/exported/lex.50.50.enja.s2t.bin.gz",
+          "compressedBytes": 2341409,
+          "compressedSha256": "7966382f7a9ba15993c67721526921d8901caa0f8add56eff04e4bb327d57c11",
+          "decompressedBytes": 4128360,
+          "decompressedSha256": "edfb7eb47b98a2689b804ab3614c31b24f1257aa54b1154da3d85e1ae8152d9f"
+        },
+        {
+          "id": "gcs-137aabcaac76b3f7f4b966a9f0ff8f23",
+          "kind": "model",
+          "name": "model.enja.intgemm.alphas.bin.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/en-ja/llmaat_finetune10M_qe8_f2_ApiGGQIwTKuF9i_k3n9Q2Q/exported/model.enja.intgemm.alphas.bin.gz",
+          "compressedBytes": 33052218,
+          "compressedSha256": "99fc8fc120189930beadacb2eef4b049d0794ac6132d1266340e457c95730368",
+          "decompressedBytes": 43849787,
+          "decompressedSha256": "59ae659f9bb63e4f81f474fe3c03d3f4499434b5f9e779fab7c12a45f31fd562"
+        },
+        {
+          "id": "gcs-d5db1c3ff10895d676d24f372544a023",
+          "kind": "srcvocab",
+          "name": "srcvocab.enja.spm.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/en-ja/llmaat_finetune10M_qe8_f2_ApiGGQIwTKuF9i_k3n9Q2Q/exported/srcvocab.enja.spm.gz",
+          "compressedBytes": 404352,
+          "compressedSha256": "12d8ffc83fc0bb61494d95701f6a298bbad5c999a043d4a48a1c1bd61e092167",
+          "decompressedBytes": 796275,
+          "decompressedSha256": "970c98d174fc01e0339fbabbf45af36a4be3f26f819ec1a5ea1189f71e091889"
+        },
+        {
+          "id": "gcs-b99b21438f31c4505c2235cd3cc1d584",
+          "kind": "trgvocab",
+          "name": "trgvocab.enja.spm.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/en-ja/llmaat_finetune10M_qe8_f2_ApiGGQIwTKuF9i_k3n9Q2Q/exported/trgvocab.enja.spm.gz",
+          "compressedBytes": 431278,
+          "compressedSha256": "be7fec234b5fc94616276ee6cca69f3a8cbfa6762fdf278dfc6b11eaf669cc48",
+          "decompressedBytes": 827144,
+          "decompressedSha256": "3b3d9f8f3a034d98d0a476f1794fa79c01e4e98a967ceb6777a66ba2d03ec1e1"
+        }
+      ]
+    },
+    {
+      "from": "ja",
+      "to": "en",
+      "version": "3.0",
+      "architecture": "base",
+      "artifacts": [
+        {
+          "id": "gcs-230a480342b2823d93a576330dfd646b",
+          "kind": "lex",
+          "name": "lex.50.50.jaen.s2t.bin.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/ja-en/cjk_icu_base_U4VUAW3STh-bF0Sr-dX69g/exported/lex.50.50.jaen.s2t.bin.gz",
+          "compressedBytes": 4819431,
+          "compressedSha256": "266617374a94add490a115f0594c0df18bbb696c94a056b396ddc53e5393dc7b",
+          "decompressedBytes": 9346816,
+          "decompressedSha256": "8f858a72fcbaa476c582577b04d6f5f89d645d2335b0b4a794c2706d4b1f75ff"
+        },
+        {
+          "id": "gcs-c76cf3a5a79b8be9abbecbe52cf43cb5",
+          "kind": "model",
+          "name": "model.jaen.intgemm.alphas.bin.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/ja-en/cjk_icu_base_U4VUAW3STh-bF0Sr-dX69g/exported/model.jaen.intgemm.alphas.bin.gz",
+          "compressedBytes": 43084737,
+          "compressedSha256": "483c9ad18e85fd0a8ccb15b305daf7929ee939abd606fdb55a4cacfa89a5be1f",
+          "decompressedBytes": 59504955,
+          "decompressedSha256": "a9bf800679bba570520e1161d7b4fbfcb957add32ca35812134add85689752ad"
+        },
+        {
+          "id": "gcs-4bba3bce8a0169e3a8b4aa72580e998b",
+          "kind": "vocab",
+          "name": "vocab.jaen.spm.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/ja-en/cjk_icu_base_U4VUAW3STh-bF0Sr-dX69g/exported/vocab.jaen.spm.gz",
+          "compressedBytes": 746616,
+          "compressedSha256": "339c8df4205f81e6a192ef2f7d1bbea928c183a2b07878723df895cf23daedac",
+          "decompressedBytes": 1443222,
+          "decompressedSha256": "5cb217758bae05877bb3f0c2f612e4e7c1e4cb03c10db11f4a47098d7ae62919"
+        }
+      ]
+    },
+    {
+      "from": "en",
+      "to": "ko",
+      "version": "3.0",
+      "architecture": "base",
+      "artifacts": [
+        {
+          "id": "gcs-b08489cf74169ebe27ae03a24d109c92",
+          "kind": "lex",
+          "name": "lex.50.50.enko.s2t.bin.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/en-ko/cjk_hplt2_Fzrv_XPwTs6KVNkktUeuOA/exported/lex.50.50.enko.s2t.bin.gz",
+          "compressedBytes": 3697379,
+          "compressedSha256": "edba23122463a94c4c6038ac6ac78ec3ae3655d73c717bc14a92b7a3a285cbe6",
+          "decompressedBytes": 6676356,
+          "decompressedSha256": "7734265822ce315c72334ad538e698ab3900ab8e8f04bd43768d0aecad6b6df7"
+        },
+        {
+          "id": "gcs-2ed0f8a1e0814a886bb96f032919ab42",
+          "kind": "model",
+          "name": "model.enko.intgemm.alphas.bin.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/en-ko/cjk_hplt2_Fzrv_XPwTs6KVNkktUeuOA/exported/model.enko.intgemm.alphas.bin.gz",
+          "compressedBytes": 45488445,
+          "compressedSha256": "582f6dfeb263b3131f59e76155ce625d7147ae7961c271e2df7512a205268318",
+          "decompressedBytes": 59504955,
+          "decompressedSha256": "1c310a79b61b8824b2eb26b045db043d92722f3e66ea06998f7c89f48da9f6bc"
+        },
+        {
+          "id": "gcs-be680de4e9613b22da8f2a0b80ff8b8a",
+          "kind": "vocab",
+          "name": "vocab.enko.spm.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/en-ko/cjk_hplt2_Fzrv_XPwTs6KVNkktUeuOA/exported/vocab.enko.spm.gz",
+          "compressedBytes": 706904,
+          "compressedSha256": "898aaf7e3cb7a2c93f8cb7905f878b87624b1a00ab183f4338e5aa2ff793f203",
+          "decompressedBytes": 1406926,
+          "decompressedSha256": "709bf0e425345e0e92ce41ed84348a1296a2107c92bdb6624404450ffecbd1f9"
+        }
+      ]
+    },
+    {
+      "from": "ko",
+      "to": "en",
+      "version": "3.0",
+      "architecture": "base",
+      "artifacts": [
+        {
+          "id": "gcs-d2e6fc4cdb53f8ced016c6cd11347f3b",
+          "kind": "lex",
+          "name": "lex.50.50.koen.s2t.bin.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/ko-en/cjk_icu_base_BnKgBdd0Rzq87oUYN3L9-A/exported/lex.50.50.koen.s2t.bin.gz",
+          "compressedBytes": 4380580,
+          "compressedSha256": "18b4ecaf51d3aaaf96468d3132f27b4fd93e14b61ea2dc1450142533855ae0e8",
+          "decompressedBytes": 8617080,
+          "decompressedSha256": "471cd980c4ba08c240246f9361f64eb5d627848a135b5731d665f9efaa1e26ae"
+        },
+        {
+          "id": "gcs-daffd2a3414625222c0115f59b2d5135",
+          "kind": "model",
+          "name": "model.koen.intgemm.alphas.bin.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/ko-en/cjk_icu_base_BnKgBdd0Rzq87oUYN3L9-A/exported/model.koen.intgemm.alphas.bin.gz",
+          "compressedBytes": 43140465,
+          "compressedSha256": "ef93436a9acfcb21945379a08ca876b1a3bfa90d03d1040c28b3b03bf701a5bd",
+          "decompressedBytes": 59504955,
+          "decompressedSha256": "1c902d6f7a8d7e3efe6ff4f7d4960a369957bca4ce2ce4a6e8572c231d525090"
+        },
+        {
+          "id": "gcs-17af46a316a471806060699acb94909c",
+          "kind": "vocab",
+          "name": "vocab.koen.spm.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/ko-en/cjk_icu_base_BnKgBdd0Rzq87oUYN3L9-A/exported/vocab.koen.spm.gz",
+          "compressedBytes": 706864,
+          "compressedSha256": "8b2222617bf1dff2f129dbd5f609e8576c3a57f6ea952111dfb2a6f2da848dd6",
+          "decompressedBytes": 1410063,
+          "decompressedSha256": "1c72b740ab793cdc3a8f16913dd6b4e806c77421077dd2d85edeb7be38418598"
+        }
+      ]
+    },
+    {
+      "from": "en",
+      "to": "zh-Hans",
+      "version": "3.0",
+      "architecture": "base-memory",
+      "artifacts": [
+        {
+          "id": "gcs-74a77df659d07ad395ca981f5a6bac29",
+          "kind": "lex",
+          "name": "lex.50.50.enzh.s2t.bin.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/en-zh/llmaat_finetune10M_qe8_f2_ByQcSxGXQRqGi-UTxYE43g/exported/lex.50.50.enzh.s2t.bin.gz",
+          "compressedBytes": 2536039,
+          "compressedSha256": "806f75821c0b838f4a8f4afe5bab3db8289cb7e5187753ba04c3bceadd75687a",
+          "decompressedBytes": 4485184,
+          "decompressedSha256": "8575d8daa10e2dbff316dcdf8e1ce475357bcc2c92bdc63b736a2d5add22f681"
+        },
+        {
+          "id": "gcs-855aa9a024ef5ec24deedc91b5ccc6c0",
+          "kind": "model",
+          "name": "model.enzh.intgemm.alphas.bin.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/en-zh/llmaat_finetune10M_qe8_f2_ByQcSxGXQRqGi-UTxYE43g/exported/model.enzh.intgemm.alphas.bin.gz",
+          "compressedBytes": 33375922,
+          "compressedSha256": "7f255403b3bb2502f08ac4d5ca397a8a5a13f899d2f2e987a4934e089d241d16",
+          "decompressedBytes": 43849787,
+          "decompressedSha256": "4e5accc141373565ddc8fa1565bceaa8d0c3482a82cab8131c719ebcc6c2157c"
+        },
+        {
+          "id": "gcs-52909c65056ebdf87c1b1ff74911d590",
+          "kind": "srcvocab",
+          "name": "srcvocab.enzh.spm.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/en-zh/llmaat_finetune10M_qe8_f2_ByQcSxGXQRqGi-UTxYE43g/exported/srcvocab.enzh.spm.gz",
+          "compressedBytes": 407784,
+          "compressedSha256": "7846e3c236388390f4e5d321f8413d67f34c1bab5f066165eeb673bfd07607cc",
+          "decompressedBytes": 806952,
+          "decompressedSha256": "bd9b65504acc6d9726dd281f7defc2adb7c2c22d0688fe2f84697de25197c8c5"
+        },
+        {
+          "id": "gcs-140ee91bc8426c20a330ebda8a596b45",
+          "kind": "trgvocab",
+          "name": "trgvocab.enzh.spm.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/en-zh/llmaat_finetune10M_qe8_f2_ByQcSxGXQRqGi-UTxYE43g/exported/trgvocab.enzh.spm.gz",
+          "compressedBytes": 425748,
+          "compressedSha256": "4d641ce165b1f8478ee2ffb5149d2d46fab3779dc8fa1e9b97f9af1d2206c091",
+          "decompressedBytes": 772004,
+          "decompressedSha256": "aded6993c36e440284d11cec3f6b8aef9c0e43188a772d80be342a713adf223d"
+        }
+      ]
+    },
+    {
+      "from": "zh-Hans",
+      "to": "en",
+      "version": "3.0",
+      "architecture": "base",
+      "artifacts": [
+        {
+          "id": "gcs-9b17ed5a4654da2dd3f5f869ed0f7e35",
+          "kind": "lex",
+          "name": "lex.50.50.zhen.s2t.bin.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/zh-en/cjk_icu_base_LQeOIbF7Sbq3XA8lsRPotw/exported/lex.50.50.zhen.s2t.bin.gz",
+          "compressedBytes": 4824122,
+          "compressedSha256": "b1bef5f75f5068877afdb2db0eeb670129165976bfa2af4889928f59c264b7b9",
+          "decompressedBytes": 9220016,
+          "decompressedSha256": "cdcad3592dc2bc4676c34c4d37203f7649ee989195cf083cbb60f1ea011f976b"
+        },
+        {
+          "id": "gcs-3f18dd2253671ed2b6db79ad7fe63981",
+          "kind": "model",
+          "name": "model.zhen.intgemm.alphas.bin.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/zh-en/cjk_icu_base_LQeOIbF7Sbq3XA8lsRPotw/exported/model.zhen.intgemm.alphas.bin.gz",
+          "compressedBytes": 44369188,
+          "compressedSha256": "820f50dc36b1e25c97208fff0470bae7fda62bd6f371c4c4bf94947a9de58497",
+          "decompressedBytes": 59504955,
+          "decompressedSha256": "3535442962ec8f4a553cc19b206befcac689ee9cddaea44fa91e21527fc30ac2"
+        },
+        {
+          "id": "gcs-863405bb5fbf2894ec5e17914bc8d661",
+          "kind": "vocab",
+          "name": "vocab.zhen.spm.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/zh-en/cjk_icu_base_LQeOIbF7Sbq3XA8lsRPotw/exported/vocab.zhen.spm.gz",
+          "compressedBytes": 738862,
+          "compressedSha256": "fd0cc08ddcbe480e3be06e6a86cb8aaf75f946263a5d9fc7d2773a197990cfb2",
+          "decompressedBytes": 1359697,
+          "decompressedSha256": "dff594318ab7d8b7b60b844ab98ebe6b932ae8045fab15235404c787715965b3"
+        }
+      ]
+    },
+    {
+      "from": "en",
+      "to": "zh-Hant",
+      "version": "3.0",
+      "architecture": "base-memory",
+      "artifacts": [
+        {
+          "id": "gcs-4b8faa8d4afc751b3fd1a0b9a41d61b8",
+          "kind": "lex",
+          "name": "lex.50.50.enzh_hant.s2t.bin.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/en-zh_hant/zh_hant_llmaat_finetune10M_qe8_f2_aQ8azdOMQOSBVjBDOVDIZQ/exported/lex.50.50.enzh_hant.s2t.bin.gz",
+          "compressedBytes": 2290215,
+          "compressedSha256": "b254c97043a9ba5ff2791abac8b411dc024de6257576745a522ccc6c92421870",
+          "decompressedBytes": 4057188,
+          "decompressedSha256": "d891404d1436a7334df12539fe30a26f9e9f2b80bd42fdb8b5f8849e8a1e942b"
+        },
+        {
+          "id": "gcs-316771e5f13551267f3ef7467b8281d2",
+          "kind": "model",
+          "name": "model.enzh_hant.intgemm.alphas.bin.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/en-zh_hant/zh_hant_llmaat_finetune10M_qe8_f2_aQ8azdOMQOSBVjBDOVDIZQ/exported/model.enzh_hant.intgemm.alphas.bin.gz",
+          "compressedBytes": 33291007,
+          "compressedSha256": "79cb710e5e66bb0490368bf158f42aff800a0f9ef2f6449d98dfb654f2d02669",
+          "decompressedBytes": 43849787,
+          "decompressedSha256": "559ab90d723a58c1f1e2ab7cc12137bc667af5ba3e325e3eb30b5cdc930db520"
+        },
+        {
+          "id": "gcs-e513f0198908c8dd474e031a6f647057",
+          "kind": "srcvocab",
+          "name": "srcvocab.enzh_hant.spm.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/en-zh_hant/zh_hant_llmaat_finetune10M_qe8_f2_aQ8azdOMQOSBVjBDOVDIZQ/exported/srcvocab.enzh_hant.spm.gz",
+          "compressedBytes": 404976,
+          "compressedSha256": "5ad55cf62d3e8b0a1cefacc0086b1ceb26d0df6415205714effa76bbb1a3063b",
+          "decompressedBytes": 803694,
+          "decompressedSha256": "2266df70492162a249ab1c0154f929bd6098b246544c666c1a0d5a24dde7d2ea"
+        },
+        {
+          "id": "gcs-242cbafa2b73877560587cc8e098b737",
+          "kind": "trgvocab",
+          "name": "trgvocab.enzh_hant.spm.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/en-zh_hant/zh_hant_llmaat_finetune10M_qe8_f2_aQ8azdOMQOSBVjBDOVDIZQ/exported/trgvocab.enzh_hant.spm.gz",
+          "compressedBytes": 416659,
+          "compressedSha256": "324622c18601da5784569eeda74b77e5ae96b164657eb8029a9dabfdcd29803b",
+          "decompressedBytes": 751671,
+          "decompressedSha256": "22b91a4436d70b91ab8777c677252ab5fae2bc284d71f977df5206c110e3444c"
+        }
+      ]
+    },
+    {
+      "from": "zh-Hant",
+      "to": "en",
+      "version": "3.0",
+      "architecture": "base-memory",
+      "artifacts": [
+        {
+          "id": "gcs-1d1135cdc883e55d872392d84a47cf37",
+          "kind": "lex",
+          "name": "lex.50.50.zh_hanten.s2t.bin.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/zh_hant-en/zh_hant_openlid_zh_tw_lr0002_WJi5Ozi7SZWC6hgfD5GhTA/exported/lex.50.50.zh_hanten.s2t.bin.gz",
+          "compressedBytes": 3268812,
+          "compressedSha256": "69046bfea1a70a556b5669be3c014958698683ef3c3f00b8dfd5c6b4e8f4f8ca",
+          "decompressedBytes": 6385944,
+          "decompressedSha256": "aa7daf6cfc85c0cd2c10e2944d66f6da55497c9c6408789f3adfded4074c2fb1"
+        },
+        {
+          "id": "gcs-8fa41893264d847b9f6059531a91ef05",
+          "kind": "model",
+          "name": "model.zh_hanten.intgemm.alphas.bin.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/zh_hant-en/zh_hant_openlid_zh_tw_lr0002_WJi5Ozi7SZWC6hgfD5GhTA/exported/model.zh_hanten.intgemm.alphas.bin.gz",
+          "compressedBytes": 33653648,
+          "compressedSha256": "07af851b5a9160e84f3327e6f6151725e2712bed7b6b86edde5920fae107e55b",
+          "decompressedBytes": 43849787,
+          "decompressedSha256": "0aee91790894458f5d367551f6edcd4c9cb97852c34f221bcbf9f4701ebcf0cd"
+        },
+        {
+          "id": "gcs-7640e6c07a74116b581d635db2c5e390",
+          "kind": "srcvocab",
+          "name": "srcvocab.zh_hanten.spm.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/zh_hant-en/zh_hant_openlid_zh_tw_lr0002_WJi5Ozi7SZWC6hgfD5GhTA/exported/srcvocab.zh_hanten.spm.gz",
+          "compressedBytes": 423691,
+          "compressedSha256": "e28a5484fce525e13a6cde4737b2fac08cb3c9cc60c13da9a6395c38833f7936",
+          "decompressedBytes": 769669,
+          "decompressedSha256": "5cc6a76611dbf86219f109141533606b15ecb34eee83673bb86b2c16b14734db"
+        },
+        {
+          "id": "gcs-ce8194775c2c6be5e2641311b068e3d0",
+          "kind": "trgvocab",
+          "name": "trgvocab.zh_hanten.spm.gz",
+          "url": "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/zh_hant-en/zh_hant_openlid_zh_tw_lr0002_WJi5Ozi7SZWC6hgfD5GhTA/exported/trgvocab.zh_hanten.spm.gz",
+          "compressedBytes": 408143,
+          "compressedSha256": "071d675ee1a1b5faffbde94910814998f187df9717b007ae56d54d0a6ae791ac",
+          "decompressedBytes": 812572,
+          "decompressedSha256": "7bf002db37c10d3b114cc5588d7fdcb16c57d0fd1e2c34354c22cc9f0b6c3c29"
+        }
+      ]
+    }
+  ]
+}

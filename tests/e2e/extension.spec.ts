@@ -547,7 +547,9 @@ test("popup keeps icons and custom select arrows geometrically aligned", async (
       };
       const button = document.querySelector(".icon-button")!;
       const icon = button.querySelector("svg")!;
-      const controls = [...document.querySelectorAll(".select-control")];
+      const controls = [...document.querySelectorAll(".select-control")].filter(
+        (control) => control.getBoundingClientRect().height > 0,
+      );
       return {
         popupWidth: document.querySelector("main")!.getBoundingClientRect()
           .width,
@@ -742,12 +744,12 @@ test("popup and options honor dark mode, reduced motion, and narrow widths", asy
       ),
     ).toHaveCount(0);
     await expect(page.locator('meta[name="theme-color"]')).toHaveCount(2);
-    await expect(page.locator(".settings-tab")).toHaveCount(7);
+    await expect(page.locator(".settings-tab")).toHaveCount(9);
     await page.locator("#visibility-settings-tab").click();
     await expect(
       page.locator("#floating-control-enabled"),
     ).toHaveAccessibleName(/floating control|浮动控制|浮窗/iu);
-    await page.locator("#page-settings-tab").click();
+    await page.locator("#selection-settings-tab").click();
     await expect(
       page.locator("#selection-translation-enabled"),
     ).toHaveAccessibleName(/selection translation|划词翻译/iu);
@@ -784,9 +786,9 @@ test("popup and options honor dark mode, reduced motion, and narrow widths", asy
     await expect(page.locator(".data-section")).toBeHidden();
     await page.locator("#ocr-runtimes-tab").click();
     await expect(page.locator("#ocr-runtimes-panel")).toBeVisible();
-    await expect(page.locator(".runtime-local-note")).toContainText(
-      /device|设备/iu,
-    );
+    await expect(
+      page.locator("#ocr-runtimes-panel .runtime-local-note"),
+    ).toContainText(/device|设备/iu);
     await expect(page.locator("#ocr-runtimes-panel")).not.toContainText(
       /PP-OCR|ONNX|SHA-256|物理模型|physical model/iu,
     );
@@ -900,8 +902,12 @@ test("options lists missing OCR runtimes without automatic downloads and preserv
       "role",
       "status",
     );
-    await expect(controlPage.locator(".runtime-item")).toHaveCount(8);
-    await expect(controlPage.locator(".runtime-group")).toHaveCount(3);
+    await expect(
+      controlPage.locator("#ocr-runtime-list .runtime-item"),
+    ).toHaveCount(8);
+    await expect(
+      controlPage.locator("#ocr-runtime-list .runtime-group"),
+    ).toHaveCount(3);
     await controlPage.locator("#profiles-settings-tab").click();
     const builtInProfiles = controlPage.locator(
       '.profile-catalog-item[data-kind="builtin"]',
@@ -920,7 +926,9 @@ test("options lists missing OCR runtimes without automatic downloads and preserv
       "TVer",
     );
     await expect(
-      controlPage.locator('.runtime-status-badge[data-state="missing"]'),
+      controlPage.locator(
+        '#ocr-runtime-list .runtime-status-badge[data-state="missing"]',
+      ),
     ).toHaveCount(8);
     await expect(
       controlPage.locator("#ocr-runtime-download-all"),
@@ -985,6 +993,7 @@ test("options saves a valid provider through the background settings boundary", 
   await controlPage.locator("#page-settings-tab").click();
   await controlPage.locator("#page-mode").selectOption("ai");
   await controlPage.locator("#page-response-mode").selectOption("batch");
+  await controlPage.locator("#selection-settings-tab").click();
   await controlPage.locator("#selection-translation-mode").selectOption("fast");
   await controlPage.locator("#video-settings-tab").click();
   await controlPage.locator("#subtitle-response-mode").selectOption("stream");
@@ -1304,7 +1313,9 @@ test("popup follows external page settings and preserves them on its next edit",
     });
 
     await expect(popup.locator("#target-language")).toHaveValue("es");
-    await expect(popup.locator('input[name="mode"][value="ai"]')).toBeChecked();
+    await expect(popup.locator("#translation-method")).toHaveValue(
+      "ai:openai-compatible",
+    );
     await expect(popup.locator("#response-mode")).toHaveValue("batch");
     await expect(
       popup.locator('input[name="display-mode"][value="translated"]'),
@@ -1695,10 +1706,14 @@ test("unified page and selection modes persist independently", async () => {
       'select:not(:has(option[value="auto"])):has(option[value="ja"]):has(option[value="zh-CN"])',
     );
     const pageMode = pagePanel
-      .locator('select:has(option[value="fast"]):has(option[value="ai"])')
+      .locator(
+        'select:has(option[value="fast:chrome-local"]):has(option[value="ai:openai-compatible"])',
+      )
       .nth(0);
     const selectionMode = pagePanel
-      .locator('select:has(option[value="fast"]):has(option[value="ai"])')
+      .locator(
+        'select:has(option[value="fast:chrome-local"]):has(option[value="ai:openai-compatible"])',
+      )
       .nth(1);
     const selectionEnabled = pagePanel.locator('input[type="checkbox"]').nth(1);
     const responseMode = pagePanel.locator(
@@ -1707,17 +1722,17 @@ test("unified page and selection modes persist independently", async () => {
     const displayMode = pagePanel.locator(
       'select:has(option[value="translated"]):has(option[value="bilingual"])',
     );
-    await expect(pageMode).toHaveValue("fast");
-    await expect(selectionMode).toHaveValue("fast");
+    await expect(pageMode).toHaveValue("fast:openai-compatible");
+    await expect(selectionMode).toHaveValue("fast:openai-compatible");
     await expect(selectionEnabled).toBeChecked();
     await expect(responseMode).toBeDisabled();
     await sourceLanguage.selectOption("en");
     await targetLanguage.selectOption("ja");
     await displayMode.selectOption("translated");
-    await pageMode.selectOption("ai");
+    await pageMode.selectOption("ai:openai-compatible");
     await expect(responseMode).toBeEnabled();
     await responseMode.selectOption("batch");
-    await selectionMode.selectOption("ai");
+    await selectionMode.selectOption("ai:openai-compatible");
     await selectionEnabled.uncheck();
     await expect
       .poll(() =>
@@ -4756,14 +4771,13 @@ test("does not download a missing OCR model during the local self-test", async (
   context.on("request", recordRequest);
   try {
     await controlPage.bringToFront();
-    await controlPage.locator("#video-settings-tab").click();
+    await controlPage.locator("#ocr-runtimes-tab").click();
     await controlPage.locator("#ocr-self-test").click();
     const message = controlPage.locator("#ocr-test-message");
     await expect(message).toHaveAttribute("data-tone", "error");
-    const missingRuntimeGuidance = await controlPage.evaluate(() =>
-      chrome.i18n.getMessage("ocrRuntimeMissing"),
+    await expect(message).toHaveText(
+      /^(?:The required local OCR language pack is not installed\. Open Settings > OCR runtimes to download it\.|所需的本地 OCR 语言包尚未安装。请打开“设置 > OCR 运行时”下载。)$/u,
     );
-    await expect(message).toHaveText(missingRuntimeGuidance);
     await expect(message).not.toContainText(/ocr_runtime_missing/iu);
     expect(
       requests.filter((url) =>

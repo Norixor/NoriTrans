@@ -5,7 +5,8 @@ import {
 import { promptVersion, translationCacheKey } from "@/src/cache/keys";
 import { NorixorTransError } from "@/src/shared/errors";
 import type { AppSettings } from "@/src/shared/settings";
-import { OpenAICompatibleProvider } from "@/src/translation/providers/openai-compatible";
+import { list as listLocalTranslationRuntimes } from "@/src/local-translation/runtime-storage";
+import { createBackgroundTranslationProvider } from "@/src/translation/providers/factory";
 import { translationSegmentCacheText } from "@/src/translation/context";
 import { cleanTranslatedText } from "@/src/translation/output";
 import { assertValidProtectedTranslation } from "@/src/translation/protected-text";
@@ -32,6 +33,32 @@ export interface BackgroundTranslationOptions {
 // cache backend is genuinely unavailable.
 const CACHE_READ_TIMEOUT_MS = 500;
 const CACHE_READ_CONCURRENCY = 8;
+let localTranslationModelIdentity: Promise<string> | undefined;
+
+export function invalidateLocalTranslationModelIdentity(): void {
+  localTranslationModelIdentity = undefined;
+}
+
+function currentLocalTranslationModelIdentity(): Promise<string> {
+  if (!localTranslationModelIdentity) {
+    const loading = listLocalTranslationRuntimes().then(
+      (runtimes) =>
+        runtimes
+          .filter((runtime) => runtime.state === "installed")
+          .map((runtime) => `${runtime.packId}@${runtime.version ?? "unknown"}`)
+          .sort()
+          .join(",") || "none",
+    );
+    const cached = loading.catch((error: unknown) => {
+      if (localTranslationModelIdentity === cached) {
+        localTranslationModelIdentity = undefined;
+      }
+      throw error;
+    });
+    localTranslationModelIdentity = cached;
+  }
+  return localTranslationModelIdentity;
+}
 
 function validCachedTranslation(
   segment: TranslationRequest["segments"][number],
@@ -169,25 +196,39 @@ export async function translateInBackground(
   const providerId =
     request.mode === "ai"
       ? settings.provider.aiProvider
-      : settings.provider.fastProvider;
+      : (request.providerOverride ?? settings.provider.fastProvider);
 
-  if (providerId !== "openai-compatible") {
-    throw new Error("Chrome 本地翻译必须在页面上下文中运行。");
-  }
+  const localModelIdentity =
+    providerId === "bergamot-local"
+      ? await currentLocalTranslationModelIdentity()
+      : "";
 
   const providerModel =
-    request.modelOverride?.trim() || settings.provider.model;
-
-  const provider = new OpenAICompatibleProvider(request.mode, {
-    baseUrl: settings.provider.baseUrl,
-    apiKey: settings.provider.apiKey,
-    model: providerModel,
-    systemPrompt: settings.provider.systemPrompt,
-    timeoutMs: settings.provider.timeoutMs,
-  });
-  const version = promptVersion(
-    request.prompt ?? settings.provider.systemPrompt,
+    providerId === "openai-compatible"
+      ? request.modelOverride?.trim() || settings.provider.model
+      : providerId === "bergamot-local"
+        ? `mozilla-translations-models-v2:${localModelIdentity}`
+        : "official-v2";
+  const provider = createBackgroundTranslationProvider(
+    providerId,
+    request.mode,
+    settings,
+    providerModel,
   );
+  const version =
+    providerId === "openai-compatible"
+      ? promptVersion(request.prompt ?? settings.provider.systemPrompt)
+      : "machine-translation-v1";
+  const providerScope =
+    providerId === "openai-compatible"
+      ? settings.provider.baseUrl.trim().replace(/\/+$/, "")
+      : providerId === "microsoft-translator"
+        ? settings.provider.microsoftRegion.trim().toLowerCase()
+        : providerId === "deepl"
+          ? settings.provider.deeplPlan
+          : providerId === "bergamot-local"
+            ? "local-wasm"
+            : "google-v2";
   const results: TranslationResult[] = [];
   const cacheEntries: Array<{
     segment: TranslationRequest["segments"][number];
@@ -212,7 +253,7 @@ export async function translateInBackground(
               mode: request.mode,
               text: translationSegmentCacheText(segment),
               scope: [
-                settings.provider.baseUrl.trim().replace(/\/+$/, ""),
+                providerScope,
                 request.scope ?? "",
                 request.mediaTitle ?? "",
               ].join("\u001f"),

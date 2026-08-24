@@ -318,6 +318,9 @@ form {
   display: block;
   margin-bottom: 12px;
 }
+.response-mode-field[hidden] {
+  display: none;
+}
 .field-label > .field-caption {
   display: block;
   margin-bottom: 6px;

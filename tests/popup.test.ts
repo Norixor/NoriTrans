@@ -22,7 +22,17 @@ vi.mock("wxt/browser", () => ({
         Promise.resolve(
           request.type === "PAGE_STATUS"
             ? popupState.pageStatus
-            : popupState.subtitleStatus,
+            : request.type === "SUBTITLE_STATUS"
+              ? popupState.subtitleStatus
+              : request.type === "TRANSLATION_CAPABILITIES_GET"
+                ? {
+                    ok: true,
+                    capabilities: {
+                      chromePairs: ["en\u001fzh-CN"],
+                      installedBergamotPackIds: [],
+                    },
+                  }
+                : { ok: true },
         ),
       ),
     },
@@ -38,8 +48,27 @@ vi.mock("wxt/browser", () => ({
   },
 }));
 
+vi.mock("@/src/shared/i18n", () => ({
+  currentUiLocale: () => "en",
+  initializeUiLanguage: () => Promise.resolve("auto"),
+  localizeDocument: vi.fn(),
+  message: (key: string, substitutions?: string | string[]) => {
+    const values = Array.isArray(substitutions)
+      ? substitutions
+      : substitutions === undefined
+        ? []
+        : [substitutions];
+    return values.length > 0 ? `${key} ${values.join("/")}` : key;
+  },
+}));
+
 function installPopupMarkup(): void {
   document.body.innerHTML = `
+    <aside id="update-banner" hidden>
+      <strong id="update-title"></strong>
+      <button id="view-update" type="button"></button>
+      <button id="ignore-update" type="button"></button>
+    </aside>
     <section id="status-section" aria-busy="true">
       <strong id="page-status"></strong>
       <span id="page-progress"></span>
@@ -49,14 +78,15 @@ function installPopupMarkup(): void {
       <details id="subtitle-diagnostic"><pre></pre></details>
     </section>
     <form id="translation-form">
+      <select id="translation-method" name="translation-method"></select>
       <select id="source-language" name="source-language"></select>
       <select id="target-language" name="target-language"></select>
-      <select id="response-mode" name="response-mode">
-        <option value="stream">stream</option>
-        <option value="batch">batch</option>
-      </select>
-      <input type="radio" name="mode" value="fast" />
-      <input type="radio" name="mode" value="ai" />
+      <label id="response-mode-field">
+        <select id="response-mode" name="response-mode">
+          <option value="stream">stream</option>
+          <option value="batch">batch</option>
+        </select>
+      </label>
       <input type="radio" name="display-mode" value="translated" />
       <input type="radio" name="display-mode" value="bilingual" />
       <button id="translate-page" type="submit"></button>

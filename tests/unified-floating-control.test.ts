@@ -21,6 +21,11 @@ vi.mock("wxt/browser", () => ({
   },
 }));
 
+vi.mock("@/src/shared/i18n", () => ({
+  currentUiLocale: () => "en",
+  message: (key: string) => key,
+}));
+
 function createControl(overrides: Partial<UnifiedFloatingControlOptions> = {}) {
   const onPageTranslate = vi.fn();
   const onPageRestore = vi.fn();
@@ -96,6 +101,10 @@ function dispatchPointer(
 describe("unified floating control", () => {
   beforeEach(() => {
     vi.mocked(browser.runtime.sendMessage).mockReset();
+    vi.mocked(browser.runtime.sendMessage).mockResolvedValue(undefined);
+    vi.stubGlobal("Translator", {
+      availability: vi.fn(() => Promise.resolve("available")),
+    });
     document.documentElement.replaceChildren(
       document.createElement("head"),
       document.createElement("body"),
@@ -182,8 +191,8 @@ describe("unified floating control", () => {
     expect(pageSourceLanguage.options[0]?.textContent).toBe("languageAuto");
     expect(pageSourceLanguage.value).toBe("auto");
     expect(pageTargetLanguage.value).toBe("zh-CN");
-    expect(pageDisplayMode.value).toBe("bilingual");
-    expect(selectionTranslationMode.value).toBe("fast");
+    expect(pageDisplayMode.value).toBe("translated");
+    expect(selectionTranslationMode.value).toBe("fast:chrome-local");
     const pageCheckboxes = pagePanel.querySelectorAll<HTMLInputElement>(
       'input[type="checkbox"]',
     );
@@ -195,7 +204,7 @@ describe("unified floating control", () => {
     pageSourceLanguage.value = "en";
     pageTargetLanguage.value = "ja";
     pageDisplayMode.value = "translated";
-    selectionTranslationMode.value = "ai";
+    selectionTranslationMode.value = "ai:openai-compatible";
     selectionTranslationEnabled.checked = false;
     selectionTranslationMode.dispatchEvent(new Event("change"));
     await vi.waitFor(() =>
@@ -207,9 +216,9 @@ describe("unified floating control", () => {
         selectionTranslationMode: "ai",
       }),
     );
-    expect(pageMode.value).toBe("fast");
+    expect(pageMode.value).toBe("fast:chrome-local");
     expect(pageResponseMode.disabled).toBe(true);
-    pageMode.value = "ai";
+    pageMode.value = "ai:openai-compatible";
     pageMode.dispatchEvent(new Event("change"));
     await vi.waitFor(() => expect(onPageModeChange).toHaveBeenCalledWith("ai"));
     expect(pageResponseMode.disabled).toBe(false);
@@ -262,22 +271,25 @@ describe("unified floating control", () => {
     }
     selects[0].value = "en";
     selects[1].value = "ja";
-    selects[2].value = "fast";
+    selects[2].value = "fast:chrome-local";
     selects[3].value = "batch";
     selects[4].value = "translated";
     hideNative.checked = true;
     hideNative.dispatchEvent(new Event("change"));
     await vi.waitFor(() =>
-      expect(onSubtitleSettingsChange).toHaveBeenLastCalledWith({
-        sourceLanguage: "en",
-        targetLanguage: "ja",
-        mode: "fast",
-        aiResponseMode: "batch",
-        displayMode: "translated",
-        hideNativeSubtitles: true,
-        fontScale: 1.2,
-        backgroundOpacity: 0.5,
-      }),
+      expect(onSubtitleSettingsChange).toHaveBeenLastCalledWith(
+        {
+          sourceLanguage: "en",
+          targetLanguage: "ja",
+          mode: "fast",
+          aiResponseMode: "batch",
+          displayMode: "translated",
+          hideNativeSubtitles: true,
+          fontScale: 1.2,
+          backgroundOpacity: 0.5,
+        },
+        "chrome-local",
+      ),
     );
 
     videoPanel
@@ -310,14 +322,14 @@ describe("unified floating control", () => {
     expect(autoTranslate.checked).toBe(true);
     expect(pageSourceLanguage.value).toBe("de");
     expect(pageTargetLanguage.value).toBe("fr");
-    expect(pageMode.value).toBe("ai");
+    expect(pageMode.value).toBe("ai:openai-compatible");
     expect(pageResponseMode.value).toBe("stream");
     expect(pageDisplayMode.value).toBe("translated");
     expect(selectionTranslationEnabled.checked).toBe(false);
-    expect(selectionTranslationMode.value).toBe("ai");
+    expect(selectionTranslationMode.value).toBe("ai:openai-compatible");
     expect(selects[0].value).toBe("ko");
     expect(selects[1].value).toBe("en");
-    expect(selects[2].value).toBe("fast");
+    expect(selects[2].value).toBe("fast:chrome-local");
     expect(selects[3].disabled).toBe(true);
     expect(selects[4].value).toBe("original");
     expect(hideNative.checked).toBe(true);
@@ -338,14 +350,14 @@ describe("unified floating control", () => {
       throw new Error("missing page mode settings");
     }
 
-    pageMode.value = "ai";
+    pageMode.value = "ai:openai-compatible";
     pageMode.dispatchEvent(new Event("change"));
 
     await vi.waitFor(() =>
       expect(status.textContent).toBe("settingsSaveFailed"),
     );
     expect(onPageModeChange).toHaveBeenCalledWith("ai");
-    expect(pageMode.value).toBe("fast");
+    expect(pageMode.value).toBe("fast:chrome-local");
     expect(pageMode.disabled).toBe(false);
     expect(statusRow.dataset.state).toBe("error");
     control.destroy();
@@ -380,7 +392,7 @@ describe("unified floating control", () => {
     sourceLanguage.value = "fr";
     targetLanguage.value = "de";
     displayMode.value = "translated";
-    selectionMode.value = "ai";
+    selectionMode.value = "ai:openai-compatible";
     selectionEnabled.checked = false;
     selectionMode.dispatchEvent(new Event("change"));
 
@@ -396,8 +408,8 @@ describe("unified floating control", () => {
     });
     expect(sourceLanguage.value).toBe("auto");
     expect(targetLanguage.value).toBe("zh-CN");
-    expect(displayMode.value).toBe("bilingual");
-    expect(selectionMode.value).toBe("fast");
+    expect(displayMode.value).toBe("translated");
+    expect(selectionMode.value).toBe("fast:chrome-local");
     expect(selectionEnabled.checked).toBe(true);
     expect(sourceLanguage.disabled).toBe(false);
     expect(targetLanguage.disabled).toBe(false);
@@ -434,7 +446,7 @@ describe("unified floating control", () => {
 
     selects[0].value = "fr";
     selects[1].value = "de";
-    selects[2].value = "fast";
+    selects[2].value = "fast:chrome-local";
     selects[3].value = "batch";
     selects[4].value = "translated";
     hideNative.checked = true;
@@ -445,7 +457,7 @@ describe("unified floating control", () => {
     );
     expect(selects[0].value).toBe("auto");
     expect(selects[1].value).toBe("zh-CN");
-    expect(selects[2].value).toBe("ai");
+    expect(selects[2].value).toBe("ai:openai-compatible");
     expect(selects[3].value).toBe("stream");
     expect(selects[4].value).toBe("bilingual");
     expect(hideNative.checked).toBe(false);
@@ -504,7 +516,7 @@ describe("unified floating control", () => {
       throw new Error("missing page settings race fixture");
     }
 
-    pageMode.value = "ai";
+    pageMode.value = "ai:openai-compatible";
     pageMode.dispatchEvent(new Event("change"));
     await vi.waitFor(() => expect(onPageModeChange).toHaveBeenCalledWith("ai"));
     expect(pageMode.disabled).toBe(true);
@@ -518,14 +530,14 @@ describe("unified floating control", () => {
         mode: "fast",
       },
     });
-    expect(pageMode.value).toBe("ai");
+    expect(pageMode.value).toBe("ai:openai-compatible");
     expect(targetLanguage.value).toBe("ja");
     expect(pageMode.disabled).toBe(true);
     expect(autoTranslate.disabled).toBe(true);
 
     resolveMode();
     await vi.waitFor(() => expect(pageMode.disabled).toBe(false));
-    expect(pageMode.value).toBe("fast");
+    expect(pageMode.value).toBe("fast:chrome-local");
     expect(targetLanguage.value).toBe("ja");
     expect(autoTranslate.disabled).toBe(false);
     control.destroy();

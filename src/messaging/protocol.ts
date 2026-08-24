@@ -1,5 +1,6 @@
 import {
   isAllowedProviderBaseUrl,
+  isFastProviderId,
   type AppSettings,
   type ContentSettings,
 } from "@/src/shared/settings";
@@ -18,6 +19,10 @@ import {
   OCR_RUNTIME_LANGUAGES,
   type OcrRuntimeLanguage,
 } from "@/src/ocr/languages";
+import {
+  BERGAMOT_LANGUAGE_PACK_IDS,
+  type BergamotLanguagePackId,
+} from "@/src/local-translation/languages";
 
 export type PageCommand =
   | { type: "PAGE_TRANSLATE" }
@@ -29,6 +34,7 @@ export type PageCommand =
 export type ContentCommand =
   | PageCommand
   | { type: "CONTENT_RUNTIME_INFO" }
+  | { type: "TRANSLATION_CAPABILITIES_GET" }
   | TranslationProgressMessage
   | {
       type: "FRAME_STATUS_UPDATED";
@@ -102,6 +108,7 @@ export type BackgroundCommand =
       sourceLanguage: string;
       targetLanguage: string;
       mode: "fast" | "ai";
+      fastProvider?: AppSettings["provider"]["fastProvider"];
       responseMode?: "stream" | "batch";
       displayMode: "translated" | "bilingual";
       selectionTranslationEnabled?: boolean;
@@ -120,6 +127,7 @@ export type BackgroundCommand =
       sourceLanguage: string;
       targetLanguage: string;
       mode: "fast" | "ai";
+      fastProvider?: AppSettings["provider"]["fastProvider"];
       responseMode?: "stream" | "batch";
       displayMode: "original" | "translated" | "bilingual";
       hideNativeSubtitles: boolean;
@@ -127,7 +135,13 @@ export type BackgroundCommand =
       backgroundOpacity?: number;
     }
   | { type: "SUBTITLE_POSITION_SET"; x: number; y: number }
-  | { type: "OCR_SETTINGS_SET"; enabled: boolean }
+  | {
+      type: "OCR_SETTINGS_SET";
+      enabled: boolean;
+      sourceLanguage: string;
+      targetLanguage: string;
+      provider: "chrome-local" | "bergamot-local";
+    }
   | { type: "IMAGE_SOURCE_GET"; url: string }
   | {
       type: "IMAGE_TRANSLATION_SETTINGS_SET";
@@ -135,6 +149,7 @@ export type BackgroundCommand =
       sourceLanguage: string;
       targetLanguage: string;
       mode: "fast" | "ai";
+      fastProvider?: AppSettings["provider"]["fastProvider"];
       modelOverride: string;
       displayMode: "translated" | "bilingual";
     }
@@ -144,6 +159,15 @@ export type BackgroundCommand =
   | { type: "OCR_RUNTIME_DOWNLOAD"; language: OcrRuntimeLanguage }
   | { type: "OCR_RUNTIME_DOWNLOAD_ALL" }
   | { type: "OCR_RUNTIME_DELETE"; language: OcrRuntimeLanguage }
+  | { type: "LOCAL_TRANSLATION_RUNTIME_LIST" }
+  | {
+      type: "LOCAL_TRANSLATION_RUNTIME_DOWNLOAD";
+      packId: BergamotLanguagePackId;
+    }
+  | {
+      type: "LOCAL_TRANSLATION_RUNTIME_DELETE";
+      packId: BergamotLanguagePackId;
+    }
   | { type: "SITE_PROFILES_GET" }
   | { type: "SITE_PROFILE_SAVE"; profile: SubtitleSiteProfile }
   | { type: "SITE_PROFILE_DELETE"; id: string }
@@ -222,6 +246,20 @@ export interface OcrRuntimeInfo {
   message?: string;
 }
 
+export type LocalTranslationRuntimeState =
+  "missing" | "downloading" | "installed" | "error";
+
+export interface LocalTranslationRuntimeInfo {
+  packId: BergamotLanguagePackId;
+  sourceLanguage: string;
+  targetLanguage: string;
+  state: LocalTranslationRuntimeState;
+  version?: string;
+  bytes?: number;
+  downloadBytes?: number;
+  message?: string;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -243,6 +281,15 @@ function isOcrRuntimeLanguage(value: unknown): value is OcrRuntimeLanguage {
   return (
     typeof value === "string" &&
     (OCR_RUNTIME_LANGUAGES as readonly string[]).includes(value)
+  );
+}
+
+function isBergamotLanguagePackId(
+  value: unknown,
+): value is BergamotLanguagePackId {
+  return (
+    typeof value === "string" &&
+    (BERGAMOT_LANGUAGE_PACK_IDS as readonly string[]).includes(value)
   );
 }
 
@@ -355,12 +402,25 @@ function isAppSettings(value: unknown): value is AppSettings {
       value.uiLanguage === "en" ||
       value.uiLanguage === "zh-CN") &&
     (provider.fastProvider === "chrome-local" ||
-      provider.fastProvider === "openai-compatible") &&
+      provider.fastProvider === "bergamot-local" ||
+      provider.fastProvider === "openai-compatible" ||
+      provider.fastProvider === "google-translate" ||
+      provider.fastProvider === "microsoft-translator" ||
+      provider.fastProvider === "deepl") &&
     provider.aiProvider === "openai-compatible" &&
     typeof provider.baseUrl === "string" &&
     isAllowedProviderBaseUrl(provider.baseUrl) &&
     typeof provider.apiKey === "string" &&
     provider.apiKey.length <= 10_000 &&
+    typeof provider.googleApiKey === "string" &&
+    provider.googleApiKey.length <= 10_000 &&
+    typeof provider.microsoftApiKey === "string" &&
+    provider.microsoftApiKey.length <= 10_000 &&
+    typeof provider.microsoftRegion === "string" &&
+    provider.microsoftRegion.length <= 128 &&
+    typeof provider.deeplApiKey === "string" &&
+    provider.deeplApiKey.length <= 10_000 &&
+    (provider.deeplPlan === "free" || provider.deeplPlan === "pro") &&
     typeof provider.model === "string" &&
     provider.model.trim().length > 0 &&
     provider.model.length <= 256 &&
@@ -435,6 +495,13 @@ function isAppSettings(value: unknown): value is AppSettings {
     subtitles.backgroundOpacity >= 0.3 &&
     subtitles.backgroundOpacity <= 0.95 &&
     typeof ocr.enabled === "boolean" &&
+    typeof ocr.sourceLanguage === "string" &&
+    ocr.sourceLanguage.length > 0 &&
+    ocr.sourceLanguage.length <= 64 &&
+    typeof ocr.targetLanguage === "string" &&
+    ocr.targetLanguage.length > 0 &&
+    ocr.targetLanguage.length <= 64 &&
+    (ocr.provider === "chrome-local" || ocr.provider === "bergamot-local") &&
     typeof imageTranslation.enabled === "boolean" &&
     typeof imageTranslation.sourceLanguage === "string" &&
     imageTranslation.sourceLanguage.length > 0 &&
@@ -466,10 +533,22 @@ function isAutoTranslateSitePatterns(value: unknown): value is string[] {
 
 export function isContentSettings(value: unknown): value is ContentSettings {
   if (!isRecord(value) || !isRecord(value.provider)) return false;
-  if ("apiKey" in value.provider) return false;
+  if (
+    "apiKey" in value.provider ||
+    "googleApiKey" in value.provider ||
+    "microsoftApiKey" in value.provider ||
+    "deeplApiKey" in value.provider
+  )
+    return false;
   return isAppSettings({
     ...value,
-    provider: { ...value.provider, apiKey: "" },
+    provider: {
+      ...value.provider,
+      apiKey: "",
+      googleApiKey: "",
+      microsoftApiKey: "",
+      deeplApiKey: "",
+    },
   });
 }
 
@@ -508,7 +587,10 @@ function isTranslationRequest(value: unknown): value is TranslationRequest {
       (typeof value.scope !== "string" || value.scope.length > 4_096)) ||
     (value.modelOverride !== undefined &&
       (typeof value.modelOverride !== "string" ||
-        value.modelOverride.length > 256))
+        value.modelOverride.length > 256)) ||
+    (value.providerOverride !== undefined &&
+      value.providerOverride !== "chrome-local" &&
+      value.providerOverride !== "bergamot-local")
   ) {
     return false;
   }
@@ -634,6 +716,8 @@ export function isBackgroundCommand(
         value.targetLanguage.length > 0 &&
         value.targetLanguage.length <= 64 &&
         (value.mode === "fast" || value.mode === "ai") &&
+        (value.fastProvider === undefined ||
+          isFastProviderId(value.fastProvider)) &&
         (value.responseMode === undefined ||
           value.responseMode === "stream" ||
           value.responseMode === "batch") &&
@@ -676,6 +760,8 @@ export function isBackgroundCommand(
         value.targetLanguage.length > 0 &&
         value.targetLanguage.length <= 64 &&
         (value.mode === "fast" || value.mode === "ai") &&
+        (value.fastProvider === undefined ||
+          isFastProviderId(value.fastProvider)) &&
         (value.responseMode === undefined ||
           value.responseMode === "stream" ||
           value.responseMode === "batch") &&
@@ -706,7 +792,17 @@ export function isBackgroundCommand(
         value.y <= 1
       );
     case "OCR_SETTINGS_SET":
-      return typeof value.enabled === "boolean";
+      return (
+        typeof value.enabled === "boolean" &&
+        typeof value.sourceLanguage === "string" &&
+        value.sourceLanguage.length > 0 &&
+        value.sourceLanguage.length <= 64 &&
+        typeof value.targetLanguage === "string" &&
+        value.targetLanguage.length > 0 &&
+        value.targetLanguage.length <= 64 &&
+        (value.provider === "chrome-local" ||
+          value.provider === "bergamot-local")
+      );
     case "IMAGE_SOURCE_GET":
       return (
         typeof value.url === "string" &&
@@ -724,6 +820,8 @@ export function isBackgroundCommand(
         value.targetLanguage.length > 0 &&
         value.targetLanguage.length <= 64 &&
         (value.mode === "fast" || value.mode === "ai") &&
+        (value.fastProvider === undefined ||
+          isFastProviderId(value.fastProvider)) &&
         typeof value.modelOverride === "string" &&
         value.modelOverride.length <= 256 &&
         (value.displayMode === "translated" ||
@@ -735,6 +833,9 @@ export function isBackgroundCommand(
     case "OCR_RUNTIME_DOWNLOAD":
     case "OCR_RUNTIME_DELETE":
       return isOcrRuntimeLanguage(value.language);
+    case "LOCAL_TRANSLATION_RUNTIME_DOWNLOAD":
+    case "LOCAL_TRANSLATION_RUNTIME_DELETE":
+      return isBergamotLanguagePackId(value.packId);
     case "SITE_PROFILE_SAVE":
       return isUserSiteProfile(value.profile);
     case "SITE_PROFILE_DELETE":
@@ -769,6 +870,7 @@ export function isBackgroundCommand(
     case "CACHE_STATS":
     case "OCR_RUNTIME_LIST":
     case "OCR_RUNTIME_DOWNLOAD_ALL":
+    case "LOCAL_TRANSLATION_RUNTIME_LIST":
       return true;
     case "CREDENTIALS_CLEAR":
       return Object.keys(value).length === 1;
@@ -810,6 +912,7 @@ export function isContentCommand(value: unknown): value is ContentCommand {
     case "FLOATING_SESSION_SHOW":
       return Object.keys(value).length === 1;
     case "CONTENT_RUNTIME_INFO":
+    case "TRANSLATION_CAPABILITIES_GET":
       return Object.keys(value).length === 1;
     case "SUBTITLE_STATUS":
     case "SUBTITLE_RETRY_FAILED":

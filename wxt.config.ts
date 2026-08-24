@@ -43,6 +43,7 @@ export default defineConfig({
       ...(headedOcrCaptureE2e ? [] : ["<all_urls>"]),
       "https://media.githubusercontent.com/*",
       "https://raw.githubusercontent.com/*",
+      "https://storage.googleapis.com/*",
       "http://localhost/*",
       "http://127.0.0.1/*",
     ],

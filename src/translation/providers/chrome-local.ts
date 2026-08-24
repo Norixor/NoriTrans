@@ -1,10 +1,13 @@
 import { NorixorTransError } from "@/src/shared/errors";
-import { dominantScriptSourceLanguageHint } from "@/src/translation/language-detection";
 import {
-  assertValidProtectedTranslation,
-  protectedTextParts,
-  rebuildProtectedTranslation,
-} from "@/src/translation/protected-text";
+  translationDiagnostic,
+  translationRuntimeDiagnosticContext,
+} from "@/src/shared/diagnostics";
+import {
+  detectDominantSourceLanguage,
+  dominantScriptSourceLanguageHint,
+} from "@/src/translation/language-detection";
+import { assertValidProtectedTranslation } from "@/src/translation/protected-text";
 import type {
   ProviderCapabilities,
   TranslationProvider,
@@ -18,34 +21,20 @@ interface ChromeTranslatorInstance {
   destroy(): void;
 }
 
-interface ChromeTranslatorFactory {
+export type ChromeTranslatorAvailability =
+  "unavailable" | "downloadable" | "downloading" | "available";
+
+export interface ChromeTranslatorFactory {
   availability(options: {
     sourceLanguage: string;
     targetLanguage: string;
-  }): Promise<"unavailable" | "downloadable" | "downloading" | "available">;
+  }): Promise<ChromeTranslatorAvailability>;
   create(options: {
     sourceLanguage: string;
     targetLanguage: string;
     signal?: AbortSignal;
     monitor?(monitor: EventTarget): void;
   }): Promise<ChromeTranslatorInstance>;
-}
-
-interface ChromeLanguageDetectorInstance {
-  detect(
-    text: string,
-    options?: { signal?: AbortSignal },
-  ): Promise<Array<{ detectedLanguage: string; confidence: number }>>;
-  destroy(): void;
-}
-
-interface ChromeLanguageDetectorFactory {
-  availability(): Promise<
-    "unavailable" | "downloadable" | "downloading" | "available"
-  >;
-  create(options?: {
-    signal?: AbortSignal;
-  }): Promise<ChromeLanguageDetectorInstance>;
 }
 
 export interface ChromeLocalProviderOptions {
@@ -55,6 +44,8 @@ export interface ChromeLocalProviderOptions {
   keepAliveForTask?: boolean;
   /** Re-detects automatic source language per request and pools each language pair. */
   dynamicSourceLanguage?: boolean;
+  /** Uses Chrome detection for Han-only text instead of assuming Chinese from script alone. */
+  detectAmbiguousHan?: boolean;
   /** Falls back to a trusted page language when Chrome detection is unavailable. */
   fallbackSourceLanguage?: string;
   /** Reports explicit local model preparation without exposing translated text. */
@@ -144,18 +135,11 @@ function createPackedGroups(
   return groups;
 }
 
-function translatorFactory(): ChromeTranslatorFactory | undefined {
+export function translatorAvailabilityFactory():
+  ChromeTranslatorFactory | undefined {
   return (
     globalThis as typeof globalThis & { Translator?: ChromeTranslatorFactory }
   ).Translator;
-}
-
-function languageDetectorFactory(): ChromeLanguageDetectorFactory | undefined {
-  return (
-    globalThis as typeof globalThis & {
-      LanguageDetector?: ChromeLanguageDetectorFactory;
-    }
-  ).LanguageDetector;
 }
 
 /** Chrome's Translator language-pack list uses `zh` for Simplified Chinese. */
@@ -182,45 +166,15 @@ export function chromeTranslatorLanguage(code: string): string {
   return normalized;
 }
 
-async function detectLanguage(
-  text: string,
-  signal: AbortSignal,
-): Promise<string> {
-  const detector = await createLanguageDetector(signal);
-  try {
-    return await detectLanguageWith(detector, text, signal);
-  } finally {
-    detector.destroy();
-  }
-}
-
-async function createLanguageDetector(
-  signal: AbortSignal,
-): Promise<ChromeLanguageDetectorInstance> {
-  const factory = languageDetectorFactory();
-  if (!factory || (await factory.availability()) === "unavailable") {
-    throw new NorixorTransError(
-      "Chrome 本地语言检测不可用，请手动选择源语言。",
-      "provider_unavailable",
-    );
-  }
-  return factory.create({ signal });
-}
-
-async function detectLanguageWith(
-  detector: ChromeLanguageDetectorInstance,
-  text: string,
-  signal: AbortSignal,
-): Promise<string> {
-  const results = await detector.detect(text, { signal });
-  const language = results[0]?.detectedLanguage;
-  if (!language) {
-    throw new NorixorTransError(
-      "无法检测网页语言，请手动选择源语言。",
-      "provider_unavailable",
-    );
-  }
-  return language;
+/**
+ * Some Chrome installations expose Traditional Chinese detection while only
+ * preparing the generic Chinese source pack for a particular target language.
+ */
+export function chromeTranslatorSourceLanguageCandidates(
+  code: string,
+): string[] {
+  const primary = chromeTranslatorLanguage(code);
+  return primary === "zh-Hant" ? [primary, "zh"] : [primary];
 }
 
 export class ChromeLocalProvider implements TranslationProvider {
@@ -247,15 +201,16 @@ export class ChromeLocalProvider implements TranslationProvider {
   private readonly translatorDestroyScheduled = new WeakSet<
     Promise<ChromeTranslatorInstance>
   >();
+  private readonly resolvedTranslatorSourceLanguages = new WeakMap<
+    ChromeTranslatorInstance,
+    string
+  >();
   private readonly translationLanes = Array.from(
     { length: TRANSLATION_CONCURRENCY },
     () => Promise.resolve(),
   );
   private nextTranslationLane = 0;
   private packedTranslationSupported: boolean | undefined;
-  private languageDetectorPromise:
-    Promise<ChromeLanguageDetectorInstance> | undefined;
-
   constructor(private readonly options: ChromeLocalProviderOptions = {}) {}
 
   async translateBatch(
@@ -263,6 +218,19 @@ export class ChromeLocalProvider implements TranslationProvider {
     signal: AbortSignal,
     onProgress?: TranslationProgressCallback,
   ): Promise<TranslationResult[]> {
+    translationDiagnostic("ChromeTranslator", "batch-start", {
+      ...translationRuntimeDiagnosticContext(),
+      requestedSourceLanguage: request.sourceLanguage,
+      targetLanguage: request.targetLanguage,
+      segments: request.segments.length,
+      characters: request.segments.reduce(
+        (total, segment) => total + segment.text.length,
+        0,
+      ),
+      keepAliveForTask: this.options.keepAliveForTask === true,
+      dynamicSourceLanguage: this.options.dynamicSourceLanguage === true,
+      requireAvailable: this.options.requireAvailable === true,
+    });
     const translator = this.options.keepAliveForTask
       ? await this.taskTranslator(request, signal)
       : await this.createTranslator(request, signal);
@@ -359,37 +327,8 @@ export class ChromeLocalProvider implements TranslationProvider {
     const translatedText = await this.withTranslationPermit(signal, () =>
       translator.translate(segment.text, { signal }),
     );
-    try {
-      assertValidProtectedTranslation(segment, translatedText);
-      return { id: segment.id, translatedText };
-    } catch (error) {
-      if (
-        !(error instanceof NorixorTransError) ||
-        error.code !== "invalid_response" ||
-        segment.format !== "protected-text-v1"
-      ) {
-        throw error;
-      }
-    }
-
-    // Chrome's local model may legitimately reorder private-use markers while
-    // translating an inline-heavy sentence. Retry only that sentence's text
-    // parts, then rebuild the exact source-node contract locally.
-    const translatedParts = await Promise.all(
-      protectedTextParts(segment.text).map((part) => {
-        if (!/[\p{L}\p{N}]/u.test(part)) return Promise.resolve(part);
-        return this.withTranslationPermit(signal, () =>
-          translator.translate(part, { signal }),
-        );
-      }),
-    );
-    return {
-      id: segment.id,
-      translatedText: rebuildProtectedTranslation(
-        segment.text,
-        translatedParts,
-      ),
-    };
+    assertValidProtectedTranslation(segment, translatedText);
+    return { id: segment.id, translatedText };
   }
 
   async dispose(): Promise<void> {
@@ -400,14 +339,6 @@ export class ChromeLocalProvider implements TranslationProvider {
     }
     this.translatorPromise = undefined;
     this.dynamicTranslatorPromises.clear();
-    const languageDetectorPromise = this.languageDetectorPromise;
-    this.languageDetectorPromise = undefined;
-    if (languageDetectorPromise) {
-      void languageDetectorPromise.then(
-        (detector) => detector.destroy(),
-        () => undefined,
-      );
-    }
     if (translatorPromises.size === 0) return;
     await Promise.all(this.translationLanes);
     for (const promise of translatorPromises) {
@@ -438,7 +369,11 @@ export class ChromeLocalProvider implements TranslationProvider {
             }
           },
         );
-        this.options.onSourceLanguageResolved?.(sourceLanguage, request);
+        this.options.onSourceLanguageResolved?.(
+          this.resolvedTranslatorSourceLanguages.get(translator) ??
+            chromeTranslatorLanguage(sourceLanguage),
+          request,
+        );
         return translator;
       }
       const created = this.createTranslatorForLanguages(
@@ -446,7 +381,11 @@ export class ChromeLocalProvider implements TranslationProvider {
         request.targetLanguage,
         signal,
       ).then((translator) => {
-        this.options.onSourceLanguageResolved?.(sourceLanguage, request);
+        this.options.onSourceLanguageResolved?.(
+          this.resolvedTranslatorSourceLanguages.get(translator) ??
+            chromeTranslatorLanguage(sourceLanguage),
+          request,
+        );
         return translator;
       });
       this.trackTranslatorPromise(created);
@@ -567,16 +506,20 @@ export class ChromeLocalProvider implements TranslationProvider {
       request.targetLanguage,
       signal,
     );
-    this.options.onSourceLanguageResolved?.(sourceLanguage, request);
+    this.options.onSourceLanguageResolved?.(
+      this.resolvedTranslatorSourceLanguages.get(translator) ??
+        chromeTranslatorLanguage(sourceLanguage),
+      request,
+    );
     return translator;
   }
 
-  private resolveSourceLanguage(
+  private async resolveSourceLanguage(
     request: TranslationRequest,
     signal: AbortSignal,
   ): Promise<string> {
     if (request.sourceLanguage !== "auto") {
-      return Promise.resolve(request.sourceLanguage);
+      return request.sourceLanguage;
     }
     const text = request.segments
       .map((segment) => segment.text)
@@ -585,51 +528,24 @@ export class ChromeLocalProvider implements TranslationProvider {
     const scriptHint = dominantScriptSourceLanguageHint(
       text,
       this.options.fallbackSourceLanguage,
+      !this.options.detectAmbiguousHan,
     );
-    if (scriptHint) return Promise.resolve(scriptHint);
-    if (!this.options.keepAliveForTask || !this.options.dynamicSourceLanguage) {
-      return this.withSourceLanguageFallback(
-        detectLanguage(text, signal),
-        text,
-      );
+    if (scriptHint) return scriptHint;
+    if (signal.aborted) {
+      throw new DOMException("Translation cancelled", "AbortError");
     }
-    if (!this.languageDetectorPromise) {
-      const created = createLanguageDetector(signal);
-      this.languageDetectorPromise = created;
-      void created.catch(() => {
-        if (this.languageDetectorPromise === created) {
-          this.languageDetectorPromise = undefined;
-        }
-      });
-    }
-    return this.withSourceLanguageFallback(
-      this.languageDetectorPromise.then((detector) =>
-        detectLanguageWith(detector, text, signal),
-      ),
+    const detectedLanguage = await detectDominantSourceLanguage(
       text,
+      this.options.fallbackSourceLanguage,
     );
-  }
-
-  private async withSourceLanguageFallback(
-    detected: Promise<string>,
-    text: string,
-  ): Promise<string> {
-    try {
-      return await detected;
-    } catch (error) {
-      if (
-        error instanceof NorixorTransError &&
-        error.code === "provider_unavailable"
-      ) {
-        const fallback =
-          dominantScriptSourceLanguageHint(
-            text,
-            this.options.fallbackSourceLanguage,
-          ) ?? this.options.fallbackSourceLanguage;
-        if (fallback) return fallback;
-      }
-      throw error;
+    if (signal.aborted) {
+      throw new DOMException("Translation cancelled", "AbortError");
     }
+    if (detectedLanguage) return detectedLanguage;
+    throw new NorixorTransError(
+      "无法检测网页语言，请手动选择源语言。",
+      "provider_unavailable",
+    );
   }
 
   private async createTranslatorForLanguages(
@@ -637,48 +553,107 @@ export class ChromeLocalProvider implements TranslationProvider {
     targetLanguage: string,
     signal: AbortSignal,
   ): Promise<ChromeTranslatorInstance> {
-    const factory = translatorFactory();
+    const factory = translatorAvailabilityFactory();
     if (!factory) {
       throw new NorixorTransError(
         "当前 Chrome 不支持本地 Translator API。",
         "provider_unavailable",
       );
     }
-    const chromeSourceLanguage = chromeTranslatorLanguage(sourceLanguage);
     const chromeTargetLanguage = chromeTranslatorLanguage(targetLanguage);
-    const availability = await factory.availability({
-      sourceLanguage: chromeSourceLanguage,
-      targetLanguage: chromeTargetLanguage,
-    });
-    if (
-      availability === "unavailable" ||
-      (this.options.requireAvailable && availability !== "available")
-    ) {
-      throw new NorixorTransError(
-        "Chrome 本地翻译不支持当前语言对。",
-        "provider_unavailable",
+    const attemptedPairs: string[] = [];
+    const runtimeContext = translationRuntimeDiagnosticContext();
+    for (const chromeSourceLanguage of chromeTranslatorSourceLanguageCandidates(
+      sourceLanguage,
+    )) {
+      const availability = await factory.availability({
+        sourceLanguage: chromeSourceLanguage,
+        targetLanguage: chromeTargetLanguage,
+      });
+      attemptedPairs.push(
+        `${chromeSourceLanguage}->${chromeTargetLanguage}=${availability}`,
       );
+      translationDiagnostic("ChromeTranslator", "pair-availability", {
+        ...runtimeContext,
+        requestedSourceLanguage: sourceLanguage,
+        requestedTargetLanguage: targetLanguage,
+        sourceLanguage: chromeSourceLanguage,
+        targetLanguage: chromeTargetLanguage,
+        availability,
+        requireAvailable: this.options.requireAvailable === true,
+      });
+      if (
+        availability === "unavailable" ||
+        (this.options.requireAvailable && availability !== "available")
+      ) {
+        continue;
+      }
+
+      try {
+        const translator = await factory.create({
+          sourceLanguage: chromeSourceLanguage,
+          targetLanguage: chromeTargetLanguage,
+          signal,
+          ...(this.options.onDownloadProgress
+            ? {
+                monitor: (monitor: EventTarget) => {
+                  monitor.addEventListener("downloadprogress", (event) => {
+                    const loaded = (event as Event & { loaded?: number })
+                      .loaded;
+                    if (typeof loaded !== "number" || !Number.isFinite(loaded))
+                      return;
+                    this.options.onDownloadProgress?.(
+                      Math.min(1, Math.max(0, loaded)),
+                    );
+                  });
+                },
+              }
+            : {}),
+        });
+        this.resolvedTranslatorSourceLanguages.set(
+          translator,
+          chromeSourceLanguage,
+        );
+        return translator;
+      } catch (error) {
+        if (
+          error instanceof DOMException &&
+          error.name === "NotSupportedError"
+        ) {
+          attemptedPairs.push(
+            `${chromeSourceLanguage}->${chromeTargetLanguage}=create-not-supported`,
+          );
+          continue;
+        }
+        throw error;
+      }
     }
 
-    return factory.create({
-      sourceLanguage: chromeSourceLanguage,
-      targetLanguage: chromeTargetLanguage,
-      signal,
-      ...(this.options.onDownloadProgress
-        ? {
-            monitor: (monitor: EventTarget) => {
-              monitor.addEventListener("downloadprogress", (event) => {
-                const loaded = (event as Event & { loaded?: number }).loaded;
-                if (typeof loaded !== "number" || !Number.isFinite(loaded))
-                  return;
-                this.options.onDownloadProgress?.(
-                  Math.min(1, Math.max(0, loaded)),
-                );
-              });
-            },
-          }
-        : {}),
-    });
+    translationDiagnostic(
+      "ChromeTranslator",
+      "pair-unavailable",
+      {
+        ...runtimeContext,
+        requestedSourceLanguage: sourceLanguage,
+        requestedTargetLanguage: targetLanguage,
+        attempts: attemptedPairs,
+      },
+      "warn",
+    );
+    const contextDetails = [
+      `hostname=${runtimeContext.hostname || "unknown"}`,
+      `frame=${runtimeContext.frame}`,
+      `sameOriginTop=${String(runtimeContext.sameOriginTop)}`,
+      `documentLanguage=${runtimeContext.documentLanguage || "unset"}`,
+      `secureContext=${String(runtimeContext.secureContext)}`,
+      `translatorPolicy=${String(runtimeContext.translatorPolicy)}`,
+    ].join(", ");
+    throw new NorixorTransError(
+      "Chrome 本地翻译不支持当前语言对。",
+      "provider_unavailable",
+      false,
+      `Chrome Translator pair attempts: ${attemptedPairs.join(", ")}. Context: ${contextDetails}.`,
+    );
   }
 
   private async withTranslationPermit<T>(

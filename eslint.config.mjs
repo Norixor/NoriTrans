@@ -8,6 +8,7 @@ export default tseslint.config(
       ".wxt/**",
       "node_modules/**",
       "coverage/**",
+      "public/bergamot/**",
       "eslint.config.mjs",
     ],
   },

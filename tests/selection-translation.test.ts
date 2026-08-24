@@ -18,6 +18,10 @@ vi.mock("wxt/browser", () => ({
   },
 }));
 
+vi.mock("@/src/shared/i18n", () => ({
+  message: (key: string) => key,
+}));
+
 function selectNode(node: Node): void {
   const range = document.createRange();
   range.selectNodeContents(node);
@@ -341,7 +345,10 @@ describe("selection translation", () => {
 
     control.updateSettings({
       ...settings,
-      page: { ...settings.page, targetLanguage: "ja" },
+      page: {
+        ...settings.page,
+        selectionTranslationTargetLanguage: "ja",
+      },
     });
     await vi.waitFor(() =>
       expect(providers[0]?.dispose).toHaveBeenCalledOnce(),

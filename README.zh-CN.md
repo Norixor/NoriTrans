@@ -15,7 +15,7 @@ NorixorTrans 把网页翻译、视频字幕翻译和可选的本地 OCR 放在�
 - **网页翻译：** 基于语义文本节点工作，不替换整个页面的 HTML；支持动态内容、SPA 导航和安全恢复原文。
 - **视频字幕：** 能取得完整字幕轨道时进行整轨预翻译；只能看到当前字幕时，明确回退到低延迟流式快速翻译。
 - **本地 OCR：** 只有用户主动启用并框选区域后才识别烧录字幕，截图和识别文字始终留在本机。
-- **Provider 可选：** 支持 Chrome 本地 Translator API 和用户配置的 OpenAI-compatible 服务。
+- **Provider 可选：** 支持 Chrome 本地 Translator API、用户明确下载语言包的 Bergamot、OpenAI-compatible、Google Cloud Translation、Microsoft Translator 与 DeepL；云端服务使用用户自己的凭据。
 - **统一浮窗：** 通过可拖动、Shadow DOM 隔离的紧凑控制器管理网页、视频和图像翻译。
 
 ## 翻译模式
@@ -42,7 +42,7 @@ NorixorTrans 会优先使用完整来源，再逐级回退到当前字幕采集�
 
 仓库内置 20 个 Profile，覆盖标准 HTML5、通用 DOM 启发式、YouTube、Netflix、Max/HBO Max、Disney+/Hotstar、Prime Video、Apple TV+、Hulu、Paramount+、Discovery+、Peacock、fuboTV、TED、BBC iPlayer、ZDF、Deutsche Welle、Udemy、Kanopy 和 TVer。
 
-腾讯视频被明确限定为 OCR-only，不启用 DOM、`TextTrack` 或网络字幕采集。对于其他站点，仓库存在内置 Profile 只表示已经声明相应采集策略，不代表每个版本都完成了第三方真实站点线上验收。
+仓库存在内置 Profile 只表示已经声明相应采集策略，不代表每个版本都完成了第三方真实站点线上验收。
 
 ## 从源码安装
 
@@ -69,11 +69,13 @@ pnpm build
 
 ## Provider 与隐私模型
 
-| 能力                   | 处理位置                          | 会发送到外部的数据                                            |
-| ---------------------- | --------------------------------- | ------------------------------------------------------------- |
-| Chrome 本地翻译        | Chrome 本地模型运行时             | 不会把文字发送给配置的 AI Provider；Chrome 可能下载语言模型。 |
-| OpenAI-compatible 翻译 | 用户配置的服务端点                | 仅发送当前任务需要的文本段和有界上下文。                      |
-| 本地图像字幕 OCR       | 扩展 origin 的 Offscreen Document | 截图和识别文字不上传，也不允许发送给 AI Provider。            |
+| 能力                     | 处理位置                          | 会发送到外部的数据                                            |
+| ------------------------ | --------------------------------- | ------------------------------------------------------------- |
+| Chrome 本地翻译          | Chrome 本地模型运行时             | 不会把文字发送给配置的 AI Provider；Chrome 可能下载语言模型。 |
+| 下载式本地翻译           | 扩展 origin 的 Bergamot 运行时    | 按方向的语言包只在用户点击后安装，待译文字始终留在本机。      |
+| OpenAI-compatible 翻译   | 用户配置的服务端点                | 仅发送当前任务需要的文本段和有界上下文。                      |
+| Google、Microsoft、DeepL | 用户选择的官方 Provider API       | 仅发送当前快速翻译任务需要的文本段。                          |
+| 本地图像字幕 OCR         | 扩展 origin 的 Offscreen Document | 截图和识别文字不上传，也不允许发送给 AI Provider。            |
 
 额外保证：
 
@@ -91,6 +93,7 @@ NorixorTrans 声明 `https://*/*`，因为统一浮窗以及网页、视频翻�
 
 - `<all_urls>`：用户主动启动可见标签页 OCR 截图；
 - 固定 GitHub 资源域名：用户明确下载 OCR 模型；
+- 固定 Mozilla 目录与附件域名：用户明确下载本地翻译语言包；
 - `http://localhost/*` 和 `http://127.0.0.1/*`：用户配置本地 Provider。
 
 ## 本地开发
@@ -136,7 +139,7 @@ src/shared/      设置、错误、诊断和共享控制器
 
 ## 致谢
 
-NorixorTrans 基于 [WXT](https://github.com/wxt-dev/wxt)、`idb`、ONNX Runtime Web 和兼容 PaddleOCR 的本地运行时构建。固定的上游版本及第三方许可证记录在 [`THIRD_PARTY_NOTICES.txt`](./public/ocr/licenses/THIRD_PARTY_NOTICES.txt)。
+NorixorTrans 基于 [WXT](https://github.com/wxt-dev/wxt)、`idb`、ONNX Runtime Web、Bergamot 和兼容 PaddleOCR 的本地运行时构建。OCR 与本地翻译运行时的第三方说明随对应打包资源保存。
 
 ## 许可证
 

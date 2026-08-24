@@ -16,6 +16,9 @@ import {
   type OcrTextBox,
 } from "@/src/ocr/types";
 import { browser } from "wxt/browser";
+import { registerBergamotOffscreenHandler } from "@/src/local-translation/offscreen";
+
+registerBergamotOffscreenHandler();
 
 const enginePool = new OcrPackEnginePool(
   (language) => new PaddleOcrEngine({ language }),

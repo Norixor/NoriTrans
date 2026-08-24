@@ -93,10 +93,22 @@ describe("runtime message validation", () => {
     ).toBe(false);
     expect(isBackgroundCommand({ type: "CONTENT_SETTINGS_GET" })).toBe(true);
     expect(
-      isBackgroundCommand({ type: "OCR_SETTINGS_SET", enabled: true }),
+      isBackgroundCommand({
+        type: "OCR_SETTINGS_SET",
+        enabled: true,
+        sourceLanguage: "auto",
+        targetLanguage: "en",
+        provider: "chrome-local",
+      }),
     ).toBe(true);
     expect(
-      isBackgroundCommand({ type: "OCR_SETTINGS_SET", enabled: "yes" }),
+      isBackgroundCommand({
+        type: "OCR_SETTINGS_SET",
+        enabled: "yes",
+        sourceLanguage: "auto",
+        targetLanguage: "en",
+        provider: "chrome-local",
+      }),
     ).toBe(false);
     // Frame capture uses the dedicated OCR target protocol, not the public
     // background-command channel.

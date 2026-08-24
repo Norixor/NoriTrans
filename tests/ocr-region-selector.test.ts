@@ -5,6 +5,10 @@ vi.mock("wxt/browser", () => ({
   browser: { i18n: { getMessage: (key: string) => key } },
 }));
 
+vi.mock("@/src/shared/i18n", () => ({
+  message: (key: string) => key,
+}));
+
 describe("OcrRegionSelector", () => {
   it("marks the selector ready only after a host frame has been presented", async () => {
     const frames: FrameRequestCallback[] = [];

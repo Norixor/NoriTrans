@@ -12,8 +12,8 @@ pnpm-lock.yaml
 # Binary/source design assets and third-party legal text are not formatter input.
 assets/branding/
 public/ocr/licenses/
+public/bergamot/
 LICENSE
 NOTICE
 TRADEMARKS.md
 AGENTS.md
-

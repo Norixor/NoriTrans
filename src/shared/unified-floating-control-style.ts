@@ -320,6 +320,7 @@ export const UNIFIED_FLOATING_CONTROL_STYLE = `
     padding: 6px 2px 7px;
     border-bottom: 1px solid var(--nt-border-muted);
   }
+  .field[hidden] { display: none; }
   .field > span {
     min-width: 0;
     overflow: visible;

@@ -100,6 +100,12 @@ export function isPredominantlyTargetScript(
   if (primary === "ko") {
     return counts.hangul > 0 && counts.hangul >= counts.latin + counts.kana;
   }
+  if (["en", "es", "fr", "de"].includes(primary ?? "")) {
+    return (
+      counts.latin > 0 &&
+      counts.latin >= counts.han + counts.hangul + counts.kana
+    );
+  }
   return false;
 }
 

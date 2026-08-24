@@ -8,6 +8,20 @@ export type DisplayMode = "translated" | "bilingual";
 export type SubtitleDisplayMode = "translated" | "bilingual" | "original";
 export type SubtitlePosition = "top" | "center" | "bottom" | "custom";
 export type UiLanguage = "auto" | "en" | "zh-CN";
+export const FAST_PROVIDER_IDS = [
+  "chrome-local",
+  "bergamot-local",
+  "openai-compatible",
+  "google-translate",
+  "microsoft-translator",
+  "deepl",
+] as const;
+export type FastProviderId = (typeof FAST_PROVIDER_IDS)[number];
+
+export function isFastProviderId(value: unknown): value is FastProviderId {
+  return (FAST_PROVIDER_IDS as readonly unknown[]).includes(value);
+}
+export type DeepLPlan = "free" | "pro";
 
 export function normalizeUiLanguage(value: unknown): UiLanguage {
   return value === "en" || value === "zh-CN" ? value : "auto";
@@ -19,10 +33,15 @@ export interface SubtitleCustomPosition {
 }
 
 export interface ProviderSettings {
-  fastProvider: "chrome-local" | "openai-compatible";
+  fastProvider: FastProviderId;
   aiProvider: "openai-compatible";
   baseUrl: string;
   apiKey: string;
+  googleApiKey: string;
+  microsoftApiKey: string;
+  microsoftRegion: string;
+  deeplApiKey: string;
+  deeplPlan: DeepLPlan;
   model: string;
   systemPrompt: string;
   timeoutMs: number;
@@ -65,6 +84,9 @@ export interface SubtitleSettings {
 
 export interface OcrSettings {
   enabled: boolean;
+  sourceLanguage: string;
+  targetLanguage: string;
+  provider: "chrome-local" | "bergamot-local";
 }
 
 export interface ImageTranslationSettings {
@@ -86,7 +108,10 @@ export interface AppSettings {
   imageTranslation: ImageTranslationSettings;
 }
 
-export type ContentProviderSettings = Omit<ProviderSettings, "apiKey">;
+export type ContentProviderSettings = Omit<
+  ProviderSettings,
+  "apiKey" | "googleApiKey" | "microsoftApiKey" | "deeplApiKey"
+>;
 
 export interface ContentSettings {
   uiLanguage: UiLanguage;
@@ -111,6 +136,9 @@ export const PREVIOUS_DEFAULT_SYSTEM_PROMPT =
 export const DEFAULT_SYSTEM_PROMPT =
   "Translate every segment faithfully into the target language. Preserve meaning, tone, names, terminology, punctuation, and formatting. Keep code, URLs, and non-language tokens unchanged. Use context only for consistency. Never omit, merge, summarize, explain, or add content. Do not leave translatable source text unchanged. Follow the required output format exactly. If uncertain, return the best faithful translation.";
 
+const PREVIOUS_DEFAULT_MODEL = "gpt-5.5";
+const DEFAULT_AI_MODEL = "gpt-5.6-luna";
+
 export const DEFAULT_SETTINGS: AppSettings = {
   uiLanguage: "auto",
   provider: {
@@ -118,7 +146,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
     aiProvider: "openai-compatible",
     baseUrl: "https://api.norixor.org/v1",
     apiKey: "",
-    model: "gpt-5.5",
+    googleApiKey: "",
+    microsoftApiKey: "",
+    microsoftRegion: "",
+    deeplApiKey: "",
+    deeplPlan: "free",
+    model: DEFAULT_AI_MODEL,
     systemPrompt: DEFAULT_SYSTEM_PROMPT,
     timeoutMs: 60_000,
   },
@@ -127,7 +160,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     targetLanguage: "zh-CN",
     mode: "fast",
     aiResponseMode: "stream",
-    displayMode: "bilingual",
+    displayMode: "translated",
     autoTranslate: false,
     autoTranslateSitePatterns: [],
     autoTranslateExcludedSitePatterns: [],
@@ -156,6 +189,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   ocr: {
     enabled: false,
+    sourceLanguage: "auto",
+    targetLanguage: "zh-CN",
+    provider: "chrome-local",
   },
   imageTranslation: {
     enabled: false,
@@ -189,6 +225,8 @@ export function toContentSettings(settings: AppSettings): ContentSettings {
       fastProvider: settings.provider.fastProvider,
       aiProvider: settings.provider.aiProvider,
       baseUrl: settings.provider.baseUrl,
+      microsoftRegion: settings.provider.microsoftRegion,
+      deeplPlan: settings.provider.deeplPlan,
       model: settings.provider.model,
       systemPrompt: settings.provider.systemPrompt,
       timeoutMs: settings.provider.timeoutMs,
@@ -215,13 +253,17 @@ export function mergeSettings(value: unknown): AppSettings {
     ? value.imageTranslation
     : {};
 
-  const fastProvider =
-    provider.fastProvider === "openai-compatible"
-      ? "openai-compatible"
+  const fastProvider: FastProviderId =
+    provider.fastProvider === "bergamot-local" ||
+    provider.fastProvider === "openai-compatible" ||
+    provider.fastProvider === "google-translate" ||
+    provider.fastProvider === "microsoft-translator" ||
+    provider.fastProvider === "deepl"
+      ? provider.fastProvider
       : "chrome-local";
   const pageMode = page.mode === "ai" ? "ai" : "fast";
   const pageDisplayMode =
-    page.displayMode === "translated" ? "translated" : "bilingual";
+    page.displayMode === "bilingual" ? "bilingual" : "translated";
   const subtitleMode = subtitles.mode === "fast" ? "fast" : "ai";
   const subtitleDisplayMode =
     subtitles.displayMode === "translated" ||
@@ -252,9 +294,28 @@ export function mergeSettings(value: unknown): AppSettings {
         typeof provider.apiKey === "string"
           ? provider.apiKey
           : DEFAULT_SETTINGS.provider.apiKey,
+      googleApiKey:
+        typeof provider.googleApiKey === "string"
+          ? provider.googleApiKey
+          : DEFAULT_SETTINGS.provider.googleApiKey,
+      microsoftApiKey:
+        typeof provider.microsoftApiKey === "string"
+          ? provider.microsoftApiKey
+          : DEFAULT_SETTINGS.provider.microsoftApiKey,
+      microsoftRegion:
+        typeof provider.microsoftRegion === "string"
+          ? provider.microsoftRegion.trim().slice(0, 128)
+          : DEFAULT_SETTINGS.provider.microsoftRegion,
+      deeplApiKey:
+        typeof provider.deeplApiKey === "string"
+          ? provider.deeplApiKey
+          : DEFAULT_SETTINGS.provider.deeplApiKey,
+      deeplPlan: provider.deeplPlan === "pro" ? "pro" : "free",
       model:
         typeof provider.model === "string"
-          ? provider.model
+          ? provider.model === PREVIOUS_DEFAULT_MODEL
+            ? DEFAULT_AI_MODEL
+            : provider.model
           : DEFAULT_SETTINGS.provider.model,
       systemPrompt:
         typeof provider.systemPrompt === "string"
@@ -386,6 +447,20 @@ export function mergeSettings(value: unknown): AppSettings {
         typeof ocr.enabled === "boolean"
           ? ocr.enabled
           : DEFAULT_SETTINGS.ocr.enabled,
+      sourceLanguage:
+        typeof ocr.sourceLanguage === "string"
+          ? ocr.sourceLanguage
+          : typeof subtitles.sourceLanguage === "string"
+            ? subtitles.sourceLanguage
+            : DEFAULT_SETTINGS.ocr.sourceLanguage,
+      targetLanguage:
+        typeof ocr.targetLanguage === "string"
+          ? ocr.targetLanguage
+          : typeof subtitles.targetLanguage === "string"
+            ? subtitles.targetLanguage
+            : DEFAULT_SETTINGS.ocr.targetLanguage,
+      provider:
+        ocr.provider === "bergamot-local" ? "bergamot-local" : "chrome-local",
     },
     imageTranslation: {
       enabled:

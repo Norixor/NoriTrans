@@ -253,6 +253,13 @@ export function shouldSkipTextNode(node: Text, root: ScanRoot): boolean {
     node.parentElement ??
     (nodeRoot instanceof ShadowRoot ? nodeRoot : undefined);
   if (!textContainer) return true;
+  const linguisticContent = /[\p{L}\p{N}]/u;
+  if (
+    !linguisticContent.test(text) &&
+    !linguisticContent.test(textContainer.textContent?.trim() ?? "")
+  ) {
+    return true;
+  }
   const numericOrPunctuation = /^[\d\s.,%$€¥£+\-*/=()[\]{}:;]+$/;
   if (
     numericOrPunctuation.test(text) &&

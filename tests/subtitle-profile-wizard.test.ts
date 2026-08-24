@@ -13,6 +13,11 @@ vi.mock("wxt/browser", () => ({
   },
 }));
 
+vi.mock("@/src/shared/i18n", () => ({
+  message: (key: string, substitutions?: string | string[]) =>
+    String(getMessageMock(key, substitutions)),
+}));
+
 interface LocaleMessage {
   message: string;
   placeholders?: Record<string, { content: string }>;

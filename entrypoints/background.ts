@@ -43,7 +43,10 @@ import {
   TabManualTranslationIntentStore,
   type ContentFrameTarget,
 } from "@/src/shared/content-script-refresh";
-import { translateInBackground } from "@/src/translation/service";
+import {
+  invalidateLocalTranslationModelIdentity,
+  translateInBackground,
+} from "@/src/translation/service";
 import type { TranslationResult } from "@/src/translation/types";
 import {
   deleteSiteProfileOverride,
@@ -87,6 +90,13 @@ import {
 import type { OcrRuntimeLanguageCode } from "@/src/ocr/runtime-catalog";
 import { selectInstalledOcrRuntime } from "@/src/ocr/languages";
 import {
+  deleteRuntime as deleteLocalTranslationRuntime,
+  install as installLocalTranslationRuntime,
+  list as listLocalTranslationRuntimes,
+} from "@/src/local-translation/runtime-storage";
+import { BergamotOffscreenClient } from "@/src/local-translation/client";
+import { BergamotRuntimeError } from "@/src/local-translation/errors";
+import {
   checkForUpdates,
   getUpdateStatus,
   ignoreUpdate,
@@ -104,6 +114,9 @@ const OCR_OFFSCREEN_REQUEST_TIMEOUT_MS = 95_000;
 const OCR_RUNTIME_DOWNLOAD_ORIGINS = [
   "https://media.githubusercontent.com/*",
   "https://raw.githubusercontent.com/*",
+];
+const LOCAL_TRANSLATION_RUNTIME_DOWNLOAD_ORIGINS = [
+  "https://storage.googleapis.com/*",
 ];
 const IMAGE_SOURCE_MAX_BYTES = 8_000_000;
 const IMAGE_SOURCE_FETCH_TIMEOUT_MS = 15_000;
@@ -221,14 +234,13 @@ const ensureOcrOffscreenDocument = createOcrOffscreenDocumentEnsurer({
   getContexts: () =>
     chrome.runtime.getContexts({
       contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT],
-      documentUrls: [OCR_OFFSCREEN_URL],
     }),
   createDocument: () =>
     chrome.offscreen.createDocument({
       url: "ocr-offscreen.html",
       reasons: [chrome.offscreen.Reason.WORKERS],
       justification:
-        "Run the bundled local recognition runtime outside website CSP; only locally cropped images are processed.",
+        "Run bundled local OCR and translation workers outside website CSP; page text and cropped images stay inside the extension.",
     }),
 });
 
@@ -372,6 +384,17 @@ async function assertOcrRuntimeDownloadPermission(): Promise<void> {
   throw new Error("ocr_runtime_download_permission_required");
 }
 
+async function assertLocalTranslationRuntimePermission(): Promise<void> {
+  if (
+    await browser.permissions.contains({
+      origins: LOCAL_TRANSLATION_RUNTIME_DOWNLOAD_ORIGINS,
+    })
+  ) {
+    return;
+  }
+  throw new Error("local_translation_runtime_download_permission_required");
+}
+
 async function assertOcrPrepareRuntimesInstalled(
   sourceLanguage?: string,
 ): Promise<void> {
@@ -397,6 +420,27 @@ async function invalidateLoadedOcrRuntime(
   });
   if (!response.ok)
     throw new Error(response.error ?? "ocr_runtime_invalidate_failed");
+}
+
+async function resetLoadedLocalTranslationRuntime(): Promise<void> {
+  const contexts = await chrome.runtime.getContexts({
+    contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT],
+  });
+  if (contexts.length === 0) return;
+  await new BergamotOffscreenClient().reset();
+}
+
+function localTranslationRuntimeFailureResponse(error: unknown): {
+  ok: false;
+  error: string;
+} {
+  return {
+    ok: false,
+    error:
+      error instanceof BergamotRuntimeError
+        ? error.code
+        : "bergamot_runtime_failed",
+  };
 }
 
 async function installAllMissingOcrRuntimes(): Promise<void> {
@@ -429,16 +473,36 @@ function providerOriginPattern(baseUrl: string): string {
   return `${new URL(baseUrl).origin}/*`;
 }
 
-async function assertProviderPermission(
+function providerOriginForMode(
   settings: AppSettings,
   mode: "fast" | "ai",
-): Promise<void> {
+  providerOverride?: "chrome-local" | "bergamot-local",
+): string | undefined {
   const providerId =
     mode === "ai"
       ? settings.provider.aiProvider
-      : settings.provider.fastProvider;
-  if (providerId !== "openai-compatible") return;
-  const origin = providerOriginPattern(settings.provider.baseUrl);
+      : (providerOverride ?? settings.provider.fastProvider);
+  if (providerId === "chrome-local" || providerId === "bergamot-local") {
+    return undefined;
+  }
+  if (providerId === "openai-compatible")
+    return providerOriginPattern(settings.provider.baseUrl);
+  if (providerId === "google-translate")
+    return "https://translation.googleapis.com/*";
+  if (providerId === "microsoft-translator")
+    return "https://api.cognitive.microsofttranslator.com/*";
+  return settings.provider.deeplPlan === "pro"
+    ? "https://api.deepl.com/*"
+    : "https://api-free.deepl.com/*";
+}
+
+async function assertProviderPermission(
+  settings: AppSettings,
+  mode: "fast" | "ai",
+  providerOverride?: "chrome-local" | "bergamot-local",
+): Promise<void> {
+  const origin = providerOriginForMode(settings, mode, providerOverride);
+  if (!origin) return;
   if (await browser.permissions.contains({ origins: [origin] })) return;
   throw new NorixorTransError(
     "尚未授权访问当前翻译服务，请在设置中重新保存 Provider。",
@@ -633,15 +697,23 @@ function safeConnectionDiagnostic(error: unknown): string {
 async function testConnection(): Promise<{ ok: boolean; message?: string }> {
   const settings = await loadSettings();
   const controller = new AbortController();
+  const testMode =
+    settings.provider.fastProvider === "google-translate" ||
+    settings.provider.fastProvider === "microsoft-translator" ||
+    settings.provider.fastProvider === "deepl"
+      ? "fast"
+      : "ai";
   try {
-    await assertProviderPermission(settings, "ai");
+    await assertProviderPermission(settings, testMode);
     const results = await translateInBackground(
       {
-        sourceLanguage: "en",
+        sourceLanguage: "auto",
         targetLanguage: settings.page.targetLanguage,
-        mode: "ai",
+        mode: testMode,
         segments: [{ id: "connection-test", text: "Hello" }],
-        prompt: settings.provider.systemPrompt,
+        ...(testMode === "ai"
+          ? { prompt: settings.provider.systemPrompt }
+          : {}),
       },
       settings,
       controller.signal,
@@ -1088,7 +1160,18 @@ async function handleBackgroundCommand(
             await cacheMutationTail;
             const requestCacheEpoch = cacheEpoch;
             const settings = await loadSettings();
-            await assertProviderPermission(settings, message.request.mode);
+            if (
+              message.request.mode === "fast" &&
+              (message.request.providerOverride ??
+                settings.provider.fastProvider) === "bergamot-local"
+            ) {
+              await ensureOcrOffscreenDocument();
+            }
+            await assertProviderPermission(
+              settings,
+              message.request.mode,
+              message.request.providerOverride,
+            );
             return translateInBackground(message.request, settings, signal, {
               cacheWriter: {
                 set: async (key, translatedText) => {
@@ -1185,8 +1268,11 @@ async function handleBackgroundCommand(
       };
     }
     case "PAGE_QUICK_SETTINGS_SET": {
-      await mutateSettings((settings) => ({
+      const updated = await mutateSettings((settings) => ({
         ...settings,
+        provider: message.fastProvider
+          ? { ...settings.provider, fastProvider: message.fastProvider }
+          : settings.provider,
         page: {
           ...settings.page,
           sourceLanguage: message.sourceLanguage,
@@ -1202,7 +1288,7 @@ async function handleBackgroundCommand(
             settings.page.selectionTranslationMode,
         },
       }));
-      return { ok: true };
+      return { ok: true, settings: toContentSettings(updated) };
     }
     case "FLOATING_BUTTON_SET": {
       await mutateSettings((settings) =>
@@ -1267,8 +1353,11 @@ async function handleBackgroundCommand(
     case "FLOATING_SESSION_RESTORE":
       return restoreSessionHiddenFloatingControls();
     case "SUBTITLE_QUICK_SETTINGS_SET": {
-      await mutateSettings((settings) => ({
+      const updated = await mutateSettings((settings) => ({
         ...settings,
+        provider: message.fastProvider
+          ? { ...settings.provider, fastProvider: message.fastProvider }
+          : settings.provider,
         subtitles: {
           ...settings.subtitles,
           sourceLanguage: message.sourceLanguage,
@@ -1283,7 +1372,7 @@ async function handleBackgroundCommand(
             message.backgroundOpacity ?? settings.subtitles.backgroundOpacity,
         },
       }));
-      return { ok: true };
+      return { ok: true, settings: toContentSettings(updated) };
     }
     case "SUBTITLE_POSITION_SET": {
       await mutateSettings((settings) => ({
@@ -1302,15 +1391,23 @@ async function handleBackgroundCommand(
         subtitles: message.enabled
           ? { ...settings.subtitles, enabled: true }
           : settings.subtitles,
-        ocr: { enabled: message.enabled },
+        ocr: {
+          enabled: message.enabled,
+          sourceLanguage: message.sourceLanguage,
+          targetLanguage: message.targetLanguage,
+          provider: message.provider,
+        },
       }));
       return { ok: true };
     }
     case "IMAGE_SOURCE_GET":
       return fetchImageSource(message.url, sender);
     case "IMAGE_TRANSLATION_SETTINGS_SET": {
-      await mutateSettings((settings) => ({
+      const updated = await mutateSettings((settings) => ({
         ...settings,
+        provider: message.fastProvider
+          ? { ...settings.provider, fastProvider: message.fastProvider }
+          : settings.provider,
         imageTranslation: {
           enabled: message.enabled,
           sourceLanguage: message.sourceLanguage,
@@ -1320,7 +1417,7 @@ async function handleBackgroundCommand(
           displayMode: message.displayMode,
         },
       }));
-      return { ok: true };
+      return { ok: true, settings: toContentSettings(updated) };
     }
     case "OCR_PERMISSION_REQUEST": {
       const origins = ["<all_urls>"];
@@ -1359,6 +1456,19 @@ async function handleBackgroundCommand(
       if ((await deleteOcrRuntime(message.language)).physicalPackDeleted) {
         await invalidateLoadedOcrRuntime(message.language);
       }
+      return { ok: true };
+    case "LOCAL_TRANSLATION_RUNTIME_LIST":
+      return { ok: true, runtimes: await listLocalTranslationRuntimes() };
+    case "LOCAL_TRANSLATION_RUNTIME_DOWNLOAD":
+      await assertLocalTranslationRuntimePermission();
+      await installLocalTranslationRuntime(message.packId);
+      invalidateLocalTranslationModelIdentity();
+      await resetLoadedLocalTranslationRuntime();
+      return { ok: true };
+    case "LOCAL_TRANSLATION_RUNTIME_DELETE":
+      await deleteLocalTranslationRuntime(message.packId);
+      invalidateLocalTranslationModelIdentity();
+      await resetLoadedLocalTranslationRuntime();
       return { ok: true };
     case "SITE_PROFILES_GET": {
       if (isExtensionPageSender(sender)) {
@@ -1448,7 +1558,13 @@ async function handleBackgroundCommand(
     case "CREDENTIALS_CLEAR": {
       await mutateSettings((settings) => ({
         ...settings,
-        provider: { ...settings.provider, apiKey: "" },
+        provider: {
+          ...settings.provider,
+          apiKey: "",
+          googleApiKey: "",
+          microsoftApiKey: "",
+          deeplApiKey: "",
+        },
       }));
       return { ok: true };
     }
@@ -1493,6 +1609,7 @@ function commandAllowedFromContentScript(command: BackgroundCommand): boolean {
     command.type === "OCR_SETTINGS_SET" ||
     command.type === "IMAGE_SOURCE_GET" ||
     command.type === "IMAGE_TRANSLATION_SETTINGS_SET" ||
+    command.type === "LOCAL_TRANSLATION_RUNTIME_LIST" ||
     command.type === "OCR_PERMISSION_REQUEST" ||
     command.type === "SITE_PROFILES_GET" ||
     command.type === "SITE_PROFILE_SAVE"
@@ -1520,7 +1637,7 @@ export default defineBackground(() => {
       settings.ocr.enabled
         ? {
             ...settings,
-            ocr: { enabled: false },
+            ocr: { ...settings.ocr, enabled: false },
           }
         : settings,
     ).catch(() => undefined);
@@ -1609,7 +1726,12 @@ export default defineBackground(() => {
       void handleBackgroundCommand(message, sender).then(
         sendResponse,
         (error: unknown) => {
-          sendResponse({ ok: false, error: safeRuntimeErrorToken(error) });
+          sendResponse(
+            message.type === "LOCAL_TRANSLATION_RUNTIME_DOWNLOAD" ||
+              message.type === "LOCAL_TRANSLATION_RUNTIME_DELETE"
+              ? localTranslationRuntimeFailureResponse(error)
+              : { ok: false, error: safeRuntimeErrorToken(error) },
+          );
         },
       );
       return true;

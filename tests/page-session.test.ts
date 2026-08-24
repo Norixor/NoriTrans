@@ -693,7 +693,7 @@ describe("PageTranslationSession", () => {
     secondDynamic.textContent = "Second hover item";
     document.querySelector("main")?.append(secondDynamic);
     await vi.waitFor(
-      () => expect(secondDynamic.textContent).toBe("T:Second hover item"),
+      () => expect(secondDynamic.textContent).toBe("Second hover item"),
       { timeout: 1_000 },
     );
     expect(localRuntime.providerCreated).toHaveBeenCalledTimes(2);
@@ -738,7 +738,7 @@ describe("PageTranslationSession", () => {
     explicitSession.restore();
   });
 
-  it("keeps automatic source language on every local batch for a multilingual page", async () => {
+  it("keeps one detected source language on every local batch for a multilingual page", async () => {
     const english = `English batch ${"sentence ".repeat(230)}`;
     const japanese = `日本語のバッチ ${"文章".repeat(1_200)}`;
     document.body.innerHTML = `<main><p>${english}</p><p>${japanese}</p></main>`;
@@ -753,7 +753,7 @@ describe("PageTranslationSession", () => {
     const requests = localRuntime.translateBatch.mock.calls.map(
       ([request]) => request,
     );
-    expect(requests.every((request) => request.sourceLanguage === "auto")).toBe(
+    expect(requests.every((request) => request.sourceLanguage === "ja")).toBe(
       true,
     );
     expect(
@@ -769,6 +769,39 @@ describe("PageTranslationSession", () => {
         request.segments.some((segment) => segment.text.includes("日本語")),
       ),
     ).toBe(true);
+    session.restore();
+  });
+
+  it("skips Latin target text during automatic Bergamot translation", async () => {
+    document.body.innerHTML =
+      '<main><p id="source">中文页面内容</p><p id="target">Already in English</p><p id="icon">\uE123</p></main>';
+    const session = new PageTranslationSession(vi.fn());
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.provider.fastProvider = "bergamot-local";
+    settings.page.sourceLanguage = "auto";
+    settings.page.targetLanguage = "en";
+    settings.page.displayMode = "translated";
+
+    await session.translate(settings);
+
+    expect(document.querySelector("#source")?.textContent).toBe(
+      "T:中文页面内容",
+    );
+    expect(document.querySelector("#target")?.textContent).toBe(
+      "Already in English",
+    );
+    expect(document.querySelector("#icon")?.textContent).toBe("\uE123");
+    const translationRequests = aiRuntime.sendMessage.mock.calls
+      .map(([message]) => message)
+      .filter(
+        (message): message is Record<string, unknown> =>
+          isRecord(message) && message.type === "TRANSLATE",
+      );
+    expect(translationRequests).toHaveLength(1);
+    expect(translationRequests[0]?.request).toMatchObject({
+      sourceLanguage: "zh-CN",
+      targetLanguage: "en",
+    });
     session.restore();
   });
 
@@ -2466,6 +2499,7 @@ describe("PageTranslationSession", () => {
     const session = new PageTranslationSession(vi.fn());
     const settings = structuredClone(DEFAULT_SETTINGS);
     settings.page.mode = "fast";
+    settings.page.sourceLanguage = "ja";
     settings.page.displayMode = "translated";
 
     await session.translate(settings);
@@ -2523,6 +2557,7 @@ describe("PageTranslationSession", () => {
     const session = new PageTranslationSession(vi.fn());
     const settings = structuredClone(DEFAULT_SETTINGS);
     settings.page.mode = "fast";
+    settings.page.sourceLanguage = "ja";
     settings.page.displayMode = "translated";
 
     await session.translate(settings);

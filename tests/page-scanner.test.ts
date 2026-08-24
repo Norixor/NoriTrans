@@ -131,6 +131,22 @@ describe("scanPageSegments", () => {
     expect(segments[0]?.nodes).toHaveLength(3);
   });
 
+  it("skips standalone icon, format, emoji, and punctuation-only text", () => {
+    document.body.innerHTML = `
+      <main>
+        <span>\uE123</span>
+        <span>\u200C</span>
+        <span>👌</span>
+        <span>···</span>
+        <p>保留文字 <span>👌</span></p>
+      </main>
+    `;
+
+    expect(
+      scanPageSegments(document.body).map((segment) => segment.text),
+    ).toEqual(["保留文字"]);
+  });
+
   it("resolves newly appended inline text to its complete semantic anchor", () => {
     document.body.innerHTML = "<main><p>Lead <strong>tail</strong></p></main>";
     const tail = document.querySelector("strong")?.firstChild;

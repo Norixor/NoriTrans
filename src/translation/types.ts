@@ -28,6 +28,8 @@ export interface TranslationRequest {
   scope?: string;
   /** Optional per-surface AI model; omitted or blank inherits global settings. */
   modelOverride?: string;
+  /** Local fast provider selected by a surface with its own provider setting. */
+  providerOverride?: "chrome-local" | "bergamot-local";
 }
 
 /** A successful result whose ID must match exactly one requested segment. */

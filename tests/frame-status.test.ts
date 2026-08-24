@@ -61,7 +61,7 @@ describe("frame status aggregation", () => {
     ).toBe(false);
   });
 
-  it("waits for a visible overlay before hiding native bilingual captions", () => {
+  it("keeps native bilingual captions hidden across translated cue gaps", () => {
     const settings = {
       ...DEFAULT_SETTINGS.subtitles,
       displayMode: "bilingual" as const,
@@ -75,7 +75,7 @@ describe("frame status aggregation", () => {
       completed: 0,
       failed: 0,
     };
-    expect(shouldHideNativeSubtitles(settings, status, false)).toBe(false);
+    expect(shouldHideNativeSubtitles(settings, status, false)).toBe(true);
     expect(shouldHideNativeSubtitles(settings, status, true)).toBe(true);
   });
 

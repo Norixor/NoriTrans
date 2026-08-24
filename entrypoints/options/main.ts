@@ -3,6 +3,7 @@ import {
   loadSettings,
   mergeSettings,
   type AppSettings,
+  type FastProviderId,
 } from "@/src/shared/settings";
 import {
   displayLanguageName,
@@ -31,8 +32,18 @@ import {
   OCR_RUNTIME_CATALOG,
   type OcrRuntimePack,
 } from "@/src/ocr/runtime-catalog";
-import type { OcrRuntimeInfo } from "@/src/messaging/protocol";
+import type {
+  LocalTranslationRuntimeInfo,
+  OcrRuntimeInfo,
+} from "@/src/messaging/protocol";
 import type { ExtensionUpdateStatus } from "@/src/update/checker";
+import {
+  installedBergamotPackIds,
+  providerSourceLanguageAvailable,
+  providerTargetLanguageAvailable,
+  queryChromeTranslationPairs,
+  type TranslationCapabilities,
+} from "@/src/translation/provider-capabilities";
 import { browser } from "wxt/browser";
 import { DirtyControlTracker } from "./dirty-control-tracker";
 
@@ -49,6 +60,26 @@ function isSuccessfulResponse(value: unknown): value is { ok: true } {
     "ok" in value &&
     value.ok === true
   );
+}
+
+function localTranslationRuntimeFailureMessage(value: unknown): string {
+  if (typeof value !== "object" || value === null || !("error" in value)) {
+    return "localTranslationRuntimeDownloadFailed";
+  }
+  switch (value.error) {
+    case "bergamot_catalog_unavailable":
+      return "localTranslationRuntimeCatalogUnavailable";
+    case "bergamot_catalog_invalid":
+      return "localTranslationRuntimeCatalogInvalid";
+    case "bergamot_unsupported_language":
+      return "localTranslationRuntimeUnsupported";
+    case "bergamot_integrity_failed":
+      return "localTranslationRuntimeIntegrityFailed";
+    case "bergamot_cancelled":
+      return "localTranslationRuntimeCancelled";
+    default:
+      return "localTranslationRuntimeStorageFailed";
+  }
 }
 
 function isUpdateStatus(value: unknown): value is ExtensionUpdateStatus {
@@ -208,14 +239,59 @@ function isOcrRuntimeListResponse(
   );
 }
 
+function isLocalTranslationRuntimeStatus(
+  value: unknown,
+): value is LocalTranslationRuntimeInfo {
+  if (typeof value !== "object" || value === null) return false;
+  const runtime = value as Record<string, unknown>;
+  return (
+    typeof runtime.packId === "string" &&
+    typeof runtime.sourceLanguage === "string" &&
+    typeof runtime.targetLanguage === "string" &&
+    (runtime.state === "missing" ||
+      runtime.state === "downloading" ||
+      runtime.state === "installed" ||
+      runtime.state === "error") &&
+    (runtime.version === undefined || typeof runtime.version === "string") &&
+    (runtime.bytes === undefined || typeof runtime.bytes === "number") &&
+    (runtime.downloadBytes === undefined ||
+      (typeof runtime.downloadBytes === "number" &&
+        Number.isSafeInteger(runtime.downloadBytes) &&
+        runtime.downloadBytes > 0)) &&
+    (runtime.message === undefined || typeof runtime.message === "string")
+  );
+}
+
+function isLocalTranslationRuntimeListResponse(
+  value: unknown,
+): value is { ok: true; runtimes: LocalTranslationRuntimeInfo[] } {
+  return (
+    isSuccessfulResponse(value) &&
+    "runtimes" in value &&
+    Array.isArray(value.runtimes) &&
+    value.runtimes.every(isLocalTranslationRuntimeStatus)
+  );
+}
+
 const OCR_RUNTIME_ORIGINS = [
   "https://media.githubusercontent.com/*",
   "https://raw.githubusercontent.com/*",
 ];
+const LOCAL_TRANSLATION_RUNTIME_ORIGINS = ["https://storage.googleapis.com/*"];
 
 async function requestOcrRuntimeDownloadPermission(): Promise<boolean> {
   try {
     return await browser.permissions.request({ origins: OCR_RUNTIME_ORIGINS });
+  } catch {
+    return false;
+  }
+}
+
+async function requestLocalTranslationRuntimePermission(): Promise<boolean> {
+  try {
+    return await browser.permissions.request({
+      origins: LOCAL_TRANSLATION_RUNTIME_ORIGINS,
+    });
   } catch {
     return false;
   }
@@ -242,8 +318,19 @@ async function requestProviderPermission(settings: AppSettings): Promise<void> {
   if (!isAllowedProviderBaseUrl(settings.provider.baseUrl)) {
     throw new Error("provider-url-invalid");
   }
-  const origin = `${new URL(settings.provider.baseUrl).origin}/*`;
-  const permissions = { origins: [origin] };
+  const providerId = settings.provider.fastProvider;
+  const origins = new Set([`${new URL(settings.provider.baseUrl).origin}/*`]);
+  if (providerId === "google-translate")
+    origins.add("https://translation.googleapis.com/*");
+  if (providerId === "microsoft-translator")
+    origins.add("https://api.cognitive.microsofttranslator.com/*");
+  if (providerId === "deepl")
+    origins.add(
+      settings.provider.deeplPlan === "pro"
+        ? "https://api.deepl.com/*"
+        : "https://api-free.deepl.com/*",
+    );
+  const permissions = { origins: [...origins] };
   if (!(await browser.permissions.request(permissions))) {
     throw new Error("provider-permission-denied");
   }
@@ -263,6 +350,9 @@ async function initialize(): Promise<void> {
   const providerSettingsTab = element<HTMLButtonElement>(
     "provider-settings-tab",
   );
+  const localTranslationSettingsTab = element<HTMLButtonElement>(
+    "local-translation-settings-tab",
+  );
   const ocrRuntimesTab = element<HTMLButtonElement>("ocr-runtimes-tab");
   const visibilitySettingsTab = element<HTMLButtonElement>(
     "visibility-settings-tab",
@@ -275,14 +365,27 @@ async function initialize(): Promise<void> {
   const profilesSettingsPanel = element<HTMLElement>("profiles-settings-panel");
   const imageSettingsPanel = element<HTMLElement>("image-settings-panel");
   const providerSettingsPanel = element<HTMLElement>("provider-settings-panel");
+  const localTranslationSettingsPanel = element<HTMLElement>(
+    "local-translation-settings-panel",
+  );
   const ocrRuntimesPanel = element<HTMLElement>("ocr-runtimes-panel");
   const visibilitySettingsPanel = element<HTMLElement>(
     "visibility-settings-panel",
   );
   const uiLanguage = element<HTMLSelectElement>("ui-language");
   const fastProvider = element<HTMLSelectElement>("fast-provider");
+  const googleProviderFields = element<HTMLElement>("google-provider-fields");
+  const microsoftProviderFields = element<HTMLElement>(
+    "microsoft-provider-fields",
+  );
+  const deeplProviderFields = element<HTMLElement>("deepl-provider-fields");
   const baseUrl = element<HTMLInputElement>("base-url");
   const apiKey = element<HTMLInputElement>("api-key");
+  const googleApiKey = element<HTMLInputElement>("google-api-key");
+  const microsoftApiKey = element<HTMLInputElement>("microsoft-api-key");
+  const microsoftRegion = element<HTMLInputElement>("microsoft-region");
+  const deeplApiKey = element<HTMLInputElement>("deepl-api-key");
+  const deeplPlan = element<HTMLSelectElement>("deepl-plan");
   const model = element<HTMLInputElement>("model");
   const timeout = element<HTMLInputElement>("timeout");
   const systemPrompt = element<HTMLTextAreaElement>("system-prompt");
@@ -357,6 +460,9 @@ async function initialize(): Promise<void> {
     "subtitle-background-opacity",
   );
   const ocrEnabled = element<HTMLInputElement>("ocr-enabled");
+  const ocrSourceLanguage = element<HTMLSelectElement>("ocr-source-language");
+  const ocrTargetLanguage = element<HTMLSelectElement>("ocr-target-language");
+  const ocrProvider = element<HTMLSelectElement>("ocr-provider");
   const imageTranslationEnabled = element<HTMLInputElement>(
     "image-translation-enabled",
   );
@@ -385,6 +491,18 @@ async function initialize(): Promise<void> {
   const ocrRuntimeEmpty = element<HTMLParagraphElement>("ocr-runtime-empty");
   const ocrRuntimeMessage = element<HTMLParagraphElement>(
     "ocr-runtime-message",
+  );
+  const localTranslationRuntimeList = element<HTMLUListElement>(
+    "local-translation-runtime-list",
+  );
+  const localTranslationRuntimeLoading = element<HTMLParagraphElement>(
+    "local-translation-runtime-loading",
+  );
+  const localTranslationRuntimeEmpty = element<HTMLParagraphElement>(
+    "local-translation-runtime-empty",
+  );
+  const localTranslationRuntimeMessage = element<HTMLParagraphElement>(
+    "local-translation-runtime-message",
   );
   const fontScaleValue = element<HTMLOutputElement>("font-scale-value");
   const backgroundOpacityValue = element<HTMLOutputElement>(
@@ -436,7 +554,124 @@ async function initialize(): Promise<void> {
   let ocrRuntimeListRequest: Promise<void> | undefined;
   let ocrRuntimeFocus:
     { language: string | undefined; action: string | undefined } | undefined;
+  let localTranslationRuntimes: LocalTranslationRuntimeInfo[] = [];
+  let localTranslationRuntimeCommandPending = false;
+  let localTranslationRuntimeLoaded = false;
+  let localTranslationRuntimePollTimer: number | undefined;
+  let localTranslationDownloadProgress:
+    | {
+        packIds: Set<LocalTranslationRuntimeInfo["packId"]>;
+        completedPackIds: Set<LocalTranslationRuntimeInfo["packId"]>;
+      }
+    | undefined;
+  let chromeTranslationPairs: string[] = [];
+  let chromeTranslationPairsLoaded = false;
   const dirtyControls = new DirtyControlTracker();
+
+  const selectedProviderValue = (): FastProviderId => {
+    const value = fastProvider.value;
+    return value === "bergamot-local" ||
+      value === "openai-compatible" ||
+      value === "google-translate" ||
+      value === "microsoft-translator" ||
+      value === "deepl"
+      ? value
+      : "chrome-local";
+  };
+
+  const syncLanguageRestrictions = (): void => {
+    const capabilities: TranslationCapabilities = {
+      chromePairs: chromeTranslationPairs,
+      installedBergamotPackIds: installedBergamotPackIds(
+        localTranslationRuntimes,
+      ),
+    };
+    const languageLabel = (code: string): string =>
+      code === "auto"
+        ? message("languageAuto")
+        : displayLanguageName(code, currentUiLocale());
+    const syncPair = (
+      sourceSelect: HTMLSelectElement,
+      targetSelect: HTMLSelectElement,
+      provider: FastProviderId,
+      ready: boolean,
+    ): void => {
+      const sourceLanguage = sourceSelect.value;
+      const targetLanguage = targetSelect.value;
+      const sourceAvailable = (source: string): boolean =>
+        !ready ||
+        providerSourceLanguageAvailable(provider, source, capabilities);
+      const targetAvailable = (target: string): boolean =>
+        !ready ||
+        providerTargetLanguageAvailable(provider, target, capabilities);
+      const replace = (
+        select: HTMLSelectElement,
+        languages: typeof SOURCE_LANGUAGES,
+        selected: string,
+        filter: (code: string) => boolean,
+      ): void => {
+        select.replaceChildren(
+          ...languages
+            .filter(({ code }) => filter(code))
+            .map(({ code }) => new Option(languageLabel(code), code)),
+        );
+        if (![...select.options].some((option) => option.value === selected)) {
+          const unavailable = new Option(
+            `${languageLabel(selected)} · ${message("languageUnavailable")}`,
+            selected,
+          );
+          unavailable.disabled = true;
+          select.prepend(unavailable);
+        }
+        select.value = selected;
+      };
+      replace(sourceSelect, SOURCE_LANGUAGES, sourceLanguage, sourceAvailable);
+      replace(targetSelect, TARGET_LANGUAGES, targetLanguage, targetAvailable);
+    };
+    const fast = selectedProviderValue();
+    const ready =
+      fast === "chrome-local"
+        ? chromeTranslationPairsLoaded
+        : fast === "bergamot-local"
+          ? localTranslationRuntimeLoaded
+          : true;
+    syncPair(
+      pageSourceLanguage,
+      pageTargetLanguage,
+      pageMode.value === "ai" ? "openai-compatible" : fast,
+      pageMode.value === "ai" || ready,
+    );
+    syncPair(
+      selectionTranslationSourceLanguage,
+      selectionTranslationTargetLanguage,
+      selectionTranslationMode.value === "ai" ? "openai-compatible" : fast,
+      selectionTranslationMode.value === "ai" || ready,
+    );
+    syncPair(
+      subtitleSourceLanguage,
+      subtitleTargetLanguage,
+      subtitleMode.value === "ai" ? "openai-compatible" : fast,
+      subtitleMode.value === "ai" || ready,
+    );
+    syncPair(
+      imageSourceLanguage,
+      imageTargetLanguage,
+      imageMode.value === "ai" ? "openai-compatible" : fast,
+      imageMode.value === "ai" || ready,
+    );
+    const ocrReady =
+      ocrProvider.value === "chrome-local"
+        ? chromeTranslationPairsLoaded
+        : localTranslationRuntimeLoaded;
+    syncPair(
+      ocrSourceLanguage,
+      ocrTargetLanguage,
+      ocrProvider.value === "bergamot-local"
+        ? "bergamot-local"
+        : "chrome-local",
+      ocrReady,
+    );
+  };
 
   const renderUpdateStatus = (status: ExtensionUpdateStatus): void => {
     updateStatus = status;
@@ -498,6 +733,9 @@ async function initialize(): Promise<void> {
     subtitleSourceLanguage.add(
       new Option(languageLabel(language.code), language.code),
     );
+    ocrSourceLanguage.add(
+      new Option(languageLabel(language.code), language.code),
+    );
     imageSourceLanguage.add(
       new Option(languageLabel(language.code), language.code),
     );
@@ -512,6 +750,9 @@ async function initialize(): Promise<void> {
     subtitleTargetLanguage.add(
       new Option(languageLabel(language.code), language.code),
     );
+    ocrTargetLanguage.add(
+      new Option(languageLabel(language.code), language.code),
+    );
     imageTargetLanguage.add(
       new Option(languageLabel(language.code), language.code),
     );
@@ -519,6 +760,10 @@ async function initialize(): Promise<void> {
 
   const tabItems = [
     { tab: providerSettingsTab, panel: providerSettingsPanel },
+    {
+      tab: localTranslationSettingsTab,
+      panel: localTranslationSettingsPanel,
+    },
     { tab: pageSettingsTab, panel: pageSettingsPanel },
     { tab: selectionSettingsTab, panel: selectionSettingsPanel },
     { tab: videoSettingsTab, panel: videoSettingsPanel },
@@ -543,7 +788,12 @@ async function initialize(): Promise<void> {
   }
 
   tabItems.forEach(({ tab }, index) => {
-    tab.addEventListener("click", () => activateTab(index));
+    tab.addEventListener("click", () => {
+      activateTab(index);
+      if (tab === localTranslationSettingsTab) {
+        void loadLocalTranslationRuntimes(!localTranslationRuntimeLoaded);
+      }
+    });
     tab.addEventListener("keydown", (event) => {
       let nextIndex: number | undefined;
       if (event.key === "ArrowRight" || event.key === "ArrowDown")
@@ -645,6 +895,11 @@ async function initialize(): Promise<void> {
     fastProvider.value = settings.provider.fastProvider;
     baseUrl.value = settings.provider.baseUrl;
     apiKey.value = settings.provider.apiKey;
+    googleApiKey.value = settings.provider.googleApiKey;
+    microsoftApiKey.value = settings.provider.microsoftApiKey;
+    microsoftRegion.value = settings.provider.microsoftRegion;
+    deeplApiKey.value = settings.provider.deeplApiKey;
+    deeplPlan.value = settings.provider.deeplPlan;
     model.value = settings.provider.model;
     timeout.value = String(Math.round(settings.provider.timeoutMs / 1000));
     systemPrompt.value = settings.provider.systemPrompt;
@@ -692,6 +947,9 @@ async function initialize(): Promise<void> {
       settings.subtitles.backgroundOpacity,
     );
     ocrEnabled.checked = settings.ocr.enabled;
+    ocrSourceLanguage.value = settings.ocr.sourceLanguage;
+    ocrTargetLanguage.value = settings.ocr.targetLanguage;
+    ocrProvider.value = settings.ocr.provider;
     imageTranslationEnabled.checked = settings.imageTranslation.enabled;
     imageSourceLanguage.value = settings.imageTranslation.sourceLanguage;
     imageTargetLanguage.value = settings.imageTranslation.targetLanguage;
@@ -701,6 +959,22 @@ async function initialize(): Promise<void> {
     imageModelOverride.disabled = settings.imageTranslation.mode !== "ai";
     syncRangeOutputs();
     renderAutoTranslateSites();
+    googleProviderFields.hidden =
+      settings.provider.fastProvider !== "google-translate";
+    microsoftProviderFields.hidden =
+      settings.provider.fastProvider !== "microsoft-translator";
+    deeplProviderFields.hidden = settings.provider.fastProvider !== "deepl";
+    syncLanguageRestrictions();
+  };
+
+  const selectedFastProvider = selectedProviderValue;
+
+  const syncFastProviderFields = (): void => {
+    const value = selectedFastProvider();
+    googleProviderFields.hidden = value !== "google-translate";
+    microsoftProviderFields.hidden = value !== "microsoft-translator";
+    deeplProviderFields.hidden = value !== "deepl";
+    syncLanguageRestrictions();
   };
 
   const readForm = (): AppSettings => ({
@@ -710,13 +984,15 @@ async function initialize(): Promise<void> {
         ? uiLanguage.value
         : "auto",
     provider: {
-      fastProvider:
-        fastProvider.value === "openai-compatible"
-          ? "openai-compatible"
-          : "chrome-local",
+      fastProvider: selectedFastProvider(),
       aiProvider: "openai-compatible",
       baseUrl: baseUrl.value.trim().replace(/\/$/, ""),
       apiKey: apiKey.value.trim(),
+      googleApiKey: googleApiKey.value.trim(),
+      microsoftApiKey: microsoftApiKey.value.trim(),
+      microsoftRegion: microsoftRegion.value.trim(),
+      deeplApiKey: deeplApiKey.value.trim(),
+      deeplPlan: deeplPlan.value === "pro" ? "pro" : "free",
       model: model.value.trim(),
       systemPrompt: systemPrompt.value.trim(),
       timeoutMs: Math.round(Number(timeout.value) * 1000),
@@ -782,6 +1058,12 @@ async function initialize(): Promise<void> {
     },
     ocr: {
       enabled: ocrEnabled.checked,
+      sourceLanguage: ocrSourceLanguage.value,
+      targetLanguage: ocrTargetLanguage.value,
+      provider:
+        ocrProvider.value === "bergamot-local"
+          ? "bergamot-local"
+          : "chrome-local",
     },
     imageTranslation: {
       enabled: imageTranslationEnabled.checked,
@@ -1252,6 +1534,342 @@ async function initialize(): Promise<void> {
     void downloadAllOcrRuntimes();
   });
 
+  const localTranslationLanguageLabel = (language: string): string => {
+    if (language === "zh-Hant") {
+      return message("localTranslationLanguageTaiwan");
+    }
+    const displayCode = language === "zh-Hans" ? "zh-CN" : language;
+    return displayLanguageName(displayCode, currentUiLocale());
+  };
+
+  interface LocalTranslationRuntimePair {
+    language: string;
+    runtimes: LocalTranslationRuntimeInfo[];
+    state: LocalTranslationRuntimeInfo["state"];
+    bytes: number;
+    version?: string;
+  }
+
+  const localTranslationRuntimePairs = (): LocalTranslationRuntimePair[] => {
+    const grouped = new Map<string, LocalTranslationRuntimeInfo[]>();
+    for (const runtime of localTranslationRuntimes) {
+      const language =
+        runtime.sourceLanguage === "en"
+          ? runtime.targetLanguage
+          : runtime.sourceLanguage;
+      const runtimes = grouped.get(language) ?? [];
+      runtimes.push(runtime);
+      grouped.set(language, runtimes);
+    }
+    return [...grouped].map(([language, runtimes]) => {
+      const versions = [
+        ...new Set(
+          runtimes.flatMap((runtime) =>
+            runtime.version ? [runtime.version] : [],
+          ),
+        ),
+      ];
+      const state = runtimes.some((runtime) => runtime.state === "downloading")
+        ? "downloading"
+        : runtimes.length === 2 &&
+            runtimes.every((runtime) => runtime.state === "installed")
+          ? "installed"
+          : runtimes.some((runtime) => runtime.state === "error")
+            ? "error"
+            : "missing";
+      return {
+        language,
+        runtimes,
+        state,
+        bytes: runtimes.reduce(
+          (total, runtime) => total + (runtime.bytes ?? 0),
+          0,
+        ),
+        ...(versions.length === 1 ? { version: versions[0] } : {}),
+      };
+    });
+  };
+
+  const renderLocalTranslationRuntimes = (): void => {
+    localTranslationRuntimeLoading.hidden = true;
+    localTranslationRuntimeList.replaceChildren();
+    localTranslationRuntimeList.setAttribute("aria-busy", "false");
+    const pairs = localTranslationRuntimePairs();
+    localTranslationRuntimeList.hidden = pairs.length === 0;
+    localTranslationRuntimeEmpty.hidden = pairs.length > 0;
+    for (const pair of pairs) {
+      const item = document.createElement("li");
+      item.className = "runtime-item";
+      const identity = document.createElement("div");
+      identity.className = "runtime-identity local-runtime-identity";
+      const name = document.createElement("strong");
+      name.textContent = message("localTranslationPairValue", [
+        localTranslationLanguageLabel(pair.language),
+        localTranslationLanguageLabel("en"),
+      ]);
+      identity.append(name);
+      if (pair.bytes > 0) {
+        const size = document.createElement("small");
+        size.textContent = formatRuntimeSize(pair.bytes);
+        identity.append(size);
+      }
+
+      const status = document.createElement("div");
+      status.className = "runtime-status";
+      const badge = document.createElement("span");
+      badge.className = "runtime-status-badge";
+      badge.dataset.state = pair.state;
+      badge.textContent = message(
+        pair.state === "installed"
+          ? "localTranslationRuntimeInstalled"
+          : pair.state === "downloading"
+            ? "localTranslationRuntimeDownloading"
+            : pair.state === "error"
+              ? "localTranslationRuntimeError"
+              : "localTranslationRuntimeMissing",
+      );
+      status.append(badge);
+      const activeProgress = localTranslationDownloadProgress;
+      const progressRuntimes = activeProgress
+        ? pair.runtimes.filter((runtime) =>
+            activeProgress.packIds.has(runtime.packId),
+          )
+        : [];
+      const progressTotalBytes = progressRuntimes.reduce(
+        (total, runtime) => total + (runtime.downloadBytes ?? 0),
+        0,
+      );
+      const progressReceivedBytes = progressRuntimes.reduce(
+        (total, runtime) => {
+          if (activeProgress?.completedPackIds.has(runtime.packId)) {
+            return total + (runtime.downloadBytes ?? 0);
+          }
+          return (
+            total +
+            (runtime.state === "downloading"
+              ? Math.min(runtime.bytes ?? 0, runtime.downloadBytes ?? 0)
+              : 0)
+          );
+        },
+        0,
+      );
+      if (pair.state === "downloading" && progressTotalBytes > 0) {
+        const progress = document.createElement("progress");
+        progress.max = progressTotalBytes;
+        progress.value = progressReceivedBytes;
+        progress.setAttribute(
+          "aria-label",
+          message("localTranslationRuntimeDownloadProgress", [
+            String(
+              Math.min(
+                100,
+                Math.round((progressReceivedBytes / progressTotalBytes) * 100),
+              ),
+            ),
+            formatRuntimeSize(progressReceivedBytes),
+            formatRuntimeSize(progressTotalBytes),
+          ]),
+        );
+        const progressCopy = document.createElement("small");
+        progressCopy.className = "runtime-progress-copy";
+        progressCopy.textContent = progress.getAttribute("aria-label");
+        status.append(progress, progressCopy);
+      }
+      if (pair.version) {
+        const version = document.createElement("small");
+        version.textContent = pair.version;
+        status.append(version);
+      }
+
+      const action = document.createElement("div");
+      action.className = "runtime-action";
+      const button = document.createElement("button");
+      button.type = "button";
+      button.disabled =
+        localTranslationRuntimeCommandPending || pair.state === "downloading";
+      if (pair.state === "installed") {
+        button.className = "button button-danger-quiet";
+        button.textContent = message("ocrRuntimeDelete");
+        button.addEventListener("click", () => {
+          void deleteLocalTranslationRuntimePair(pair);
+        });
+      } else {
+        button.className = "button button-secondary";
+        button.textContent = message("ocrRuntimeDownload");
+        button.addEventListener("click", () => {
+          void downloadLocalTranslationRuntimePair(pair);
+        });
+      }
+      action.append(button);
+      item.append(identity, status, action);
+      localTranslationRuntimeList.append(item);
+    }
+  };
+
+  async function loadLocalTranslationRuntimes(
+    showLoading: boolean,
+  ): Promise<void> {
+    if (showLoading) {
+      localTranslationRuntimeLoading.hidden = false;
+      localTranslationRuntimeEmpty.hidden = true;
+      localTranslationRuntimeList.hidden = true;
+      localTranslationRuntimeList.setAttribute("aria-busy", "true");
+    }
+    try {
+      const response: unknown = await browser.runtime.sendMessage({
+        type: "LOCAL_TRANSLATION_RUNTIME_LIST",
+      });
+      if (!isLocalTranslationRuntimeListResponse(response)) {
+        throw new Error("local-translation-runtime-list-failed");
+      }
+      localTranslationRuntimes = response.runtimes;
+      localTranslationRuntimeLoaded = true;
+      renderLocalTranslationRuntimes();
+      syncLanguageRestrictions();
+      localTranslationRuntimeMessage.textContent = "";
+      localTranslationRuntimeMessage.dataset.tone = "";
+    } catch {
+      renderLocalTranslationRuntimes();
+      showFeedback(
+        localTranslationRuntimeMessage,
+        "localTranslationRuntimesLoadFailed",
+        "error",
+      );
+    }
+  }
+
+  async function downloadLocalTranslationRuntimePair(
+    pair: LocalTranslationRuntimePair,
+  ): Promise<void> {
+    if (localTranslationRuntimeCommandPending) return;
+    const granted = await requestLocalTranslationRuntimePermission();
+    if (!granted) {
+      showFeedback(
+        localTranslationRuntimeMessage,
+        "localTranslationRuntimePermissionDenied",
+        "error",
+      );
+      return;
+    }
+    localTranslationRuntimeCommandPending = true;
+    const packIds = new Set(
+      pair.runtimes
+        .filter((runtime) => runtime.state !== "installed")
+        .map((runtime) => runtime.packId),
+    );
+    localTranslationDownloadProgress = {
+      packIds,
+      completedPackIds: new Set(),
+    };
+    localTranslationRuntimes = localTranslationRuntimes.map((candidate) =>
+      packIds.has(candidate.packId)
+        ? { ...candidate, state: "downloading" }
+        : candidate,
+    );
+    renderLocalTranslationRuntimes();
+    const stopPolling = (): void => {
+      if (localTranslationRuntimePollTimer !== undefined) {
+        window.clearTimeout(localTranslationRuntimePollTimer);
+        localTranslationRuntimePollTimer = undefined;
+      }
+    };
+    const schedulePolling = (): void => {
+      stopPolling();
+      if (!localTranslationRuntimeCommandPending) return;
+      localTranslationRuntimePollTimer = window.setTimeout(() => {
+        localTranslationRuntimePollTimer = undefined;
+        void loadLocalTranslationRuntimes(false).finally(schedulePolling);
+      }, 200);
+    };
+    schedulePolling();
+    try {
+      let failure: unknown;
+      for (const runtime of pair.runtimes) {
+        if (!packIds.has(runtime.packId)) continue;
+        localTranslationRuntimes = localTranslationRuntimes.map((candidate) =>
+          candidate.packId === runtime.packId
+            ? { ...candidate, state: "downloading" }
+            : candidate,
+        );
+        renderLocalTranslationRuntimes();
+        try {
+          const response: unknown = await browser.runtime.sendMessage({
+            type: "LOCAL_TRANSLATION_RUNTIME_DOWNLOAD",
+            packId: runtime.packId,
+          });
+          if (!isSuccessfulResponse(response) && failure === undefined) {
+            failure = response;
+          } else if (isSuccessfulResponse(response)) {
+            localTranslationDownloadProgress?.completedPackIds.add(
+              runtime.packId,
+            );
+            renderLocalTranslationRuntimes();
+          }
+        } catch (error) {
+          if (failure === undefined) failure = error;
+        }
+      }
+      stopPolling();
+      await loadLocalTranslationRuntimes(false);
+      if (failure !== undefined) {
+        showFeedback(
+          localTranslationRuntimeMessage,
+          localTranslationRuntimeFailureMessage(failure),
+          "error",
+        );
+      }
+    } finally {
+      stopPolling();
+      localTranslationRuntimeCommandPending = false;
+      localTranslationDownloadProgress = undefined;
+      renderLocalTranslationRuntimes();
+    }
+  }
+
+  async function deleteLocalTranslationRuntimePair(
+    pair: LocalTranslationRuntimePair,
+  ): Promise<void> {
+    if (
+      localTranslationRuntimeCommandPending ||
+      !confirm(
+        message("localTranslationRuntimeDeleteConfirm", [
+          localTranslationLanguageLabel(pair.language),
+          localTranslationLanguageLabel("en"),
+        ]),
+      )
+    ) {
+      return;
+    }
+    localTranslationRuntimeCommandPending = true;
+    renderLocalTranslationRuntimes();
+    try {
+      for (const runtime of pair.runtimes) {
+        const response: unknown = await browser.runtime.sendMessage({
+          type: "LOCAL_TRANSLATION_RUNTIME_DELETE",
+          packId: runtime.packId,
+        });
+        if (!isSuccessfulResponse(response)) {
+          throw new Error("local-translation-runtime-delete-failed");
+        }
+      }
+      await loadLocalTranslationRuntimes(false);
+      showFeedback(
+        localTranslationRuntimeMessage,
+        "localTranslationRuntimeDeleted",
+        "success",
+      );
+    } catch {
+      showFeedback(
+        localTranslationRuntimeMessage,
+        "localTranslationRuntimeDeleteFailed",
+        "error",
+      );
+    } finally {
+      localTranslationRuntimeCommandPending = false;
+      renderLocalTranslationRuntimes();
+    }
+  }
+
   type ProfileEditorKind = "builtin" | "override" | "user" | "new";
   let activeProfileId = "";
   let activeProfileKind: ProfileEditorKind = "new";
@@ -1608,7 +2226,7 @@ async function initialize(): Promise<void> {
       ocrTestMessage.dataset.tone = "";
       ocrTestMessage.textContent = message("ocrTestPreparing");
       try {
-        const sourceLanguage = subtitleSourceLanguage.value;
+        const sourceLanguage = ocrSourceLanguage.value;
         if (!isOcrSourceLanguageSupported(sourceLanguage)) {
           throw new Error(message("ocrSourceLanguageUnsupported"));
         }
@@ -1737,9 +2355,18 @@ async function initialize(): Promise<void> {
         }
         settings = {
           ...settings,
-          provider: { ...settings.provider, apiKey: "" },
+          provider: {
+            ...settings.provider,
+            apiKey: "",
+            googleApiKey: "",
+            microsoftApiKey: "",
+            deeplApiKey: "",
+          },
         };
         apiKey.value = "";
+        googleApiKey.value = "";
+        microsoftApiKey.value = "";
+        deeplApiKey.value = "";
         showFeedback(saveMessage, "credentialsCleared", "success");
       } catch {
         showFeedback(saveMessage, "credentialsClearFailed", "error");
@@ -1831,20 +2458,40 @@ async function initialize(): Promise<void> {
   };
   form.addEventListener("input", markDirtyControl);
   form.addEventListener("change", markDirtyControl);
+  fastProvider.addEventListener("change", syncFastProviderFields);
   pageMode.addEventListener("change", () => {
     pageResponseMode.disabled = pageMode.value !== "ai";
+    syncLanguageRestrictions();
   });
   selectionTranslationMode.addEventListener("change", () => {
     const aiMode = selectionTranslationMode.value === "ai";
     selectionTranslationResponseMode.disabled = !aiMode;
     selectionTranslationModelOverride.disabled = !aiMode;
+    syncLanguageRestrictions();
   });
   subtitleMode.addEventListener("change", () => {
     subtitleResponseMode.disabled = subtitleMode.value !== "ai";
+    syncLanguageRestrictions();
   });
   imageMode.addEventListener("change", () => {
     imageModelOverride.disabled = imageMode.value !== "ai";
+    syncLanguageRestrictions();
   });
+  for (const control of [
+    pageSourceLanguage,
+    pageTargetLanguage,
+    selectionTranslationSourceLanguage,
+    selectionTranslationTargetLanguage,
+    subtitleSourceLanguage,
+    subtitleTargetLanguage,
+    imageSourceLanguage,
+    imageTargetLanguage,
+    ocrSourceLanguage,
+    ocrTargetLanguage,
+    ocrProvider,
+  ]) {
+    control.addEventListener("change", syncLanguageRestrictions);
+  }
 
   const handleStorageChange = (
     changes: Record<string, Browser.storage.StorageChange>,
@@ -1917,6 +2564,12 @@ async function initialize(): Promise<void> {
   );
 
   syncForm();
+  void queryChromeTranslationPairs().then((pairs) => {
+    chromeTranslationPairs = pairs;
+    chromeTranslationPairsLoaded = true;
+    syncLanguageRestrictions();
+  });
+  void loadLocalTranslationRuntimes(false);
   void refreshUpdateStatus(false);
   void loadSiteProfiles();
   void loadOcrRuntimes(true).finally(scheduleOcrRuntimePolling);

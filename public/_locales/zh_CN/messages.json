@@ -19,12 +19,28 @@
   "translationMode": { "message": "翻译模式" },
   "modeFast": { "message": "快速翻译" },
   "modeAi": { "message": "AI 精译" },
+  "translationMethodChromeLocal": { "message": "Chrome 翻译" },
+  "translationMethodBergamotLocal": { "message": "本地模型翻译" },
+  "translationMethodOpenAiFast": {
+    "message": "OpenAI-compatible · 快速翻译"
+  },
+  "translationMethodGoogleTranslate": {
+    "message": "Google Cloud Translation"
+  },
+  "translationMethodMicrosoftTranslator": {
+    "message": "Microsoft Translator"
+  },
+  "translationMethodDeepL": { "message": "DeepL" },
+  "translationMethodOpenAiAi": {
+    "message": "OpenAI-compatible · AI 精译"
+  },
   "aiResponseMode": { "message": "AI 返回方式" },
   "responseModeStream": { "message": "流式逐段（推荐）" },
   "responseModeBatch": { "message": "完整返回" },
   "sourceLanguage": { "message": "源语言" },
   "targetLanguage": { "message": "目标语言" },
   "languageAuto": { "message": "自动检测" },
+  "languageUnavailable": { "message": "当前方式不可用" },
   "displayMode": { "message": "网页显示" },
   "pageDisplayReplace": { "message": "替换原文" },
   "pageDisplayAppend": { "message": "原文后附加" },
@@ -131,13 +147,14 @@
     "message": "快速翻译优先低延迟，AI 精译用于上下文一致性。"
   },
   "providerPrivacyNotice": {
-    "message": "使用 OpenAI-compatible 时，仅必要的待译文本会发送到当前配置的 Base URL；Chrome 本地翻译不会上传文本。"
+    "message": "仅将必要的待译文本发送到你选择的 Provider；密钥只保存在 chrome.storage.local。Chrome 与下载式本地翻译都不会上传文本。"
   },
   "fastProvider": { "message": "快速翻译 Provider" },
   "aiProvider": { "message": "AI 精译 Provider" },
-  "providerChromeLocal": { "message": "Chrome 本地翻译" },
+  "providerChromeLocal": { "message": "Chrome 翻译" },
+  "providerBergamotLocal": { "message": "本地翻译" },
   "ocrLocalTranslationUnavailable": {
-    "message": "OCR 已识别文字；Chrome 本地翻译语言包当前不可用或准备失败。请确认源语言与目标语言正确且不同，保持页面在前台，然后重新开始 OCR；识别原文已保留，可切换到原文或双语查看。"
+    "message": "OCR 已识别文字，但所选本地翻译器无法准备当前语言对。请确认源语言与目标语言正确且不同，并按需安装对应本地语言包，然后重新开始 OCR；识别原文已保留，可切换到原文或双语查看。"
   },
   "ocrPreparingTranslationModel": {
     "message": "正在准备本地翻译模型… $PERCENT$%",
@@ -146,6 +163,27 @@
   "viewProviderDetails": { "message": "查看响应详情" },
   "providerDetailsLabel": { "message": "Provider 响应诊断" },
   "providerOpenAiCompatible": { "message": "OpenAI-compatible" },
+  "providerGoogleTranslate": { "message": "Google Cloud Translation" },
+  "providerMicrosoftTranslator": { "message": "Microsoft Translator" },
+  "providerDeepL": { "message": "DeepL" },
+  "providerKeyPlaceholder": { "message": "输入 Provider API Key" },
+  "googleApiKey": { "message": "Google Cloud API Key" },
+  "googleApiKeyHelp": {
+    "message": "该密钥需要开通 Cloud Translation API Basic（v2）。"
+  },
+  "microsoftApiKey": { "message": "Microsoft Translator Key" },
+  "microsoftRegion": { "message": "Azure 资源区域" },
+  "microsoftRegionPlaceholder": { "message": "例如：eastus" },
+  "microsoftRegionHelp": {
+    "message": "全局 Translator 资源可留空；区域或多服务资源需要填写。"
+  },
+  "deeplApiKey": { "message": "DeepL API Key" },
+  "deeplPlan": { "message": "DeepL API 套餐" },
+  "deeplPlanFree": { "message": "API Free" },
+  "deeplPlanPro": { "message": "API Pro" },
+  "aiProviderConfiguration": {
+    "message": "OpenAI-compatible AI 精译配置"
+  },
   "baseUrl": { "message": "Base URL" },
   "baseUrlPlaceholder": { "message": "https://api.example.com/v1" },
   "apiKey": { "message": "API Key" },
@@ -172,7 +210,18 @@
   "settingsTabVideo": { "message": "视频字幕" },
   "settingsTabProfiles": { "message": "站点 Profile" },
   "settingsTabProvider": { "message": "翻译服务" },
-  "settingsTabOcrRuntimes": { "message": "OCR 运行时" },
+  "settingsTabLocalTranslation": { "message": "本地翻译" },
+  "settingsTabOcrRuntimes": { "message": "OCR 设置" },
+  "ocrSettingsTitle": { "message": "图像字幕 OCR" },
+  "ocrSettingsDescription": {
+    "message": "独立配置 OCR 识别与翻译语言，并管理图像字幕所需的本地识别语言包。"
+  },
+  "ocrSourceLanguage": { "message": "OCR 识别语言" },
+  "ocrTargetLanguage": { "message": "翻译语言" },
+  "ocrTranslationProvider": { "message": "翻译 Provider" },
+  "ocrProviderLocalOnly": {
+    "message": "OCR 文字仅使用所选的设备端翻译器，不会发送到云端 Provider。"
+  },
   "settingsTabVisibility": { "message": "通用设置" },
   "visibilitySettingsTitle": { "message": "通用设置" },
   "visibilitySettingsDescription": {
@@ -265,6 +314,74 @@
   },
   "ocrRuntimeDeleted": { "message": "语言包已删除。" },
   "ocrRuntimeDeleteFailed": { "message": "无法删除语言包，请重试。" },
+  "localTranslationSettingsTitle": { "message": "本地翻译" },
+  "localTranslationSettingsDescription": {
+    "message": "保留 Chrome Translator，也可以安装按方向划分的离线语言包，供下载式本地翻译使用。"
+  },
+  "chromeLocalEngineDescription": {
+    "message": "使用 Chrome 管理的语言模型，可用性取决于当前浏览器安装。"
+  },
+  "localTranslationBuiltIn": { "message": "由 Chrome 提供" },
+  "bergamotRuntimeLocalNotice": {
+    "message": "下载的语言包仅保存在此设备；只有点击“下载”后才会安装，不会静默获取。翻译在扩展内运行。每个语言对只显示一次，下载时会同时安装两个翻译方向。"
+  },
+  "localTranslationLanguagePair": { "message": "语言对" },
+  "localTranslationLanguageTaiwan": { "message": "中国台湾" },
+  "localTranslationPairValue": {
+    "message": "$SOURCE$ ↔ $TARGET$",
+    "placeholders": {
+      "source": { "content": "$1" },
+      "target": { "content": "$2" }
+    }
+  },
+  "localTranslationRuntimesLoading": { "message": "正在加载语言包…" },
+  "localTranslationRuntimesEmpty": { "message": "暂无可用语言包。" },
+  "localTranslationRuntimesLoadFailed": { "message": "无法加载本地语言包。" },
+  "localTranslationRuntimeInstalled": { "message": "已安装" },
+  "localTranslationRuntimeDownloading": { "message": "下载中" },
+  "localTranslationRuntimeDownloadProgress": {
+    "message": "$PERCENT$% · $RECEIVED$ / $TOTAL$",
+    "placeholders": {
+      "percent": { "content": "$1" },
+      "received": { "content": "$2" },
+      "total": { "content": "$3" }
+    }
+  },
+  "localTranslationRuntimeMissing": { "message": "未安装" },
+  "localTranslationRuntimeError": { "message": "不可用" },
+  "localTranslationRuntimePermissionDenied": {
+    "message": "未授予访问固定模型来源的下载权限。"
+  },
+  "localTranslationRuntimeDownloadFailed": {
+    "message": "本地语言包下载或校验失败。"
+  },
+  "localTranslationRuntimeCatalogUnavailable": {
+    "message": "无法连接模型下载源，请检查网络后重试。"
+  },
+  "localTranslationRuntimeCatalogInvalid": {
+    "message": "模型目录校验失败，请重新加载扩展后再试。"
+  },
+  "localTranslationRuntimeUnsupported": {
+    "message": "当前语言方向没有兼容的桌面模型。"
+  },
+  "localTranslationRuntimeIntegrityFailed": {
+    "message": "下载模型的大小或 SHA-256 校验失败，请重新下载。"
+  },
+  "localTranslationRuntimeStorageFailed": {
+    "message": "模型已下载，但无法解压或保存，请检查磁盘空间后重试。"
+  },
+  "localTranslationRuntimeCancelled": {
+    "message": "语言包下载已取消。"
+  },
+  "localTranslationRuntimeDeleteConfirm": {
+    "message": "从此设备删除 $SOURCE$ ↔ $TARGET$ 的双向本地语言包？",
+    "placeholders": {
+      "source": { "content": "$1" },
+      "target": { "content": "$2" }
+    }
+  },
+  "localTranslationRuntimeDeleted": { "message": "本地语言包已删除。" },
+  "localTranslationRuntimeDeleteFailed": { "message": "无法删除本地语言包。" },
   "pageSettings": { "message": "网页翻译设置" },
   "pageSettingsDescription": {
     "message": "设置网页语言、翻译质量、显示方式与自动翻译。"

@@ -12,6 +12,17 @@ import {
   message,
 } from "@/src/shared/i18n";
 import { loadSettings } from "@/src/shared/settings";
+import {
+  parseTranslationMethod,
+  TRANSLATION_METHODS,
+  translationMethodValue,
+} from "@/src/shared/translation-methods";
+import {
+  providerLanguagePairAvailable,
+  providerSourceLanguageAvailable,
+  providerTargetLanguageAvailable,
+  type TranslationCapabilities,
+} from "@/src/translation/provider-capabilities";
 import { browser } from "wxt/browser";
 
 function element<T extends HTMLElement>(id: string): T {
@@ -138,6 +149,9 @@ async function initialize(): Promise<void> {
   const form = element<HTMLFormElement>("translation-form");
   const sourceSelect = element<HTMLSelectElement>("source-language");
   const targetSelect = element<HTMLSelectElement>("target-language");
+  const translationMethodSelect =
+    element<HTMLSelectElement>("translation-method");
+  const responseModeField = element<HTMLElement>("response-mode-field");
   const responseModeSelect = element<HTMLSelectElement>("response-mode");
   const translateButton = element<HTMLButtonElement>("translate-page");
   const restoreButton = element<HTMLButtonElement>("restore-page");
@@ -158,6 +172,7 @@ async function initialize(): Promise<void> {
   let statusRefreshBusy = false;
   let actionBusy = false;
   let pageAvailable = false;
+  let translationCapabilities: TranslationCapabilities | undefined;
 
   const renderUpdateStatus = (status: ExtensionUpdateStatus): void => {
     updateStatus = status;
@@ -208,13 +223,69 @@ async function initialize(): Promise<void> {
   for (const language of TARGET_LANGUAGES) {
     targetSelect.add(new Option(languageLabel(language.code), language.code));
   }
+  for (const method of TRANSLATION_METHODS) {
+    translationMethodSelect.add(
+      new Option(message(method.labelKey), method.value),
+    );
+  }
+
+  const syncLanguageOptions = (): void => {
+    const method = parseTranslationMethod(translationMethodSelect.value);
+    const provider =
+      method?.mode === "ai"
+        ? "openai-compatible"
+        : (method?.fastProvider ?? settings.provider.fastProvider);
+    const sourceLanguage = sourceSelect.value || settings.page.sourceLanguage;
+    const targetLanguage = targetSelect.value || settings.page.targetLanguage;
+    const sourceAvailable = (source: string): boolean =>
+      !translationCapabilities ||
+      providerSourceLanguageAvailable(
+        provider,
+        source,
+        translationCapabilities,
+      );
+    const targetAvailable = (target: string): boolean =>
+      !translationCapabilities ||
+      providerTargetLanguageAvailable(
+        provider,
+        target,
+        translationCapabilities,
+      );
+    const replace = (
+      select: HTMLSelectElement,
+      languages: typeof SOURCE_LANGUAGES,
+      selected: string,
+      filter: (code: string) => boolean,
+    ): void => {
+      select.replaceChildren(
+        ...languages
+          .filter(({ code }) => filter(code))
+          .map(({ code }) => new Option(languageLabel(code), code)),
+      );
+      if (![...select.options].some((option) => option.value === selected)) {
+        const unavailable = new Option(
+          `${languageLabel(selected)} · ${message("languageUnavailable")}`,
+          selected,
+        );
+        unavailable.disabled = true;
+        select.prepend(unavailable);
+      }
+      select.value = selected;
+    };
+    replace(sourceSelect, SOURCE_LANGUAGES, sourceLanguage, sourceAvailable);
+    replace(targetSelect, TARGET_LANGUAGES, targetLanguage, targetAvailable);
+  };
 
   const syncForm = (): void => {
     sourceSelect.value = settings.page.sourceLanguage;
     targetSelect.value = settings.page.targetLanguage;
-    const mode = form.elements.namedItem("mode");
-    if (mode instanceof RadioNodeList) mode.value = settings.page.mode;
+    translationMethodSelect.value = translationMethodValue(
+      settings.page.mode,
+      settings.provider.fastProvider,
+    );
+    syncLanguageOptions();
     responseModeSelect.value = settings.page.aiResponseMode;
+    responseModeField.hidden = settings.page.mode !== "ai";
     responseModeSelect.disabled = actionBusy || settings.page.mode !== "ai";
     const displayMode = form.elements.namedItem("display-mode");
     if (displayMode instanceof RadioNodeList)
@@ -223,13 +294,20 @@ async function initialize(): Promise<void> {
 
   const readForm = (): typeof settings => {
     const data = new FormData(form);
+    const method = parseTranslationMethod(translationMethodSelect.value) ?? {
+      mode: settings.page.mode,
+      fastProvider: settings.provider.fastProvider,
+    };
     return {
       ...settings,
+      provider: method.fastProvider
+        ? { ...settings.provider, fastProvider: method.fastProvider }
+        : settings.provider,
       page: {
         ...settings.page,
         sourceLanguage: sourceSelect.value,
         targetLanguage: targetSelect.value,
-        mode: data.get("mode") === "ai" ? "ai" : "fast",
+        mode: method.mode,
         aiResponseMode:
           responseModeSelect.value === "batch" ? "batch" : "stream",
         displayMode:
@@ -247,6 +325,8 @@ async function initialize(): Promise<void> {
       sourceLanguage: draft.page.sourceLanguage,
       targetLanguage: draft.page.targetLanguage,
       mode: draft.page.mode,
+      fastProvider:
+        draft.page.mode === "fast" ? draft.provider.fastProvider : undefined,
       responseMode: draft.page.aiResponseMode,
       displayMode: draft.page.displayMode,
     });
@@ -258,7 +338,20 @@ async function initialize(): Promise<void> {
   };
 
   const syncActionAvailability = (): void => {
-    translateButton.disabled = actionBusy || !pageAvailable;
+    const method = parseTranslationMethod(translationMethodSelect.value);
+    const provider =
+      method?.mode === "ai"
+        ? "openai-compatible"
+        : (method?.fastProvider ?? settings.provider.fastProvider);
+    const pairAvailable =
+      !translationCapabilities ||
+      providerLanguagePairAvailable(
+        provider,
+        sourceSelect.value,
+        targetSelect.value,
+        translationCapabilities,
+      );
+    translateButton.disabled = actionBusy || !pageAvailable || !pairAvailable;
     restoreButton.disabled = actionBusy || !pageAvailable;
   };
 
@@ -272,6 +365,7 @@ async function initialize(): Promise<void> {
     syncActionAvailability();
     sourceSelect.disabled = busy;
     targetSelect.disabled = busy;
+    translationMethodSelect.disabled = busy;
     responseModeSelect.disabled = busy || settings.page.mode !== "ai";
   };
 
@@ -292,6 +386,31 @@ async function initialize(): Promise<void> {
         return;
       }
       await ensureContent(tabId);
+      const capabilitiesResponse: unknown = await browser.tabs.sendMessage(
+        tabId,
+        { type: "TRANSLATION_CAPABILITIES_GET" },
+        { frameId: 0 },
+      );
+      if (
+        typeof capabilitiesResponse === "object" &&
+        capabilitiesResponse !== null &&
+        "ok" in capabilitiesResponse &&
+        capabilitiesResponse.ok === true &&
+        "capabilities" in capabilitiesResponse &&
+        typeof capabilitiesResponse.capabilities === "object" &&
+        capabilitiesResponse.capabilities !== null &&
+        "chromePairs" in capabilitiesResponse.capabilities &&
+        Array.isArray(capabilitiesResponse.capabilities.chromePairs) &&
+        "installedBergamotPackIds" in capabilitiesResponse.capabilities &&
+        Array.isArray(
+          capabilitiesResponse.capabilities.installedBergamotPackIds,
+        )
+      ) {
+        translationCapabilities =
+          capabilitiesResponse.capabilities as TranslationCapabilities;
+        syncLanguageOptions();
+        syncActionAvailability();
+      }
       const pageStatus: unknown = await browser.tabs.sendMessage(
         tabId,
         { type: "PAGE_STATUS" },
@@ -349,7 +468,10 @@ async function initialize(): Promise<void> {
   };
 
   form.addEventListener("change", () => {
+    syncLanguageOptions();
+    syncActionAvailability();
     const draft = readForm();
+    responseModeField.hidden = draft.page.mode !== "ai";
     responseModeSelect.disabled = draft.page.mode !== "ai";
     void persist().catch(() => {
       syncForm();

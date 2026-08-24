@@ -15,7 +15,7 @@ NorixorTrans keeps webpage translation, video subtitle translation, and optional
 - **Webpages:** translate semantic text nodes without replacing a page's entire HTML, follow dynamic content and SPA navigation, and safely restore the original text.
 - **Video subtitles:** use complete subtitle tracks when available and fall back explicitly to low-latency stream translation when only the current caption can be observed.
 - **Local OCR:** recognize burned-in image subtitles only after the user enables OCR and selects a capture region. Screenshots and recognized text stay on the device.
-- **Provider choice:** use Chrome's local Translator API or configure an OpenAI-compatible endpoint.
+- **Provider choice:** use Chrome's local Translator API, explicitly downloaded Bergamot language packs, an OpenAI-compatible endpoint, Google Cloud Translation, Microsoft Translator, or DeepL with your own credentials.
 - **One compact control:** manage webpage, video, and image translation from a draggable Shadow DOM control.
 
 ## Translation modes
@@ -74,7 +74,9 @@ When upgrading an unpacked release, replace the files inside the directory that 
 | Capability                    | Processing location                 | Data sent externally                                                                    |
 | ----------------------------- | ----------------------------------- | --------------------------------------------------------------------------------------- |
 | Chrome local translation      | Chrome's local model runtime        | No text is sent to the configured AI provider. Chrome may download language models.     |
+| Downloaded local translation  | Extension-origin Bergamot runtime   | Directional packs install only after an explicit click; translated text stays local.    |
 | OpenAI-compatible translation | The endpoint configured by the user | Only the text segments and bounded translation context required for the active request. |
+| Google, Microsoft, or DeepL   | The selected official provider API  | Only the text segments required for the active fast-translation request.                |
 | Local subtitle OCR            | Extension-origin Offscreen Document | Screenshots and recognized text are not uploaded and cannot be sent to an AI provider.  |
 | Version update check          | GitHub Releases API                 | No webpage, subtitle, image, provider credential, or translation text is sent.          |
 
@@ -94,6 +96,7 @@ Optional host permissions are requested only for the related action:
 
 - `<all_urls>` for user-initiated visible-tab OCR capture;
 - pinned GitHub asset origins for explicit OCR model downloads;
+- pinned Mozilla catalog and attachment origins for explicit local translation pack downloads;
 - `http://localhost/*` and `http://127.0.0.1/*` for a user-configured local provider.
 
 ## Development
@@ -139,7 +142,7 @@ Read [`CONTRIBUTING.md`](./CONTRIBUTING.md) before opening a pull request and fo
 
 ## Acknowledgements
 
-NorixorTrans is built with [WXT](https://github.com/wxt-dev/wxt), `idb`, ONNX Runtime Web, and a packaged PaddleOCR-compatible runtime. Upstream revisions and third-party licenses are recorded in [`THIRD_PARTY_NOTICES.txt`](./public/ocr/licenses/THIRD_PARTY_NOTICES.txt).
+NorixorTrans is built with [WXT](https://github.com/wxt-dev/wxt), `idb`, ONNX Runtime Web, Bergamot, and a packaged PaddleOCR-compatible runtime. OCR and local translation runtime notices are stored alongside their packaged assets.
 
 ## License
 

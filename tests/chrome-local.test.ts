@@ -10,20 +10,15 @@ interface TranslatorFactoryStub {
   create: ReturnType<typeof vi.fn>;
 }
 
-interface LanguageDetectorFactoryStub {
-  availability: ReturnType<typeof vi.fn>;
-  create: ReturnType<typeof vi.fn>;
-}
-
 function setTranslator(factory: TranslatorFactoryStub): void {
   (globalThis as typeof globalThis & { Translator?: unknown }).Translator =
     factory;
 }
 
-function setLanguageDetector(factory: LanguageDetectorFactoryStub): void {
-  (
-    globalThis as typeof globalThis & { LanguageDetector?: unknown }
-  ).LanguageDetector = factory;
+function setChromeLanguageDetection(
+  detectLanguage: ReturnType<typeof vi.fn>,
+): void {
+  vi.stubGlobal("chrome", { i18n: { detectLanguage } });
 }
 
 const request = {
@@ -36,8 +31,7 @@ const request = {
 afterEach(() => {
   delete (globalThis as typeof globalThis & { Translator?: unknown })
     .Translator;
-  delete (globalThis as typeof globalThis & { LanguageDetector?: unknown })
-    .LanguageDetector;
+  vi.unstubAllGlobals();
 });
 
 describe("ChromeLocalProvider readiness", () => {
@@ -241,7 +235,6 @@ describe("ChromeLocalProvider readiness", () => {
 
   it("pools automatic selection translators by the detected language pair", async () => {
     const translatorDestroy = vi.fn();
-    const detectorDestroy = vi.fn();
     const create = vi.fn(
       (options: { sourceLanguage: string; targetLanguage: string }) =>
         Promise.resolve({
@@ -255,27 +248,24 @@ describe("ChromeLocalProvider readiness", () => {
       availability: vi.fn(() => Promise.resolve("available")),
       create,
     });
-    setLanguageDetector({
-      availability: vi.fn(() => Promise.resolve("available")),
-      create: vi.fn(() =>
-        Promise.resolve({
-          detect: (text: string) =>
-            Promise.resolve([
-              {
-                detectedLanguage: text.includes("Bonjour")
-                  ? "fr"
-                  : text.includes("Hola")
-                    ? "es"
-                    : text.includes("Hallo")
-                      ? "de"
-                      : "en",
-                confidence: 0.99,
-              },
-            ]),
-          destroy: detectorDestroy,
-        }),
-      ),
-    });
+    const detectLanguage = vi.fn((text: string) =>
+      Promise.resolve({
+        isReliable: true,
+        languages: [
+          {
+            language: text.includes("Bonjour")
+              ? "fr"
+              : text.includes("Hola")
+                ? "es"
+                : text.includes("Hallo")
+                  ? "de"
+                  : "en",
+            percentage: 99,
+          },
+        ],
+      }),
+    );
+    setChromeLanguageDetection(detectLanguage);
     const provider = new ChromeLocalProvider({
       keepAliveForTask: true,
       dynamicSourceLanguage: true,
@@ -311,22 +301,20 @@ describe("ChromeLocalProvider readiness", () => {
     expect(
       create.mock.calls.map(([options]) => options.sourceLanguage),
     ).toEqual(["en", "fr", "es", "de"]);
-    expect(detectorDestroy).not.toHaveBeenCalled();
+    expect(detectLanguage).toHaveBeenCalledTimes(5);
     expect(
       onSourceLanguageResolved.mock.calls.map(([language]) => language),
     ).toEqual(["en", "en", "fr", "es", "de"]);
     await provider.dispose();
-    expect(detectorDestroy).toHaveBeenCalledOnce();
     expect(translatorDestroy).toHaveBeenCalledTimes(4);
   });
 
-  it("reuses one detector runtime while checking every automatic page batch", async () => {
-    const detectorDestroy = vi.fn();
-    const detect = vi.fn(() =>
-      Promise.resolve([{ detectedLanguage: "en", confidence: 0.99 }]),
-    );
-    const detectorCreate = vi.fn(() =>
-      Promise.resolve({ detect, destroy: detectorDestroy }),
+  it("checks every automatic page batch with Chrome i18n detection", async () => {
+    const detectLanguage = vi.fn(() =>
+      Promise.resolve({
+        isReliable: true,
+        languages: [{ language: "en", percentage: 99 }],
+      }),
     );
     const translatorCreate = vi.fn(
       (options: { sourceLanguage: string; targetLanguage: string }) =>
@@ -336,10 +324,7 @@ describe("ChromeLocalProvider readiness", () => {
           destroy: vi.fn(),
         }),
     );
-    setLanguageDetector({
-      availability: vi.fn(() => Promise.resolve("available")),
-      create: detectorCreate,
-    });
+    setChromeLanguageDetection(detectLanguage);
     setTranslator({
       availability: vi.fn(() => Promise.resolve("available")),
       create: translatorCreate,
@@ -364,38 +349,34 @@ describe("ChromeLocalProvider readiness", () => {
       translate("three", "Third page batch"),
     ]);
 
-    expect(detectorCreate).toHaveBeenCalledOnce();
-    expect(detect).toHaveBeenCalledTimes(3);
+    expect(detectLanguage).toHaveBeenCalledTimes(3);
     expect(translatorCreate).toHaveBeenCalledOnce();
     await provider.dispose();
-    expect(detectorDestroy).toHaveBeenCalledOnce();
   });
 
   it("does not create a pooled Translator after an automatic selection is cancelled", async () => {
     let resolveDetection:
-      | ((
-          value: Array<{ detectedLanguage: string; confidence: number }>,
-        ) => void)
+      | ((value: {
+          isReliable: boolean;
+          languages: Array<{ language: string; percentage: number }>;
+        }) => void)
       | undefined;
     const create = vi.fn();
     setTranslator({
       availability: vi.fn(() => Promise.resolve("available")),
       create,
     });
-    setLanguageDetector({
-      availability: vi.fn(() => Promise.resolve("available")),
-      create: vi.fn(() =>
-        Promise.resolve({
-          detect: () =>
-            new Promise<
-              Array<{ detectedLanguage: string; confidence: number }>
-            >((resolve) => {
-              resolveDetection = resolve;
-            }),
-          destroy: vi.fn(),
-        }),
+    setChromeLanguageDetection(
+      vi.fn(
+        () =>
+          new Promise<{
+            isReliable: boolean;
+            languages: Array<{ language: string; percentage: number }>;
+          }>((resolve) => {
+            resolveDetection = resolve;
+          }),
       ),
-    });
+    );
     const controller = new AbortController();
     const provider = new ChromeLocalProvider({
       keepAliveForTask: true,
@@ -409,7 +390,10 @@ describe("ChromeLocalProvider readiness", () => {
 
     controller.abort();
     await provider.dispose();
-    resolveDetection?.([{ detectedLanguage: "en", confidence: 0.99 }]);
+    resolveDetection?.({
+      isReliable: true,
+      languages: [{ language: "en", percentage: 99 }],
+    });
 
     await expect(translation).rejects.toMatchObject({ name: "AbortError" });
     expect(create).not.toHaveBeenCalled();

@@ -6,6 +6,7 @@ import type { NormalizedOcrRegion } from "@/src/ocr/types";
 import {
   DEFAULT_SETTINGS,
   type ContentProviderSettings,
+  type OcrSettings,
   type SubtitleCustomPosition,
   type SubtitleSettings,
 } from "@/src/shared/settings";
@@ -84,6 +85,7 @@ export interface SubtitleProviderCacheContext {
 
 export interface SubtitleControllerOptions {
   settings: SubtitleSettings;
+  ocrSettings?: OcrSettings;
   adapters?: SubtitleAdapter[];
   cache?: SubtitleTranslationCache;
   taskStore?: SubtitleTaskStore;
@@ -332,11 +334,12 @@ function localProviderIdOverride(
   mode: TranslationMode,
   destination: "primary" | "fallback",
   providerSettings: ContentProviderSettings,
+  ocrProvider: OcrSettings["provider"],
 ): string | undefined {
-  return mode === "fast" &&
-    (destination === "fallback" ||
-      track.source === "ocr" ||
-      providerSettings.fastProvider === "chrome-local")
+  if (mode !== "fast") return undefined;
+  if (destination === "fallback") return "chrome-local";
+  if (track.source === "ocr") return ocrProvider;
+  return providerSettings.fastProvider === "chrome-local"
     ? "chrome-local"
     : undefined;
 }
@@ -624,6 +627,7 @@ async function readCachedTranslation(
 
 export class SubtitleController {
   private settings: SubtitleSettings;
+  private ocrSettings: OcrSettings;
   private readonly adapters: SubtitleAdapter[];
   private readonly cache: SubtitleTranslationCache | undefined;
   private readonly taskStore: SubtitleTaskStore | undefined;
@@ -687,6 +691,7 @@ export class SubtitleController {
 
   constructor(options: SubtitleControllerOptions) {
     this.settings = options.settings;
+    this.ocrSettings = options.ocrSettings ?? DEFAULT_SETTINGS.ocr;
     this.adapters = (
       options.adapters ?? [
         new Html5TextTrackAdapter(),
@@ -1026,6 +1031,31 @@ export class SubtitleController {
     this.renderCurrentCue();
   }
 
+  updateOcrSettings(settings: OcrSettings): void {
+    const translationChanged =
+      settings.sourceLanguage !== this.ocrSettings.sourceLanguage ||
+      settings.targetLanguage !== this.ocrSettings.targetLanguage ||
+      settings.provider !== this.ocrSettings.provider;
+    this.ocrSettings = settings;
+    if (!translationChanged) return;
+    this.disposeOcrLocalProvider();
+    if (this.currentTrack?.source !== "ocr") return;
+    this.beginSession();
+    this.translated.clear();
+    this.failed.clear();
+    void this.refreshMedia();
+  }
+
+  private translationSettings(track: SubtitleTrack): SubtitleSettings {
+    return track.source === "ocr"
+      ? {
+          ...this.settings,
+          sourceLanguage: this.ocrSettings.sourceLanguage,
+          targetLanguage: this.ocrSettings.targetLanguage,
+        }
+      : this.settings;
+  }
+
   refreshLocale(): void {
     this.overlay.refreshLocale();
   }
@@ -1142,7 +1172,12 @@ export class SubtitleController {
       completed: this.translated.size,
       failed: this.failed.size,
     });
-    const batches = createRetryBatches(track, cues, mode, this.settings);
+    const batches = createRetryBatches(
+      track,
+      cues,
+      mode,
+      this.translationSettings(track),
+    );
     for (const [index, batch] of batches.entries()) {
       if (run !== this.session) return this.getStatus();
       await this.translateBatch(
@@ -1478,7 +1513,7 @@ export class SubtitleController {
   private async translateLatestStreamCue(track: SubtitleTrack): Promise<void> {
     const awaitingOcrLanguage =
       track.source === "ocr" &&
-      this.settings.sourceLanguage === "auto" &&
+      this.translationSettings(track).sourceLanguage === "auto" &&
       !this.ocrDetectedSourceLanguage;
     const languageDetectionCue = awaitingOcrLanguage
       ? [...track.cues]
@@ -1539,7 +1574,7 @@ export class SubtitleController {
     if (!this.cache || cues.length === 0) return [...cues];
     if (
       track.source === "ocr" &&
-      this.settings.sourceLanguage === "auto" &&
+      this.ocrSettings.sourceLanguage === "auto" &&
       !this.ocrDetectedSourceLanguage
     ) {
       return [...cues];
@@ -1559,7 +1594,7 @@ export class SubtitleController {
         if (!segment) continue;
         if (
           track.source === "ocr" &&
-          this.settings.sourceLanguage === "auto" &&
+          this.ocrSettings.sourceLanguage === "auto" &&
           !this.ocrResolvedSourceLanguageByCueId.has(cue.id) &&
           requiresAutomaticHanDetection(cue.originalText)
         ) {
@@ -1577,7 +1612,7 @@ export class SubtitleController {
                   mediaScope,
                   track,
                   segment,
-                  this.settings,
+                  this.translationSettings(track),
                   mode,
                   this.providerCacheContext,
                   localProviderIdOverride(
@@ -1585,6 +1620,7 @@ export class SubtitleController {
                     mode,
                     "primary",
                     this.providerSettings,
+                    this.ocrSettings.provider,
                   ),
                   this.runtimeTranslationSourceLanguage(track, [cue]),
                 ),
@@ -1660,7 +1696,9 @@ export class SubtitleController {
   private async translateFullTrack(track: SubtitleTrack): Promise<void> {
     const run = this.beginSession();
     this.detectedFullTrackSourceLanguage = "";
-    if (resolvedSourceLanguage(track, this.settings) === "auto") {
+    if (
+      resolvedSourceLanguage(track, this.translationSettings(track)) === "auto"
+    ) {
       this.detectedFullTrackSourceLanguage =
         (await detectDominantSourceLanguage(
           track.cues.map((cue) => cue.originalText),
@@ -1728,7 +1766,7 @@ export class SubtitleController {
                     mediaScope,
                     track,
                     segment,
-                    this.settings,
+                    this.translationSettings(track),
                     mode,
                     this.providerCacheContext,
                     localProviderIdOverride(
@@ -1736,6 +1774,7 @@ export class SubtitleController {
                       mode,
                       "primary",
                       this.providerSettings,
+                      this.ocrSettings.provider,
                     ),
                     this.runtimeTranslationSourceLanguage(track, [cue]),
                   ),
@@ -1934,13 +1973,18 @@ export class SubtitleController {
     try {
       const request = {
         sourceLanguage: this.runtimeTranslationSourceLanguage(track, cues),
-        targetLanguage: this.settings.targetLanguage,
+        targetLanguage: this.translationSettings(track).targetLanguage,
         mode,
         responseMode: this.settings.aiResponseMode,
         segments: translationSegments(track, cues, mode),
         ...(mediaTitle ? { mediaTitle } : {}),
         prompt: this.providerSettings.systemPrompt,
         scope: mediaScope,
+        ...(mode === "fast" &&
+        destination === "primary" &&
+        track.source === "ocr"
+          ? { providerOverride: this.ocrSettings.provider }
+          : {}),
       };
       let providerResolvedSourceLanguage = request.sourceLanguage;
       let results: TranslationResult[] | undefined;
@@ -2006,7 +2050,7 @@ export class SubtitleController {
                       mediaScope,
                       track,
                       segment,
-                      this.settings,
+                      this.translationSettings(track),
                       mode,
                       this.providerCacheContext,
                       localProviderIdOverride(
@@ -2014,6 +2058,7 @@ export class SubtitleController {
                         mode,
                         destination,
                         this.providerSettings,
+                        this.ocrSettings.provider,
                       ),
                       sourceLanguage,
                     ),
@@ -2046,7 +2091,8 @@ export class SubtitleController {
       if (
         mode === "fast" &&
         (destination === "fallback" ||
-          track.source === "ocr" ||
+          (track.source === "ocr" &&
+            this.ocrSettings.provider === "chrome-local") ||
           this.providerSettings.fastProvider === "chrome-local")
       ) {
         const controller = new AbortController();
@@ -2422,15 +2468,16 @@ export class SubtitleController {
   private getOcrLocalProvider(): ChromeLocalProvider {
     if (
       this.ocrLocalProvider &&
-      this.ocrLocalProviderTargetLanguage === this.settings.targetLanguage
+      this.ocrLocalProviderTargetLanguage === this.ocrSettings.targetLanguage
     ) {
       return this.ocrLocalProvider;
     }
     this.disposeOcrLocalProvider();
-    this.ocrLocalProviderTargetLanguage = this.settings.targetLanguage;
+    this.ocrLocalProviderTargetLanguage = this.ocrSettings.targetLanguage;
     this.ocrLocalProvider = new ChromeLocalProvider({
       keepAliveForTask: true,
       dynamicSourceLanguage: true,
+      detectAmbiguousHan: true,
       onDownloadProgress: (progress: number) => {
         const track = this.translationTrack;
         if (!this.active || track?.source !== "ocr") return;
@@ -2451,7 +2498,7 @@ export class SubtitleController {
         }
         if (
           !this.ocrDetectedSourceLanguage &&
-          this.settings.sourceLanguage === "auto" &&
+          this.ocrSettings.sourceLanguage === "auto" &&
           request.segments.some((segment) =>
             isReliableOcrLanguageSample(segment.text),
           )
@@ -2481,12 +2528,12 @@ export class SubtitleController {
   ): string {
     if (
       track.completeness === "full" &&
-      this.settings.sourceLanguage === "auto" &&
+      this.translationSettings(track).sourceLanguage === "auto" &&
       this.detectedFullTrackSourceLanguage
     ) {
       return this.detectedFullTrackSourceLanguage;
     }
-    if (track.source === "ocr" && this.settings.sourceLanguage === "auto") {
+    if (track.source === "ocr" && this.ocrSettings.sourceLanguage === "auto") {
       const resolvedLanguages = new Set(
         cues
           .map((cue) => this.ocrResolvedSourceLanguageByCueId.get(cue.id))
@@ -2496,7 +2543,11 @@ export class SubtitleController {
         return [...resolvedLanguages][0] ?? "auto";
       }
 
-      const inferred = translationSourceLanguage(track, cues, this.settings);
+      const inferred = translationSourceLanguage(
+        track,
+        cues,
+        this.translationSettings(track),
+      );
       if (
         inferred !== "auto" ||
         cues.some((cue) => isReliableOcrLanguageSample(cue.originalText))
@@ -2510,7 +2561,11 @@ export class SubtitleController {
         return this.ocrDetectedSourceLanguage;
       }
     }
-    return translationSourceLanguage(track, cues, this.settings);
+    return translationSourceLanguage(
+      track,
+      cues,
+      this.translationSettings(track),
+    );
   }
 
   private disposeOcrLocalProvider(): void {
@@ -2573,7 +2628,7 @@ export class SubtitleController {
                 mediaScope,
                 track,
                 segment,
-                this.settings,
+                this.translationSettings(track),
                 "fast",
                 this.providerCacheContext,
                 "chrome-local",

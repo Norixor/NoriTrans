@@ -110,21 +110,12 @@
       </section>
 
       <form id="translation-form">
-        <fieldset class="field-group">
-          <legend>__MSG_translationMode__</legend>
-          <div class="segmented-control">
-            <label
-              ><input type="radio" name="mode" value="fast" /><span
-                >__MSG_modeFast__</span
-              ></label
-            >
-            <label
-              ><input type="radio" name="mode" value="ai" /><span
-                >__MSG_modeAi__</span
-              ></label
-            >
-          </div>
-        </fieldset>
+        <label class="field-label" for="translation-method">
+          <span class="field-caption">__MSG_translationMode__</span>
+          <span class="select-control">
+            <select id="translation-method" name="translation-method"></select>
+          </span>
+        </label>
 
         <div class="select-grid">
           <label class="field-label" for="source-language">
@@ -141,7 +132,11 @@
           </label>
         </div>
 
-        <label class="field-label response-mode-field" for="response-mode">
+        <label
+          id="response-mode-field"
+          class="field-label response-mode-field"
+          for="response-mode"
+        >
           <span class="field-caption">__MSG_aiResponseMode__</span>
           <span class="select-control">
             <select id="response-mode" name="response-mode">

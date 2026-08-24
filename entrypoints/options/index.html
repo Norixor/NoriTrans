@@ -44,6 +44,17 @@
               __MSG_settingsTabProvider__
             </button>
             <button
+              id="local-translation-settings-tab"
+              class="settings-tab"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              aria-controls="local-translation-settings-panel"
+              tabindex="-1"
+            >
+              __MSG_settingsTabLocalTranslation__
+            </button>
+            <button
               id="page-settings-tab"
               class="settings-tab"
               type="button"
@@ -167,9 +178,19 @@
                   <option value="chrome-local">
                     __MSG_providerChromeLocal__
                   </option>
+                  <option value="bergamot-local">
+                    __MSG_providerBergamotLocal__
+                  </option>
                   <option value="openai-compatible">
                     __MSG_providerOpenAiCompatible__
                   </option>
+                  <option value="google-translate">
+                    __MSG_providerGoogleTranslate__
+                  </option>
+                  <option value="microsoft-translator">
+                    __MSG_providerMicrosoftTranslator__
+                  </option>
+                  <option value="deepl">__MSG_providerDeepL__</option>
                 </select>
               </label>
               <label class="field-label" for="ai-provider">
@@ -181,6 +202,74 @@
                 </select>
               </label>
             </div>
+
+            <div id="google-provider-fields" class="form-grid" hidden>
+              <label class="field-label" for="google-api-key">
+                <span>__MSG_googleApiKey__</span>
+                <input
+                  id="google-api-key"
+                  name="google-api-key"
+                  type="password"
+                  autocomplete="off"
+                  maxlength="10000"
+                  spellcheck="false"
+                  placeholder="__MSG_providerKeyPlaceholder__"
+                />
+                <small>__MSG_googleApiKeyHelp__</small>
+              </label>
+            </div>
+
+            <div id="microsoft-provider-fields" class="form-grid" hidden>
+              <label class="field-label" for="microsoft-api-key">
+                <span>__MSG_microsoftApiKey__</span>
+                <input
+                  id="microsoft-api-key"
+                  name="microsoft-api-key"
+                  type="password"
+                  autocomplete="off"
+                  maxlength="10000"
+                  spellcheck="false"
+                  placeholder="__MSG_providerKeyPlaceholder__"
+                />
+              </label>
+              <label class="field-label" for="microsoft-region">
+                <span>__MSG_microsoftRegion__</span>
+                <input
+                  id="microsoft-region"
+                  name="microsoft-region"
+                  type="text"
+                  autocomplete="off"
+                  maxlength="128"
+                  spellcheck="false"
+                  placeholder="__MSG_microsoftRegionPlaceholder__"
+                />
+                <small>__MSG_microsoftRegionHelp__</small>
+              </label>
+            </div>
+
+            <div id="deepl-provider-fields" class="form-grid" hidden>
+              <label class="field-label" for="deepl-api-key">
+                <span>__MSG_deeplApiKey__</span>
+                <input
+                  id="deepl-api-key"
+                  name="deepl-api-key"
+                  type="password"
+                  autocomplete="off"
+                  maxlength="10000"
+                  spellcheck="false"
+                  placeholder="__MSG_providerKeyPlaceholder__"
+                />
+              </label>
+              <label class="field-label" for="deepl-plan">
+                <span>__MSG_deeplPlan__</span>
+                <select id="deepl-plan" name="deepl-plan">
+                  <option value="free">__MSG_deeplPlanFree__</option>
+                  <option value="pro">__MSG_deeplPlanPro__</option>
+                </select>
+              </label>
+            </div>
+
+            <h3 class="provider-subheading">__MSG_aiProviderConfiguration__</h3>
 
             <div class="form-grid provider-fields">
               <label class="field-label" for="base-url">
@@ -311,6 +400,86 @@
           </section>
 
           <section
+            id="local-translation-settings-panel"
+            class="settings-section tab-panel"
+            role="tabpanel"
+            aria-labelledby="local-translation-settings-tab"
+            tabindex="0"
+            hidden
+          >
+            <div class="section-heading">
+              <div>
+                <h2>__MSG_localTranslationSettingsTitle__</h2>
+                <p>__MSG_localTranslationSettingsDescription__</p>
+              </div>
+            </div>
+
+            <div class="local-engine-summary" role="note">
+              <div>
+                <strong>__MSG_providerChromeLocal__</strong>
+                <p>__MSG_chromeLocalEngineDescription__</p>
+              </div>
+              <span class="runtime-status-badge" data-state="installed">
+                __MSG_localTranslationBuiltIn__
+              </span>
+            </div>
+
+            <div class="runtime-local-note" role="note">
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                width="20"
+                height="20"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  d="M12 3 5 6v5c0 4.6 2.9 8.1 7 10 4.1-1.9 7-5.4 7-10V6l-7-3Z"
+                />
+                <path d="M9 12h6M12 9v6" />
+              </svg>
+              <p>__MSG_bergamotRuntimeLocalNotice__</p>
+            </div>
+
+            <div class="runtime-list-shell">
+              <div class="runtime-list-labels" aria-hidden="true">
+                <span>__MSG_localTranslationLanguagePair__</span>
+                <span>__MSG_ocrRuntimeStatus__</span>
+                <span>__MSG_ocrRuntimeAction__</span>
+              </div>
+              <ul
+                id="local-translation-runtime-list"
+                class="runtime-list"
+                aria-busy="true"
+                hidden
+              ></ul>
+              <p
+                id="local-translation-runtime-loading"
+                class="runtime-placeholder"
+                role="status"
+              >
+                __MSG_localTranslationRuntimesLoading__
+              </p>
+              <p
+                id="local-translation-runtime-empty"
+                class="runtime-placeholder"
+                hidden
+              >
+                __MSG_localTranslationRuntimesEmpty__
+              </p>
+            </div>
+            <p
+              id="local-translation-runtime-message"
+              class="feedback runtime-feedback"
+              role="status"
+              aria-live="polite"
+            ></p>
+          </section>
+
+          <section
             id="page-settings-panel"
             class="settings-section tab-panel"
             role="tabpanel"
@@ -412,6 +581,7 @@
                   id="selection-translation-enabled"
                   name="selection-translation-enabled"
                   type="checkbox"
+                  aria-label="__MSG_selectionTranslationEnabled__"
                   aria-describedby="selection-translation-description"
                 />
                 <span aria-hidden="true"></span>
@@ -506,8 +676,8 @@
           >
             <div class="section-heading runtime-heading">
               <div>
-                <h2>__MSG_ocrRuntimesTitle__</h2>
-                <p>__MSG_ocrRuntimesDescription__</p>
+                <h2>__MSG_ocrSettingsTitle__</h2>
+                <p>__MSG_ocrSettingsDescription__</p>
               </div>
               <button
                 id="ocr-runtime-download-all"
@@ -518,6 +688,56 @@
                 __MSG_ocrRuntimeDownloadAll__
               </button>
             </div>
+
+            <div class="form-grid two-columns ocr-configuration">
+              <label class="field-label" for="ocr-source-language">
+                <span>__MSG_ocrSourceLanguage__</span>
+                <select
+                  id="ocr-source-language"
+                  name="ocr-source-language"
+                ></select>
+              </label>
+              <label class="field-label" for="ocr-target-language">
+                <span>__MSG_ocrTargetLanguage__</span>
+                <select
+                  id="ocr-target-language"
+                  name="ocr-target-language"
+                ></select>
+              </label>
+              <label class="field-label" for="ocr-provider">
+                <span>__MSG_ocrTranslationProvider__</span>
+                <select id="ocr-provider" name="ocr-provider">
+                  <option value="chrome-local">
+                    __MSG_providerChromeLocal__
+                  </option>
+                  <option value="bergamot-local">
+                    __MSG_providerBergamotLocal__
+                  </option>
+                </select>
+                <small>__MSG_ocrProviderLocalOnly__</small>
+              </label>
+              <div class="ocr-actions">
+                <label class="switch-label" for="ocr-enabled">
+                  <input id="ocr-enabled" name="ocr-enabled" type="checkbox" />
+                  <span aria-hidden="true"></span>
+                  <b>__MSG_ocrExperimentalEnabled__</b>
+                </label>
+                <button
+                  id="ocr-self-test"
+                  class="button button-secondary"
+                  type="button"
+                >
+                  __MSG_ocrTestLocalEngine__
+                </button>
+                <output
+                  id="ocr-test-message"
+                  class="inline-feedback"
+                  aria-live="polite"
+                ></output>
+              </div>
+            </div>
+
+            <h3 class="provider-subheading">__MSG_ocrRuntimesTitle__</h3>
 
             <div class="runtime-local-note" role="note">
               <svg
@@ -796,35 +1016,6 @@
                 />
               </label>
             </div>
-
-            <section
-              class="ocr-settings"
-              aria-labelledby="ocr-settings-heading"
-            >
-              <div>
-                <h3 id="ocr-settings-heading">__MSG_ocrExperimentalTitle__</h3>
-                <p>__MSG_ocrExperimentalDescription__</p>
-              </div>
-              <div class="ocr-actions">
-                <label class="switch-label" for="ocr-enabled">
-                  <input id="ocr-enabled" name="ocr-enabled" type="checkbox" />
-                  <span aria-hidden="true"></span>
-                  <b>__MSG_ocrExperimentalEnabled__</b>
-                </label>
-                <button
-                  id="ocr-self-test"
-                  class="button button-secondary"
-                  type="button"
-                >
-                  __MSG_ocrTestLocalEngine__
-                </button>
-                <output
-                  id="ocr-test-message"
-                  class="inline-feedback"
-                  aria-live="polite"
-                ></output>
-              </div>
-            </section>
           </section>
 
           <section
@@ -1087,6 +1278,7 @@
                 <label class="switch-label" for="update-auto-check">
                   <input
                     id="update-auto-check"
+                    name="update-auto-check"
                     type="checkbox"
                     aria-labelledby="update-auto-check-label"
                     aria-describedby="update-auto-check-description"

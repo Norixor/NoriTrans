@@ -569,6 +569,7 @@ export class ImageTranslationController {
 
   updateSettings(settings: ContentSettings): void {
     const previous = this.settings.imageTranslation;
+    const previousProvider = this.settings.provider;
     this.settings = settings;
     const next = settings.imageTranslation;
     if (!next.enabled) {
@@ -595,7 +596,11 @@ export class ImageTranslationController {
       previous.targetLanguage !== next.targetLanguage ||
       previous.mode !== next.mode ||
       previous.modelOverride !== next.modelOverride ||
-      previous.displayMode !== next.displayMode
+      previous.displayMode !== next.displayMode ||
+      previousProvider.fastProvider !== settings.provider.fastProvider ||
+      previousProvider.baseUrl !== settings.provider.baseUrl ||
+      previousProvider.microsoftRegion !== settings.provider.microsoftRegion ||
+      previousProvider.deeplPlan !== settings.provider.deeplPlan
     ) {
       this.clearAll("cancelled");
     }
