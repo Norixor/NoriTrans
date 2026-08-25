@@ -2,6 +2,7 @@ import {
   chromeTranslatorLanguage,
   ChromeLocalProvider,
 } from "@/src/translation/providers/chrome-local";
+import { NorixorTransError } from "@/src/shared/errors";
 import { createProtectedText } from "@/src/translation/protected-text";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -397,6 +398,27 @@ describe("ChromeLocalProvider readiness", () => {
     await provider.dispose();
   });
 
+  it("returns a structured reason when automatic language detection is inconclusive", async () => {
+    setChromeLanguageDetection(
+      vi.fn(() => Promise.resolve({ isReliable: false, languages: [] })),
+    );
+    const provider = new ChromeLocalProvider();
+
+    await expect(
+      provider.translateBatch(
+        {
+          ...request,
+          sourceLanguage: "auto",
+          segments: [{ id: "one", text: "AI" }],
+        },
+        new AbortController().signal,
+      ),
+    ).rejects.toMatchObject({
+      code: "provider_unavailable",
+      reason: "chrome_language_detection_failed",
+    });
+  });
+
   it("does not create a pooled Translator after an automatic selection is cancelled", async () => {
     let resolveDetection:
       | ((value: {
@@ -498,7 +520,10 @@ describe("ChromeLocalProvider readiness", () => {
         request,
         new AbortController().signal,
       ),
-    ).rejects.toMatchObject({ code: "provider_unavailable" });
+    ).rejects.toMatchObject({
+      code: "provider_unavailable",
+      reason: "chrome_pair_unavailable",
+    });
     expect(create).not.toHaveBeenCalled();
   });
 
@@ -529,6 +554,124 @@ describe("ChromeLocalProvider readiness", () => {
       }),
     );
     expect(destroy).toHaveBeenCalledOnce();
+  });
+
+  it.each(["downloadable", "downloading"] as const)(
+    "classifies a failed %s model preparation as an unavailable pair",
+    async (availability) => {
+      setTranslator({
+        availability: vi.fn(() => Promise.resolve(availability)),
+        create: vi.fn(() =>
+          Promise.reject(new Error("model preparation failed")),
+        ),
+      });
+
+      const failure = await new ChromeLocalProvider()
+        .translateBatch(
+          {
+            ...request,
+            sourceLanguage: "ko",
+            targetLanguage: "de",
+            segments: [{ id: "one", text: "한국어 검색 결과" }],
+          },
+          new AbortController().signal,
+        )
+        .catch((error: unknown) => error);
+      expect(failure).toMatchObject({
+        code: "provider_unavailable",
+        reason: "chrome_pair_unavailable",
+      });
+      expect(failure).toBeInstanceOf(NorixorTransError);
+      if (failure instanceof NorixorTransError) {
+        expect(failure.details).toContain("ko->de=create-Error");
+      }
+    },
+  );
+
+  it("keeps cancellation distinct from an unavailable on-demand pair", async () => {
+    const cancellation = new DOMException(
+      "Translation cancelled",
+      "AbortError",
+    );
+    setTranslator({
+      availability: vi.fn(() => Promise.resolve("downloadable")),
+      create: vi.fn(() => Promise.reject(cancellation)),
+    });
+
+    await expect(
+      new ChromeLocalProvider().translateBatch(
+        request,
+        new AbortController().signal,
+      ),
+    ).rejects.toBe(cancellation);
+  });
+
+  it("tries the generic Chinese candidate after an on-demand Traditional Chinese preparation fails", async () => {
+    const destroy = vi.fn();
+    const availability = vi.fn(
+      ({ sourceLanguage }: { sourceLanguage: string }) =>
+        Promise.resolve(
+          sourceLanguage === "zh-Hant" ? "downloadable" : "available",
+        ),
+    );
+    const create = vi.fn(({ sourceLanguage }: { sourceLanguage: string }) =>
+      sourceLanguage === "zh-Hant"
+        ? Promise.reject(new Error("traditional model preparation failed"))
+        : Promise.resolve({
+            translate: (text: string) => Promise.resolve(`T:${text}`),
+            destroy,
+          }),
+    );
+    setTranslator({ availability, create });
+
+    await expect(
+      new ChromeLocalProvider().translateBatch(
+        {
+          ...request,
+          sourceLanguage: "zh-Hant",
+          targetLanguage: "en",
+          segments: [{ id: "one", text: "繁體中文內容" }],
+        },
+        new AbortController().signal,
+      ),
+    ).resolves.toEqual([{ id: "one", translatedText: "T:繁體中文內容" }]);
+    expect(
+      create.mock.calls.map(([options]) => options.sourceLanguage),
+    ).toEqual(["zh-Hant", "zh"]);
+    expect(destroy).toHaveBeenCalledOnce();
+  });
+
+  it("preserves runtime failures for a pair Chrome reports as available", async () => {
+    setTranslator({
+      availability: vi.fn(() => Promise.resolve("available")),
+      create: vi.fn(() => Promise.reject(new Error("available model crashed"))),
+    });
+
+    await expect(
+      new ChromeLocalProvider().translateBatch(
+        request,
+        new AbortController().signal,
+      ),
+    ).rejects.toThrow("available model crashed");
+  });
+
+  it("preserves translation failures after an on-demand model is created", async () => {
+    setTranslator({
+      availability: vi.fn(() => Promise.resolve("downloadable")),
+      create: vi.fn(() =>
+        Promise.resolve({
+          translate: () => Promise.reject(new Error("translation crashed")),
+          destroy: vi.fn(),
+        }),
+      ),
+    });
+
+    await expect(
+      new ChromeLocalProvider().translateBatch(
+        request,
+        new AbortController().signal,
+      ),
+    ).rejects.toThrow("translation crashed");
   });
 
   it("reports bounded local model download progress", async () => {

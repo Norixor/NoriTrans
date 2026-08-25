@@ -739,6 +739,8 @@ test("popup and options honor dark mode, reduced motion, and narrow widths", asy
       const button = document.querySelector<HTMLButtonElement>(".icon-button")!;
       const primary =
         document.querySelector<HTMLButtonElement>(".button-primary")!;
+      const select = document.querySelector<HTMLSelectElement>("select")!;
+      const option = select.options[0]!;
       return {
         background: getComputedStyle(document.body).backgroundColor,
         overflow:
@@ -748,6 +750,9 @@ test("popup and options honor dark mode, reduced motion, and narrow widths", asy
         transitionDuration: getComputedStyle(button).transitionDuration,
         primaryBackgroundImage: getComputedStyle(primary).backgroundImage,
         primaryColor: getComputedStyle(primary).color,
+        selectColorScheme: getComputedStyle(select).colorScheme,
+        optionBackground: getComputedStyle(option).backgroundColor,
+        optionColor: getComputedStyle(option).color,
       };
     });
     expect(popupDark.background).not.toBe(lightBackground);
@@ -758,6 +763,9 @@ test("popup and options honor dark mode, reduced motion, and narrow widths", asy
     );
     expect(popupDark.primaryBackgroundImage).toBe("none");
     expect(popupDark.primaryColor).toBe("rgb(33, 31, 27)");
+    expect(popupDark.selectColorScheme).toBe("dark");
+    expect(popupDark.optionBackground).toBe("rgb(33, 31, 27)");
+    expect(popupDark.optionColor).toBe("rgb(246, 241, 231)");
 
     await page.setViewportSize({ width: 380, height: 900 });
     await page.reload();
@@ -854,24 +862,34 @@ test("popup and options honor dark mode, reduced motion, and narrow widths", asy
     expect(denseSettingsGeometry.panelBackground).toBe("rgba(0, 0, 0, 0)");
     expect(denseSettingsGeometry.panelBorderTop).toBe("0px");
     await page.locator("#ocr-runtimes-tab").click();
-    const optionsGeometry = await page.evaluate(() => ({
-      overflow:
-        document.documentElement.scrollWidth >
-        document.documentElement.clientWidth,
-      saveHeight: document
-        .querySelector<HTMLButtonElement>("#save-settings")!
-        .getBoundingClientRect().height,
-      transitionDuration: getComputedStyle(
-        document.querySelector<HTMLButtonElement>("#save-settings")!,
-      ).transitionDuration,
-      unresolvedMessages: document.documentElement.outerHTML.includes("__MSG_"),
-      primaryBackgroundImage: getComputedStyle(
-        document.querySelector<HTMLButtonElement>("#save-settings")!,
-      ).backgroundImage,
-      runtimeActionHeight: document
-        .querySelector<HTMLButtonElement>("#ocr-runtime-download-all")!
-        .getBoundingClientRect().height,
-    }));
+    const optionsGeometry = await page.evaluate(() => {
+      const select = document.querySelector<HTMLSelectElement>(
+        "#page-source-language",
+      )!;
+      const option = select.options[0]!;
+      return {
+        overflow:
+          document.documentElement.scrollWidth >
+          document.documentElement.clientWidth,
+        saveHeight: document
+          .querySelector<HTMLButtonElement>("#save-settings")!
+          .getBoundingClientRect().height,
+        transitionDuration: getComputedStyle(
+          document.querySelector<HTMLButtonElement>("#save-settings")!,
+        ).transitionDuration,
+        unresolvedMessages:
+          document.documentElement.outerHTML.includes("__MSG_"),
+        primaryBackgroundImage: getComputedStyle(
+          document.querySelector<HTMLButtonElement>("#save-settings")!,
+        ).backgroundImage,
+        runtimeActionHeight: document
+          .querySelector<HTMLButtonElement>("#ocr-runtime-download-all")!
+          .getBoundingClientRect().height,
+        selectColorScheme: getComputedStyle(select).colorScheme,
+        optionBackground: getComputedStyle(option).backgroundColor,
+        optionColor: getComputedStyle(option).color,
+      };
+    });
     expect(optionsGeometry.overflow).toBe(false);
     expect(optionsGeometry.saveHeight).toBeGreaterThanOrEqual(44);
     expect(optionsGeometry.runtimeActionHeight).toBeGreaterThanOrEqual(44);
@@ -880,6 +898,9 @@ test("popup and options honor dark mode, reduced motion, and narrow widths", asy
     ).toBeLessThanOrEqual(0.001);
     expect(optionsGeometry.unresolvedMessages).toBe(false);
     expect(optionsGeometry.primaryBackgroundImage).toBe("none");
+    expect(optionsGeometry.selectColorScheme).toBe("dark");
+    expect(optionsGeometry.optionBackground).toBe("rgb(37, 34, 30)");
+    expect(optionsGeometry.optionColor).toBe("rgb(243, 238, 229)");
 
     await page.goto(`chrome-extension://${extensionId}/ocr-permission.html`);
     await page.setViewportSize({ width: 520, height: 340 });
@@ -906,6 +927,34 @@ test("popup and options honor dark mode, reduced motion, and narrow widths", asy
     );
     expect(permissionGeometry.horizontalOverflow).toBe(false);
     expect(permissionGeometry.unresolvedMessages).toBe(false);
+
+    const darkFloatingPageUrl = "https://example.com/norixortrans-dark-selects";
+    await context.route(darkFloatingPageUrl, (route) =>
+      route.fulfill({
+        contentType: "text/html",
+        body: "<!doctype html><html><body><main>Dark select fixture</main></body></html>",
+      }),
+    );
+    await page.goto(darkFloatingPageUrl);
+    await expect(page.locator("norixor-floating-control")).toBeAttached();
+    const floatingSelectPalette = await page.evaluate(() => {
+      const root = document.querySelector(
+        "norixor-floating-control",
+      )?.shadowRoot;
+      const select = root?.querySelector<HTMLSelectElement>("select");
+      const option = select?.options[0];
+      if (!select || !option) return null;
+      return {
+        colorScheme: getComputedStyle(select).colorScheme,
+        optionBackground: getComputedStyle(option).backgroundColor,
+        optionColor: getComputedStyle(option).color,
+      };
+    });
+    expect(floatingSelectPalette).toEqual({
+      colorScheme: "dark",
+      optionBackground: "rgb(33, 31, 27)",
+      optionColor: "rgb(245, 239, 229)",
+    });
   } finally {
     await page.close();
   }

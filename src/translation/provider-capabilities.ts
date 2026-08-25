@@ -87,20 +87,28 @@ export function installedBergamotPackIds(
     .map((runtime) => runtime.packId);
 }
 
-export async function queryDocumentTranslationCapabilities(): Promise<TranslationCapabilities> {
-  const chromePairsPromise = queryChromeTranslationPairs();
-  const runtimeResponsePromise = Promise.resolve<unknown>(
+/** Reads downloaded Bergamot routes without probing Chrome Translator. */
+export async function queryInstalledBergamotPackIds(): Promise<
+  BergamotLanguagePackId[] | undefined
+> {
+  const runtimeResponse = await Promise.resolve<unknown>(
     browser.runtime.sendMessage({ type: "LOCAL_TRANSLATION_RUNTIME_LIST" }),
   ).catch(() => undefined);
+  if (!isRecord(runtimeResponse) || !Array.isArray(runtimeResponse.runtimes)) {
+    return undefined;
+  }
+  return installedBergamotPackIds(
+    runtimeResponse.runtimes.filter(isLocalTranslationRuntimeInfo),
+  );
+}
+
+export async function queryDocumentTranslationCapabilities(): Promise<TranslationCapabilities> {
+  const chromePairsPromise = queryChromeTranslationPairs();
+  const installedBergamotPackIdsPromise = queryInstalledBergamotPackIds();
   const chromePairs = await chromePairsPromise;
-  const runtimeResponse = await runtimeResponsePromise;
-  const runtimes =
-    isRecord(runtimeResponse) && Array.isArray(runtimeResponse.runtimes)
-      ? runtimeResponse.runtimes.filter(isLocalTranslationRuntimeInfo)
-      : [];
   return {
     chromePairs,
-    installedBergamotPackIds: installedBergamotPackIds(runtimes),
+    installedBergamotPackIds: (await installedBergamotPackIdsPromise) ?? [],
   };
 }
 

@@ -82,4 +82,10 @@ export interface TranslationFailure {
   retryable: boolean;
   /** Bounded structural diagnostics; never raw provider bodies or source text. */
   details?: string;
+  /** Stable machine-readable Provider reason when a generic code is insufficient. */
+  reason?:
+    | "bergamot_package_missing"
+    | "bergamot_unsupported_language"
+    | "chrome_language_detection_failed"
+    | "chrome_pair_unavailable";
 }

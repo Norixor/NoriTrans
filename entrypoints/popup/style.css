@@ -362,6 +362,11 @@ select {
   border-radius: 6px;
   background: var(--surface);
   color: var(--text);
+  color-scheme: light;
+}
+select option {
+  background-color: var(--surface);
+  color: var(--text);
 }
 
 .feedback {
@@ -394,6 +399,13 @@ select {
 }
 
 @media (prefers-color-scheme: dark) {
+  select {
+    color-scheme: dark;
+  }
+  select option {
+    background-color: var(--surface);
+    color: var(--text);
+  }
   .button-primary {
     color: #211f1b;
   }

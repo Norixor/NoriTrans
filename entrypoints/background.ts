@@ -677,6 +677,12 @@ function translationError(error: unknown): TranslationResponse {
         message: error.message,
         retryable: error.retryable,
         ...(error.details ? { details: error.details.slice(0, 4_000) } : {}),
+        ...(error.reason === "bergamot_package_missing" ||
+        error.reason === "bergamot_unsupported_language" ||
+        error.reason === "chrome_language_detection_failed" ||
+        error.reason === "chrome_pair_unavailable"
+          ? { reason: error.reason }
+          : {}),
       },
     };
   }

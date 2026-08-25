@@ -48,6 +48,9 @@ import {
   isPredominantlyTargetScript,
   supportedSourceLanguageHint,
 } from "@/src/translation/language-detection";
+import { hasInstalledBergamotRoute } from "@/src/local-translation/languages";
+import { normalizeBergamotLanguage } from "@/src/local-translation/types";
+import { queryInstalledBergamotPackIds } from "@/src/translation/provider-capabilities";
 
 type StatusListener = (status: PageStatus) => void;
 
@@ -79,6 +82,8 @@ const RESPONSIVE_SCAN_DEBOUNCE_MS = 160;
 const RESPONSIVE_SCAN_ROOT_LIMIT = 128;
 const PAGE_CACHE_READ_TIMEOUT_MS = 200;
 const PAGE_CACHE_READ_CONCURRENCY = 8;
+const SOURCE_DETECTION_CONCURRENCY = 8;
+const SOURCE_MAJORITY_FALLBACK_MAX_CHARACTERS = 48;
 const DOCUMENT_BODY_WAIT_TIMEOUT_MS = 5_000;
 const RENDER_APPLY_MAX_ATTEMPTS = 3;
 const RENDER_APPLY_RETRY_DELAY_MS = 60;
@@ -87,9 +92,14 @@ const PAGE_BATCH_CONCURRENCY = Math.max(
   AI_BATCH_CONCURRENCY,
 );
 
+type PageTranslationClaimResult =
+  | { status: "translated"; translatedText: string }
+  | { status: "skipped" }
+  | { status: "failed" };
+
 interface PageTranslationClaim {
-  promise: Promise<string | undefined>;
-  resolve(value: string | undefined): void;
+  promise: Promise<PageTranslationClaimResult>;
+  resolve(value: PageTranslationClaimResult): void;
   settled: boolean;
 }
 
@@ -157,9 +167,9 @@ class BatchPermitPool {
 }
 
 function createPageTranslationClaim(): PageTranslationClaim {
-  let settle: (value: string | undefined) => void = () => undefined;
+  let settle: (value: PageTranslationClaimResult) => void = () => undefined;
   const claim: PageTranslationClaim = {
-    promise: new Promise<string | undefined>((resolve) => {
+    promise: new Promise<PageTranslationClaimResult>((resolve) => {
       settle = resolve;
     }),
     resolve: (value) => {
@@ -335,9 +345,156 @@ interface NormalizedPageSegmentGroup {
 }
 
 function pageFastProvider(settings: ContentSettings) {
+  return settings.page.fastProviderOverride ?? settings.provider.fastProvider;
+}
+
+function usesAutomaticLocalPageSource(settings: ContentSettings): boolean {
+  const provider = pageFastProvider(settings);
   return (
-    settings.page.fastProviderOverride ?? settings.provider.fastProvider
+    settings.page.sourceLanguage === "auto" &&
+    settings.page.mode === "fast" &&
+    (provider === "chrome-local" || provider === "bergamot-local")
   );
+}
+
+function isAutomaticLocalUnsupportedSource(
+  error: unknown,
+  settings: ContentSettings,
+): boolean {
+  const provider = pageFastProvider(settings);
+  return (
+    usesAutomaticLocalPageSource(settings) &&
+    error instanceof NorixorTransError &&
+    error.code === "provider_unavailable" &&
+    ((provider === "bergamot-local" &&
+      (error.reason === "bergamot_package_missing" ||
+        error.reason === "bergamot_unsupported_language")) ||
+      (provider === "chrome-local" &&
+        (error.reason === "chrome_language_detection_failed" ||
+          error.reason === "chrome_pair_unavailable")))
+  );
+}
+
+async function detectSegmentSourceLanguages(
+  segments: readonly PageSegment[],
+  declaredSourceLanguage: string | undefined,
+  signal: AbortSignal,
+  resolvedByScript: Map<string, Map<string, number>>,
+): Promise<Map<string, string>> {
+  const sourceById = new Map<string, string>();
+  let nextIndex = 0;
+  const worker = async (): Promise<void> => {
+    while (!signal.aborted) {
+      const segment = segments[nextIndex++];
+      if (!segment) return;
+      const detected = await detectDominantSourceLanguage(
+        segment.text,
+        declaredSourceLanguage,
+      );
+      if (signal.aborted) return;
+      sourceById.set(segment.id, detected ?? "auto");
+    }
+  };
+  await Promise.all(
+    Array.from(
+      {
+        length: Math.min(SOURCE_DETECTION_CONCURRENCY, segments.length),
+      },
+      () => worker(),
+    ),
+  );
+  for (const sourceLanguage of sourceById.values()) {
+    if (sourceLanguage === "auto") continue;
+    const script = sourceLanguageScriptFamily(sourceLanguage);
+    if (!script) continue;
+    const counts = resolvedByScript.get(script) ?? new Map<string, number>();
+    counts.set(sourceLanguage, (counts.get(sourceLanguage) ?? 0) + 1);
+    resolvedByScript.set(script, counts);
+  }
+  for (const segment of segments) {
+    if (sourceById.get(segment.id) !== "auto") continue;
+    const normalizedLength = segment.text
+      .normalize("NFKC")
+      .replace(/\s+/gu, " ")
+      .trim().length;
+    if (normalizedLength > SOURCE_MAJORITY_FALLBACK_MAX_CHARACTERS) continue;
+    const candidates = [
+      ...(resolvedByScript.get(dominantScriptFamily(segment.text))?.entries() ??
+        []),
+    ].sort((left, right) => right[1] - left[1]);
+    const strongest = candidates[0];
+    const runnerUp = candidates[1];
+    if (strongest && (!runnerUp || strongest[1] > runnerUp[1])) {
+      sourceById.set(segment.id, strongest[0]);
+    }
+  }
+  return sourceById;
+}
+
+function sourceLanguageScriptFamily(language: string): string | undefined {
+  const primary = language.trim().toLowerCase().split("-")[0];
+  if (["en", "es", "fr", "de"].includes(primary ?? "")) return "latin";
+  if (primary === "zh") return "han";
+  if (primary === "ja") return "kana";
+  if (primary === "ko") return "hangul";
+  return undefined;
+}
+
+function dominantScriptFamily(text: string): string {
+  const kanaCount =
+    text.match(/[\p{Script=Hiragana}\p{Script=Katakana}]/gu)?.length ?? 0;
+  const hanCount = text.match(/\p{Script=Han}/gu)?.length ?? 0;
+  const counts = [
+    {
+      script: "kana",
+      count: kanaCount > 0 ? kanaCount + hanCount : 0,
+    },
+    {
+      script: "hangul",
+      count: text.match(/\p{Script=Hangul}/gu)?.length ?? 0,
+    },
+    {
+      script: "han",
+      count: kanaCount === 0 ? hanCount : 0,
+    },
+    {
+      script: "latin",
+      count: text.match(/\p{Script=Latin}/gu)?.length ?? 0,
+    },
+  ].sort((left, right) => right.count - left.count);
+  const dominant = counts[0];
+  const runnerUp = counts[1];
+  if (!dominant || dominant.count === 0) return "other";
+  return runnerUp?.count === dominant.count ? "mixed" : dominant.script;
+}
+
+function sourceBucketIdentity(
+  segment: Pick<PageSegment, "id" | "text">,
+  sourceLanguage: string,
+) {
+  if (sourceLanguage !== "auto") return sourceLanguage;
+  const script = dominantScriptFamily(segment.text);
+  // If statistical detection is unavailable, keep unresolved segments
+  // separated by script family. The Provider can detect one homogeneous
+  // fallback batch without allowing CJK text to dictate a Latin route.
+  return `auto:${script}`;
+}
+
+function partitionBatchesBySource(
+  batches: readonly PageSegment[][],
+  sourceById: ReadonlyMap<string, string>,
+): PageSegment[][] {
+  return batches.flatMap((batch) => {
+    const partitions = new Map<string, PageSegment[]>();
+    for (const segment of batch) {
+      const sourceLanguage = sourceById.get(segment.id) ?? "auto";
+      const key = sourceBucketIdentity(segment, sourceLanguage);
+      const partition = partitions.get(key) ?? [];
+      partition.push(segment);
+      partitions.set(key, partition);
+    }
+    return [...partitions.values()];
+  });
 }
 
 function pageAiModel(settings: ContentSettings): string {
@@ -1107,6 +1264,11 @@ export class PageTranslationSession {
   private settings: ContentSettings | undefined;
   private localProvider: ChromeLocalProvider | undefined;
   private localProviderConfiguration: string | undefined;
+  private sourceDetectionConfiguration: string | undefined;
+  private resolvedSourceLanguagesByScript = new Map<
+    string,
+    Map<string, number>
+  >();
   private failureMessage: string | undefined;
   private failureDetails: string | undefined;
   private readonly translationsByConfiguration = new Map<
@@ -1209,6 +1371,8 @@ export class PageTranslationSession {
     this.seen = new WeakSet<Text>();
     this.settings = undefined;
     this.releaseLocalProvider();
+    this.sourceDetectionConfiguration = undefined;
+    this.resolvedSourceLanguagesByScript.clear();
     this.failureMessage = undefined;
     this.failureDetails = undefined;
     this.translationsByConfiguration.clear();
@@ -1388,7 +1552,9 @@ export class PageTranslationSession {
 
   private clearInFlightTranslationClaims(): void {
     for (const claims of this.inFlightTranslationsByConfiguration.values()) {
-      for (const claim of claims.values()) claim.resolve(undefined);
+      for (const claim of claims.values()) {
+        claim.resolve({ status: "failed" });
+      }
     }
     this.inFlightTranslationsByConfiguration.clear();
   }
@@ -1405,12 +1571,8 @@ export class PageTranslationSession {
     const documentSegments = [...allDocumentSegments].sort(
       (left, right) => left.documentOrder - right.documentOrder,
     );
-    const skipTargetScript =
-      settings.page.sourceLanguage === "auto" &&
-      settings.page.mode === "fast" &&
-      (pageFastProvider(settings) === "chrome-local" ||
-        pageFastProvider(settings) === "bergamot-local");
-    const skippedSegments = skipTargetScript
+    const automaticLocalSource = usesAutomaticLocalPageSource(settings);
+    const skippedSegments = automaticLocalSource
       ? segments.filter(
           (segment) =>
             !hasTranslatableLanguageContent(segment.text) ||
@@ -1435,7 +1597,7 @@ export class PageTranslationSession {
     }
     if (translatableSegments.length === 0) return;
 
-    const detectionSegments = skipTargetScript
+    const detectionSegments = automaticLocalSource
       ? documentSegments.filter(
           (segment) =>
             hasTranslatableLanguageContent(segment.text) &&
@@ -1450,20 +1612,93 @@ export class PageTranslationSession {
     );
     const sourceLanguage =
       settings.page.sourceLanguage === "auto"
-        ? ((await detectDominantSourceLanguage(
-            detectionSegments.map((segment) => segment.text),
-            declaredSourceLanguage,
-          )) ?? "auto")
+        ? automaticLocalSource
+          ? "auto"
+          : ((await detectDominantSourceLanguage(
+              detectionSegments.map((segment) => segment.text),
+              declaredSourceLanguage,
+            )) ?? "auto")
         : settings.page.sourceLanguage;
+    const sourceDetectionConfiguration = [
+      pageFastProvider(settings),
+      settings.page.sourceLanguage,
+      settings.page.targetLanguage,
+    ].join("\u001f");
+    if (
+      automaticLocalSource &&
+      this.sourceDetectionConfiguration !== sourceDetectionConfiguration
+    ) {
+      this.sourceDetectionConfiguration = sourceDetectionConfiguration;
+      this.resolvedSourceLanguagesByScript.clear();
+    }
+    const sourceLanguageById = automaticLocalSource
+      ? await detectSegmentSourceLanguages(
+          translatableSegments,
+          declaredSourceLanguage,
+          signal,
+          this.resolvedSourceLanguagesByScript,
+        )
+      : new Map(
+          translatableSegments.map((segment) => [segment.id, sourceLanguage]),
+        );
+    let routableSegments = translatableSegments;
+    let unsupportedSourceSegments: PageSegment[] = [];
+    if (
+      automaticLocalSource &&
+      pageFastProvider(settings) === "bergamot-local"
+    ) {
+      const installedPackIds = await queryInstalledBergamotPackIds();
+      const targetLanguage = normalizeBergamotLanguage(
+        settings.page.targetLanguage,
+      );
+      if (installedPackIds && targetLanguage) {
+        const installed = new Set(installedPackIds);
+        unsupportedSourceSegments = translatableSegments.filter((segment) => {
+          const detected = sourceLanguageById.get(segment.id);
+          const source = detected
+            ? normalizeBergamotLanguage(detected)
+            : undefined;
+          return (
+            source !== undefined &&
+            source !== targetLanguage &&
+            !hasInstalledBergamotRoute(source, targetLanguage, installed)
+          );
+        });
+        // Automatic source selection translates every installed route and
+        // leaves unsupported languages unchanged. An explicit source choice
+        // still reaches the Provider and reports a missing package normally.
+        if (unsupportedSourceSegments.length > 0) {
+          const unsupported = new Set(unsupportedSourceSegments);
+          routableSegments = translatableSegments.filter(
+            (segment) => !unsupported.has(segment),
+          );
+          this.renderer.clearPending(unsupportedSourceSegments);
+          for (const segment of unsupportedSourceSegments) {
+            this.status.completed += 1;
+            this.segmentOutcomes.set(segment, "completed");
+          }
+          this.update({ ...this.status, state: "translating" });
+        }
+      }
+    }
     if (
       settings.page.mode === "fast" &&
-      pageFastProvider(settings) === "chrome-local"
+      (pageFastProvider(settings) === "chrome-local" ||
+        pageFastProvider(settings) === "bergamot-local")
     ) {
+      const sourceDistribution = [...sourceLanguageById.values()].reduce<
+        Record<string, number>
+      >((counts, language) => {
+        counts[language] = (counts[language] ?? 0) + 1;
+        return counts;
+      }, {});
       translationDiagnostic("PageTranslation", "plan", {
         ...translationRuntimeDiagnosticContext(),
+        provider: pageFastProvider(settings),
         configuredSourceLanguage: settings.page.sourceLanguage,
         declaredSourceLanguage: declaredSourceLanguage ?? "",
         resolvedSourceLanguage: sourceLanguage,
+        sourceDistribution,
         targetLanguage: settings.page.targetLanguage,
         inputSegments: segments.length,
         inputCharacters: segments.reduce(
@@ -1476,6 +1711,8 @@ export class PageTranslationSession {
           0,
         ),
         translatableSegments: translatableSegments.length,
+        routableSegments: routableSegments.length,
+        unsupportedSourceSkippedSegments: unsupportedSourceSegments.length,
         detectionSegments: detectionSegments.length,
       });
     }
@@ -1487,8 +1724,7 @@ export class PageTranslationSession {
       return;
     }
 
-    const prioritizedSegments =
-      prioritizeSegmentsForViewport(translatableSegments);
+    const prioritizedSegments = prioritizeSegmentsForViewport(routableSegments);
     const contextualizedSegments = pageTranslationSegments(
       documentSegments,
       prioritizedSegments,
@@ -1512,9 +1748,14 @@ export class PageTranslationSession {
     const reuseIdentityById = new Map(
       contextualizedSegments.map((segment) => [
         segment.id,
-        settings.page.mode === "ai"
-          ? translationSegmentReuseIdentity(segment)
-          : `${segment.format ?? "plain-text"}\u001f${normalizeTranslationText(segment.text)}`,
+        `${sourceBucketIdentity(
+          segment,
+          sourceLanguageById.get(segment.id) ?? sourceLanguage,
+        )}\u001f${
+          settings.page.mode === "ai"
+            ? translationSegmentReuseIdentity(segment)
+            : `${segment.format ?? "plain-text"}\u001f${normalizeTranslationText(segment.text)}`
+        }`,
       ]),
     );
     const normalizedGroups = groupNormalizedPageSegments(
@@ -1524,14 +1765,19 @@ export class PageTranslationSession {
     const groupByRepresentativeId = new Map(
       normalizedGroups.map((group) => [group.representative.id, group]),
     );
-    const batches = createProgressiveBatches(
-      normalizedGroups.map((group) => group.representative),
-      documentSegments,
-      settings,
-      reuseIdentityById,
+    const batches = partitionBatchesBySource(
+      createProgressiveBatches(
+        normalizedGroups.map((group) => group.representative),
+        documentSegments,
+        settings,
+        reuseIdentityById,
+      ),
+      sourceLanguageById,
     );
     const translateBatch = async (batch: PageSegment[]): Promise<void> => {
       if (signal.aborted) return;
+      const batchSourceLanguage =
+        sourceLanguageById.get(batch[0]?.id ?? "") ?? sourceLanguage;
       const processedIds = new Set<string>();
       const exhaustedIds = new Set<string>();
       const receivedResults = new Map<string, string>();
@@ -1661,11 +1907,11 @@ export class PageTranslationSession {
       }
       const settleOwnedClaim = (
         segment: PageSegment,
-        translatedText?: string,
+        result: PageTranslationClaimResult,
       ): void => {
         const claim = ownedClaims.get(segment.id);
         if (!claim) return;
-        claim.resolve(translatedText);
+        claim.resolve(result);
         const reuseIdentity = reuseIdentityById.get(segment.id);
         if (
           reuseIdentity &&
@@ -1697,6 +1943,28 @@ export class PageTranslationSession {
         }
         return currentSegments;
       };
+      const completeWithoutTranslation = (
+        representatives: readonly PageSegment[],
+      ): void => {
+        const currentSegments = representatives.flatMap((representative) =>
+          (
+            groupByRepresentativeId.get(representative.id)?.members ?? [
+              representative,
+            ]
+          ).filter(
+            (segment) =>
+              !this.invalidatedSegments.has(segment) &&
+              !completedMembers.has(segment) &&
+              !failedMembers.has(segment),
+          ),
+        );
+        for (const segment of currentSegments) {
+          this.renderer.clearPending([segment]);
+          completedMembers.add(segment);
+          this.status.completed += 1;
+          this.segmentOutcomes.set(segment, "completed");
+        }
+      };
       const ownedWork = async (): Promise<void> => {
         if (ownedRequestBatch.length === 0) return;
         const applyOwnedResult = (result: TranslationResult): void => {
@@ -1705,7 +1973,10 @@ export class PageTranslationSession {
             (candidate) => candidate.id === result.id,
           );
           if (segment && result.translatedText.trim()) {
-            settleOwnedClaim(segment, result.translatedText);
+            settleOwnedClaim(segment, {
+              status: "translated",
+              translatedText: result.translatedText,
+            });
           }
         };
         let pendingRequestBatch = [...ownedRequestBatch];
@@ -1725,7 +1996,7 @@ export class PageTranslationSession {
                   attemptedBatch,
                   documentSegments,
                   settings,
-                  sourceLanguage,
+                  batchSourceLanguage,
                   signal,
                   applyOwnedResult,
                   localProvider,
@@ -1757,6 +2028,16 @@ export class PageTranslationSession {
               pendingRequestBatch = ownedRequestBatch.filter(
                 (segment) => !receivedResults.has(segment.id),
               );
+              if (isAutomaticLocalUnsupportedSource(error, settings)) {
+                completeWithoutTranslation(pendingRequestBatch);
+                for (const segment of pendingRequestBatch) {
+                  settleOwnedClaim(segment, { status: "skipped" });
+                }
+                pendingRequestBatch = [];
+                lastError = undefined;
+                this.update({ ...this.status, state: "translating" });
+                break;
+              }
               const canRetry =
                 settings.page.mode === "ai" &&
                 attempt + 1 < AI_BATCH_MAX_ATTEMPTS &&
@@ -1786,21 +2067,28 @@ export class PageTranslationSession {
           }
         } finally {
           for (const segment of ownedRequestBatch) {
-            settleOwnedClaim(segment, undefined);
+            settleOwnedClaim(segment, { status: "failed" });
           }
         }
       };
       const waitingWork = Promise.all(
         waitingClaims.map(async ({ segment, claim }) => {
-          const translatedText = await claim.promise;
+          const result = await claim.promise;
           if (
             signal.aborted ||
             this.controller !== controller ||
             pageTranslationScope() !== translationScope
           )
             return;
-          if (translatedText) {
-            applyResult({ id: segment.id, translatedText });
+          if (result.status === "translated") {
+            applyResult({
+              id: segment.id,
+              translatedText: result.translatedText,
+            });
+            return;
+          }
+          if (result.status === "skipped") {
+            completeWithoutTranslation([segment]);
             return;
           }
           markFailed([segment]);
@@ -2055,6 +2343,7 @@ export class PageTranslationSession {
           response.error?.code ?? "request_failed",
           response.error?.retryable ?? false,
           response.error?.details,
+          response.error?.reason,
         );
       }
       return collapseRequestResults(
@@ -2669,10 +2958,12 @@ export class PageTranslationSession {
               : "translated";
     if (
       this.settings?.page.mode === "fast" &&
-      pageFastProvider(this.settings) === "chrome-local"
+      (pageFastProvider(this.settings) === "chrome-local" ||
+        pageFastProvider(this.settings) === "bergamot-local")
     ) {
       translationDiagnostic("PageTranslation", "terminal-status", {
         ...translationRuntimeDiagnosticContext(),
+        provider: pageFastProvider(this.settings),
         state,
         total: this.status.total,
         completed: this.status.completed,

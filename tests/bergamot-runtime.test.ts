@@ -6,6 +6,7 @@ import {
   protectedTextParts,
 } from "@/src/translation/protected-text";
 import { BergamotLocalProvider } from "@/src/translation/providers/bergamot-local";
+import { BergamotRuntimeError } from "@/src/local-translation/errors";
 import { describe, expect, it, vi } from "vitest";
 
 const deleteWorker = vi.fn(() => Promise.resolve());
@@ -120,6 +121,38 @@ describe("BergamotLocalRuntime worker lifecycle", () => {
 });
 
 describe("BergamotLocalProvider input preparation", () => {
+  it("preserves a structured missing-package reason for automatic routing", async () => {
+    const provider = new BergamotLocalProvider({
+      client: {
+        translate: vi.fn(() =>
+          Promise.reject(
+            new BergamotRuntimeError(
+              "bergamot_package_missing",
+              "missing package",
+              false,
+              "Missing packs=ko-en.",
+            ),
+          ),
+        ),
+      },
+    });
+
+    await expect(
+      provider.translateBatch(
+        {
+          sourceLanguage: "ko",
+          targetLanguage: "zh-CN",
+          mode: "fast",
+          segments: [{ id: "one", text: "한국어" }],
+        },
+        new AbortController().signal,
+      ),
+    ).rejects.toMatchObject({
+      code: "provider_unavailable",
+      reason: "bergamot_package_missing",
+    });
+  });
+
   it("preserves format and icon-only parts without sending them to the model", async () => {
     const translate = vi.fn(
       (

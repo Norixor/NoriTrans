@@ -182,6 +182,11 @@ export function chromeTranslatorSourceLanguageCandidates(
   return primary === "zh-Hant" ? [primary, "zh"] : [primary];
 }
 
+function chromeTranslatorCreationErrorName(error: unknown): string {
+  if (error instanceof Error && error.name.trim()) return error.name.trim();
+  return typeof error === "string" ? "String" : "UnknownError";
+}
+
 export class ChromeLocalProvider implements TranslationProvider {
   readonly id = "chrome-local";
   readonly mode = "fast" as const;
@@ -624,6 +629,9 @@ export class ChromeLocalProvider implements TranslationProvider {
     throw new NorixorTransError(
       "无法检测网页语言，请手动选择源语言。",
       "provider_unavailable",
+      false,
+      undefined,
+      "chrome_language_detection_failed",
     );
   }
 
@@ -696,14 +704,41 @@ export class ChromeLocalProvider implements TranslationProvider {
         return translator;
       } catch (error) {
         if (
+          signal.aborted ||
+          (error instanceof DOMException && error.name === "AbortError")
+        ) {
+          throw error;
+        }
+        const errorName = chromeTranslatorCreationErrorName(error);
+        attemptedPairs.push(
+          `${chromeSourceLanguage}->${chromeTargetLanguage}=create-${errorName}`,
+        );
+        translationDiagnostic(
+          "ChromeTranslator",
+          "pair-create-failed",
+          {
+            ...runtimeContext,
+            requestedSourceLanguage: sourceLanguage,
+            requestedTargetLanguage: targetLanguage,
+            sourceLanguage: chromeSourceLanguage,
+            targetLanguage: chromeTargetLanguage,
+            availability,
+            errorName,
+          },
+          "warn",
+        );
+        if (
           error instanceof DOMException &&
           error.name === "NotSupportedError"
         ) {
-          attemptedPairs.push(
-            `${chromeSourceLanguage}->${chromeTargetLanguage}=create-not-supported`,
-          );
           continue;
         }
+        // Chrome may advertise an on-demand pair as downloadable/downloading
+        // and still fail while preparing its model. Treat that as a pair
+        // capability failure so automatic mixed-language pages can retain the
+        // unsupported segment. Runtime failures after an available pair has
+        // already been prepared must remain visible to the user.
+        if (availability !== "available") continue;
         throw error;
       }
     }
@@ -732,6 +767,7 @@ export class ChromeLocalProvider implements TranslationProvider {
       "provider_unavailable",
       false,
       `Chrome Translator pair attempts: ${attemptedPairs.join(", ")}. Context: ${contextDetails}.`,
+      "chrome_pair_unavailable",
     );
   }
 

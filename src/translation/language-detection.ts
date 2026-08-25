@@ -152,11 +152,29 @@ export function dominantScriptSourceLanguageHint(
   if (counts.hangul > 0) {
     candidates.push({ language: "ko", count: counts.hangul });
   }
+  const declaredPrimary = declaredLanguage
+    ? supportedSourceLanguageHint(declaredLanguage)
+    : undefined;
   if (counts.latin > 0 && declaredLanguage) {
-    const declaredPrimary = supportedSourceLanguageHint(declaredLanguage);
     if (["en", "es", "fr", "de"].includes(declaredPrimary ?? "")) {
       candidates.push({ language: declaredPrimary!, count: counts.latin });
     }
+  }
+
+  // Latin script alone cannot distinguish English, Spanish, French and
+  // German. When the document declares an unrelated language, do not let a
+  // small amount of declared-script text outweigh a Latin-dominant sample.
+  // Returning undefined keeps automatic detection available to the Provider
+  // instead of fabricating the document's declared language.
+  const strongestKnownCount = candidates.reduce(
+    (maximum, candidate) => Math.max(maximum, candidate.count),
+    0,
+  );
+  if (
+    counts.latin > strongestKnownCount &&
+    !["en", "es", "fr", "de"].includes(declaredPrimary ?? "")
+  ) {
+    return undefined;
   }
 
   candidates.sort((left, right) => right.count - left.count);
@@ -205,9 +223,7 @@ export async function detectDominantSourceLanguage(
       (result.isReliable || dominant.percentage >= 40) &&
       (!runnerUp || dominant.percentage > runnerUp.percentage)
     ) {
-      return dominant.language === "zh-CN"
-        ? chineseLanguage(declaredLanguage)
-        : dominant.language;
+      return dominant.language;
     }
   } catch {
     // Content scripts on restricted pages can lack this API. Script counting

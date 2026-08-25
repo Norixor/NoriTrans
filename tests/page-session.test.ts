@@ -1,10 +1,11 @@
 import { PageTranslationSession } from "@/src/page/session";
+import { NorixorTransError } from "@/src/shared/errors";
 import { DEFAULT_SETTINGS } from "@/src/shared/settings";
 import {
   createProtectedText,
   parseProtectedText,
 } from "@/src/translation/protected-text";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 interface FixtureTranslationSegment {
   id: string;
@@ -112,6 +113,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 describe("PageTranslationSession", () => {
   beforeEach(() => {
+    document.documentElement.lang = "";
     aiRuntime.listeners.clear();
     localRuntime.translateBatch.mockReset().mockImplementation((request) =>
       Promise.resolve(
@@ -157,6 +159,10 @@ describe("PageTranslationSession", () => {
         }),
       });
     });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("applies an AI segment progress event before the batch finishes", async () => {
@@ -738,7 +744,22 @@ describe("PageTranslationSession", () => {
     explicitSession.restore();
   });
 
-  it("keeps one detected source language on every local batch for a multilingual page", async () => {
+  it("partitions automatic local translation by detected segment language", async () => {
+    vi.stubGlobal("chrome", {
+      i18n: {
+        detectLanguage: vi.fn((text: string) =>
+          Promise.resolve({
+            isReliable: true,
+            languages: [
+              {
+                language: /日本語/u.test(text) ? "ja" : "en",
+                percentage: 100,
+              },
+            ],
+          }),
+        ),
+      },
+    });
     const english = `English batch ${"sentence ".repeat(230)}`;
     const japanese = `日本語のバッチ ${"文章".repeat(1_200)}`;
     document.body.innerHTML = `<main><p>${english}</p><p>${japanese}</p></main>`;
@@ -753,8 +774,8 @@ describe("PageTranslationSession", () => {
     const requests = localRuntime.translateBatch.mock.calls.map(
       ([request]) => request,
     );
-    expect(requests.every((request) => request.sourceLanguage === "ja")).toBe(
-      true,
+    expect(new Set(requests.map((request) => request.sourceLanguage))).toEqual(
+      new Set(["en", "ja"]),
     );
     expect(
       requests.every((request) => request.targetLanguage === "zh-CN"),
@@ -769,6 +790,206 @@ describe("PageTranslationSession", () => {
         request.segments.some((segment) => segment.text.includes("日本語")),
       ),
     ).toBe(true);
+    session.restore();
+  });
+
+  it("uses the resolved Latin majority for short automatic page segments", async () => {
+    vi.stubGlobal("chrome", {
+      i18n: {
+        detectLanguage: vi.fn((text: string) =>
+          Promise.resolve(
+            text.length > 10
+              ? {
+                  isReliable: true,
+                  languages: [{ language: "en", percentage: 100 }],
+                }
+              : { isReliable: false, languages: [] },
+          ),
+        ),
+      },
+    });
+    document.documentElement.lang = "zh-HK";
+    document.body.innerHTML =
+      "<main><p>Artificial intelligence search result</p><p>AI</p></main>";
+    const session = new PageTranslationSession(vi.fn());
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.page.sourceLanguage = "auto";
+    settings.page.targetLanguage = "zh-CN";
+    settings.page.displayMode = "translated";
+
+    await session.translate(settings);
+
+    const requests = localRuntime.translateBatch.mock.calls.map(
+      ([request]) => request,
+    );
+    expect(requests.length).toBeGreaterThan(0);
+    expect(requests.every((request) => request.sourceLanguage === "en")).toBe(
+      true,
+    );
+    expect(document.body.textContent).toContain("T:AI");
+    session.restore();
+  });
+
+  it("uses the retained English majority for a later dynamic short segment", async () => {
+    vi.stubGlobal("chrome", {
+      i18n: {
+        detectLanguage: vi.fn((text: string) =>
+          Promise.resolve(
+            text.length > 10
+              ? {
+                  isReliable: true,
+                  languages: [{ language: "en", percentage: 100 }],
+                }
+              : { isReliable: false, languages: [] },
+          ),
+        ),
+      },
+    });
+    document.documentElement.lang = "zh-HK";
+    document.body.innerHTML =
+      "<main><p>English artificial intelligence result</p></main>";
+    const session = new PageTranslationSession(vi.fn());
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.page.sourceLanguage = "auto";
+    settings.page.targetLanguage = "zh-CN";
+    settings.page.displayMode = "translated";
+
+    await session.translate(settings);
+    const dynamic = document.createElement("p");
+    dynamic.textContent = "AI";
+    document.querySelector("main")?.append(dynamic);
+
+    await vi.waitFor(() => expect(dynamic.textContent).toBe("T:AI"), {
+      timeout: 1_500,
+    });
+    expect(
+      localRuntime.translateBatch.mock.calls.every(
+        ([request]) => request.sourceLanguage === "en",
+      ),
+    ).toBe(true);
+    session.restore();
+  });
+
+  it("does not force a long unresolved Latin segment into the English majority", async () => {
+    vi.stubGlobal("chrome", {
+      i18n: {
+        detectLanguage: vi.fn((text: string) =>
+          Promise.resolve(
+            text.includes("English")
+              ? {
+                  isReliable: true,
+                  languages: [{ language: "en", percentage: 100 }],
+                }
+              : { isReliable: false, languages: [] },
+          ),
+        ),
+      },
+    });
+    document.documentElement.lang = "zh-HK";
+    document.body.innerHTML =
+      "<main><p>English artificial intelligence result</p><p>Este contenido permanece sin resolver porque la detección estadística no fue fiable para este párrafo largo.</p></main>";
+    const session = new PageTranslationSession(vi.fn());
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.page.sourceLanguage = "auto";
+    settings.page.targetLanguage = "zh-CN";
+    settings.page.displayMode = "translated";
+
+    await session.translate(settings);
+
+    expect(
+      new Set(
+        localRuntime.translateBatch.mock.calls.map(
+          ([request]) => request.sourceLanguage,
+        ),
+      ),
+    ).toEqual(new Set(["en", "auto"]));
+    session.restore();
+  });
+
+  it("skips an unresolved automatic Chrome source without reporting an error", async () => {
+    document.body.innerHTML = "<main><p>AI</p></main>";
+    localRuntime.translateBatch.mockRejectedValueOnce(
+      new NorixorTransError(
+        "无法检测网页语言，请手动选择源语言。",
+        "provider_unavailable",
+        false,
+        undefined,
+        "chrome_language_detection_failed",
+      ),
+    );
+    const session = new PageTranslationSession(vi.fn());
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.page.sourceLanguage = "auto";
+    settings.page.targetLanguage = "zh-CN";
+    settings.page.displayMode = "translated";
+
+    await session.translate(settings);
+
+    expect(session.getStatus()).toMatchObject({
+      state: "translated",
+      total: 1,
+      completed: 1,
+      failed: 0,
+    });
+    expect(document.body.textContent).toContain("AI");
+    session.restore();
+  });
+
+  it("skips an unavailable automatic Chrome pair without reporting a partial failure", async () => {
+    document.body.innerHTML = "<main><p>한국어 검색 결과</p></main>";
+    localRuntime.translateBatch.mockRejectedValueOnce(
+      new NorixorTransError(
+        "Chrome 本地翻译不支持当前语言对。",
+        "provider_unavailable",
+        false,
+        "Chrome Translator pair attempts: ko->de=downloadable, ko->de=create-Error.",
+        "chrome_pair_unavailable",
+      ),
+    );
+    const session = new PageTranslationSession(vi.fn());
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.page.sourceLanguage = "auto";
+    settings.page.targetLanguage = "de";
+    settings.page.displayMode = "translated";
+
+    await session.translate(settings);
+
+    expect(session.getStatus()).toMatchObject({
+      state: "translated",
+      total: 1,
+      completed: 1,
+      failed: 0,
+    });
+    expect(document.body.textContent).toContain("한국어 검색 결과");
+    session.restore();
+  });
+
+  it("still reports an unavailable Chrome pair for an explicit source language", async () => {
+    document.body.innerHTML = "<main><p>한국어 검색 결과</p></main>";
+    localRuntime.translateBatch.mockRejectedValueOnce(
+      new NorixorTransError(
+        "Chrome 本地翻译不支持当前语言对。",
+        "provider_unavailable",
+        false,
+        "Chrome Translator pair attempts: ko->de=downloadable, ko->de=create-Error.",
+        "chrome_pair_unavailable",
+      ),
+    );
+    const session = new PageTranslationSession(vi.fn());
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.page.sourceLanguage = "ko";
+    settings.page.targetLanguage = "de";
+    settings.page.displayMode = "translated";
+
+    await session.translate(settings);
+
+    expect(session.getStatus()).toMatchObject({
+      state: "error",
+      total: 1,
+      completed: 0,
+      failed: 1,
+    });
+    expect(session.getStatus().details).toContain("ko->de=create-Error");
     session.restore();
   });
 
@@ -801,6 +1022,308 @@ describe("PageTranslationSession", () => {
     expect(translationRequests[0]?.request).toMatchObject({
       sourceLanguage: "zh-CN",
       targetLanguage: "en",
+    });
+    session.restore();
+  });
+
+  it("routes a Google-like mixed page by segment instead of its zh-HK declaration", async () => {
+    vi.stubGlobal("chrome", {
+      i18n: {
+        detectLanguage: vi.fn((text: string) =>
+          Promise.resolve({
+            isReliable: true,
+            languages: [
+              {
+                language: /\p{Script=Hangul}/u.test(text)
+                  ? "ko"
+                  : /\p{Script=Latin}/u.test(text)
+                    ? "en"
+                    : "zh-TW",
+                percentage: 100,
+              },
+            ],
+          }),
+        ),
+      },
+    });
+    document.documentElement.lang = "zh-HK";
+    document.body.innerHTML = `<main>${Array.from(
+      { length: 79 },
+      (_, index) => `<p>搜尋結果 ${index + 1}</p>`,
+    ).join("")}${Array.from(
+      { length: 21 },
+      (_, index) => `<p>English search result ${index + 1}</p>`,
+    ).join("")}<p>한국어 검색 결과</p></main>`;
+    aiRuntime.sendMessage.mockImplementation((message) => {
+      if (
+        isRecord(message) &&
+        message.type === "LOCAL_TRANSLATION_RUNTIME_LIST"
+      ) {
+        return Promise.resolve({
+          ok: true,
+          runtimes: [
+            {
+              packId: "en-zh-Hans",
+              sourceLanguage: "en",
+              targetLanguage: "zh-Hans",
+              state: "installed",
+            },
+          ],
+        });
+      }
+      if (
+        !isRecord(message) ||
+        message.type !== "TRANSLATE" ||
+        !isRecord(message.request) ||
+        !Array.isArray(message.request.segments)
+      ) {
+        return Promise.resolve({ ok: true });
+      }
+      return Promise.resolve({
+        ok: true,
+        results: message.request.segments.map((segment: unknown) => {
+          if (!isRecord(segment) || typeof segment.id !== "string") {
+            throw new Error("invalid test segment");
+          }
+          const text = typeof segment.text === "string" ? segment.text : "";
+          return { id: segment.id, translatedText: `T:${text}` };
+        }),
+      });
+    });
+    const session = new PageTranslationSession(vi.fn());
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.provider.fastProvider = "bergamot-local";
+    settings.page.sourceLanguage = "auto";
+    settings.page.targetLanguage = "zh-CN";
+    settings.page.displayMode = "translated";
+
+    await session.translate(settings);
+
+    const translationRequests = aiRuntime.sendMessage.mock.calls
+      .map(([message]) => message)
+      .filter(
+        (message): message is Record<string, unknown> =>
+          isRecord(message) && message.type === "TRANSLATE",
+      );
+    expect(translationRequests.length).toBeGreaterThan(0);
+    expect(
+      translationRequests.every(
+        (message) =>
+          isRecord(message.request) &&
+          message.request.sourceLanguage === "en" &&
+          message.request.targetLanguage === "zh-CN",
+      ),
+    ).toBe(true);
+    expect(session.getStatus()).toMatchObject({
+      state: "translated",
+      total: 101,
+      completed: 101,
+      failed: 0,
+    });
+    expect(document.body.textContent).not.toContain("T:搜尋結果");
+    expect(document.body.textContent).toContain("T:English search result 1");
+    expect(document.body.textContent).toContain("한국어 검색 결과");
+    expect(document.body.textContent).not.toContain("T:한국어 검색 결과");
+    session.restore();
+  });
+
+  it("skips an unsupported language in automatic Bergamot mode without reporting an error", async () => {
+    vi.stubGlobal("chrome", {
+      i18n: {
+        detectLanguage: vi.fn(() =>
+          Promise.resolve({
+            isReliable: true,
+            languages: [{ language: "ko", percentage: 100 }],
+          }),
+        ),
+      },
+    });
+    document.body.innerHTML = "<main><p>한국어 검색 결과</p></main>";
+    aiRuntime.sendMessage.mockImplementation((message) => {
+      if (
+        isRecord(message) &&
+        message.type === "LOCAL_TRANSLATION_RUNTIME_LIST"
+      ) {
+        return Promise.resolve({
+          ok: true,
+          runtimes: [
+            {
+              packId: "en-zh-Hans",
+              sourceLanguage: "en",
+              targetLanguage: "zh-Hans",
+              state: "installed",
+            },
+          ],
+        });
+      }
+      return Promise.resolve({ ok: true });
+    });
+    const session = new PageTranslationSession(vi.fn());
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.provider.fastProvider = "bergamot-local";
+    settings.page.sourceLanguage = "auto";
+    settings.page.targetLanguage = "zh-CN";
+    settings.page.displayMode = "translated";
+
+    await session.translate(settings);
+
+    expect(session.getStatus()).toMatchObject({
+      state: "translated",
+      total: 1,
+      completed: 1,
+      failed: 0,
+    });
+    expect(document.body.textContent).toContain("한국어 검색 결과");
+    expect(
+      aiRuntime.sendMessage.mock.calls.some(
+        ([message]) => isRecord(message) && message.type === "TRANSLATE",
+      ),
+    ).toBe(false);
+    session.restore();
+  });
+
+  it("treats a missing source pack discovered by Bergamot as an automatic skip", async () => {
+    vi.stubGlobal("chrome", {
+      i18n: {
+        detectLanguage: vi.fn(() =>
+          Promise.resolve({
+            isReliable: true,
+            languages: [{ language: "ko", percentage: 100 }],
+          }),
+        ),
+      },
+    });
+    document.body.innerHTML = "<main><p>한국어 검색 결과</p></main>";
+    aiRuntime.sendMessage.mockImplementation((message) => {
+      if (isRecord(message) && message.type === "TRANSLATE") {
+        return Promise.resolve({
+          ok: false,
+          error: {
+            code: "provider_unavailable",
+            message: "当前翻译 Provider 不可用。",
+            retryable: false,
+            details: "Provider=bergamot-local; Missing packs=ko-en.",
+            reason: "bergamot_package_missing",
+          },
+        });
+      }
+      return Promise.resolve({ ok: true });
+    });
+    const session = new PageTranslationSession(vi.fn());
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.provider.fastProvider = "bergamot-local";
+    settings.page.sourceLanguage = "auto";
+    settings.page.targetLanguage = "zh-CN";
+    settings.page.displayMode = "translated";
+
+    await session.translate(settings);
+
+    expect(session.getStatus()).toMatchObject({
+      state: "translated",
+      total: 1,
+      completed: 1,
+      failed: 0,
+    });
+    expect(document.body.textContent).toContain("한국어 검색 결과");
+    session.restore();
+  });
+
+  it("shares an in-flight automatic Bergamot skip with matching dynamic text", async () => {
+    vi.stubGlobal("chrome", {
+      i18n: {
+        detectLanguage: vi.fn(() =>
+          Promise.resolve({
+            isReliable: true,
+            languages: [{ language: "ko", percentage: 100 }],
+          }),
+        ),
+      },
+    });
+    document.body.innerHTML = "<main><p>한국어 중복 문장</p></main>";
+    let resolveTranslation: ((value: unknown) => void) | undefined;
+    aiRuntime.sendMessage.mockImplementation((message) => {
+      if (isRecord(message) && message.type === "TRANSLATE") {
+        return new Promise((resolve) => {
+          resolveTranslation = resolve;
+        });
+      }
+      return Promise.resolve({ ok: true });
+    });
+    const session = new PageTranslationSession(vi.fn());
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.provider.fastProvider = "bergamot-local";
+    settings.page.sourceLanguage = "auto";
+    settings.page.targetLanguage = "zh-CN";
+    settings.page.displayMode = "translated";
+
+    const initial = session.translate(settings);
+    await vi.waitFor(() => expect(resolveTranslation).toBeTypeOf("function"));
+    const dynamic = document.createElement("p");
+    dynamic.textContent = "한국어 중복 문장";
+    document.querySelector("main")?.append(dynamic);
+    await new Promise((resolve) => window.setTimeout(resolve, 450));
+    expect(
+      aiRuntime.sendMessage.mock.calls.filter(
+        ([message]) => isRecord(message) && message.type === "TRANSLATE",
+      ),
+    ).toHaveLength(1);
+
+    resolveTranslation?.({
+      ok: false,
+      error: {
+        code: "provider_unavailable",
+        message: "当前翻译 Provider 不可用。",
+        retryable: false,
+        details: "Provider=bergamot-local; Missing packs=ko-en.",
+        reason: "bergamot_package_missing",
+      },
+    });
+    await initial;
+    await vi.waitFor(() =>
+      expect(session.getStatus()).toMatchObject({
+        state: "translated",
+        total: 2,
+        completed: 2,
+        failed: 0,
+      }),
+    );
+    expect(
+      [...document.querySelectorAll("p")].map((node) => node.textContent),
+    ).toEqual(["한국어 중복 문장", "한국어 중복 문장"]);
+    session.restore();
+  });
+
+  it("still reports a missing Bergamot pack for an explicit source language", async () => {
+    document.body.innerHTML = "<main><p>한국어 검색 결과</p></main>";
+    aiRuntime.sendMessage.mockImplementation((message) =>
+      isRecord(message) && message.type === "TRANSLATE"
+        ? Promise.resolve({
+            ok: false,
+            error: {
+              code: "provider_unavailable",
+              message: "当前翻译 Provider 不可用。",
+              retryable: false,
+              details: "Provider=bergamot-local; Missing packs=ko-en.",
+              reason: "bergamot_package_missing",
+            },
+          })
+        : Promise.resolve({ ok: true }),
+    );
+    const session = new PageTranslationSession(vi.fn());
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.provider.fastProvider = "bergamot-local";
+    settings.page.sourceLanguage = "ko";
+    settings.page.targetLanguage = "zh-CN";
+    settings.page.displayMode = "translated";
+
+    await session.translate(settings);
+
+    expect(session.getStatus()).toMatchObject({
+      state: "error",
+      total: 1,
+      completed: 0,
+      failed: 1,
+      details: "Provider=bergamot-local; Missing packs=ko-en.",
     });
     session.restore();
   });

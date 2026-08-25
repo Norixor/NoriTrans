@@ -4,6 +4,7 @@ export class NorixorTransError extends Error {
     readonly code: string,
     readonly retryable = false,
     readonly details?: string,
+    readonly reason?: string,
   ) {
     super(message);
     this.name = "NorixorTransError";

@@ -352,6 +352,14 @@ export const UNIFIED_FLOATING_CONTROL_STYLE = `
     cursor: pointer;
     font: 650 12.5px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   }
+  select { color-scheme: light; }
+  select option {
+    background-color: var(--nt-bg);
+    color: var(--nt-text);
+  }
+  @media (prefers-color-scheme: dark) {
+    select { color-scheme: dark; }
+  }
   .compact-input { padding-right: 4px; border-bottom: 1px solid var(--nt-border-muted); }
   .checkbox {
     min-width: 0;

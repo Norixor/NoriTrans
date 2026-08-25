@@ -569,6 +569,13 @@ textarea {
   background: var(--surface);
   color: var(--text);
 }
+select {
+  color-scheme: light;
+}
+select option {
+  background-color: var(--surface);
+  color: var(--text);
+}
 textarea {
   min-height: 118px;
   resize: vertical;
@@ -1605,6 +1612,15 @@ textarea {
   textarea,
   .button-secondary {
     border-color: #565047;
+  }
+
+  select {
+    color-scheme: dark;
+  }
+
+  select option {
+    background-color: var(--surface);
+    color: var(--text);
   }
 
   .switch-label > span {

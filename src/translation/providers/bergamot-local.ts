@@ -124,6 +124,7 @@ function providerError(error: unknown): NorixorTransError {
         0,
         1_000,
       ),
+      missingOrUnsupported ? error.code : undefined,
     );
   }
   return new NorixorTransError(
