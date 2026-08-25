@@ -171,7 +171,7 @@
               <p>__MSG_providerPrivacyNotice__</p>
             </div>
 
-            <div class="form-grid two-columns">
+            <div class="form-grid">
               <label class="field-label" for="fast-provider">
                 <span>__MSG_fastProvider__</span>
                 <select id="fast-provider" name="fast-provider">
@@ -181,9 +181,6 @@
                   <option value="bergamot-local">
                     __MSG_providerBergamotLocal__
                   </option>
-                  <option value="openai-compatible">
-                    __MSG_providerOpenAiCompatible__
-                  </option>
                   <option value="google-translate">
                     __MSG_providerGoogleTranslate__
                   </option>
@@ -191,14 +188,6 @@
                     __MSG_providerMicrosoftTranslator__
                   </option>
                   <option value="deepl">__MSG_providerDeepL__</option>
-                </select>
-              </label>
-              <label class="field-label" for="ai-provider">
-                <span>__MSG_aiProvider__</span>
-                <select id="ai-provider" name="ai-provider" disabled>
-                  <option value="openai-compatible">
-                    __MSG_providerOpenAiCompatible__
-                  </option>
                 </select>
               </label>
             </div>
@@ -272,6 +261,17 @@
             <h3 class="provider-subheading">__MSG_aiProviderConfiguration__</h3>
 
             <div class="form-grid provider-fields">
+              <label class="field-label" for="ai-provider">
+                <span>__MSG_aiProvider__</span>
+                <select id="ai-provider" name="ai-provider">
+                  <option value="openai-compatible">
+                    __MSG_providerOpenAiCompatible__
+                  </option>
+                  <option value="anthropic-messages">
+                    __MSG_providerAnthropicMessages__
+                  </option>
+                </select>
+              </label>
               <label class="field-label" for="base-url">
                 <span>__MSG_baseUrl__</span>
                 <input
@@ -539,10 +539,7 @@
               </label>
               <label class="field-label" for="page-mode">
                 <span>__MSG_translationMode__</span>
-                <select id="page-mode" name="page-mode">
-                  <option value="fast">__MSG_modeFast__</option>
-                  <option value="ai">__MSG_modeAi__</option>
-                </select>
+                <select id="page-mode" name="page-mode"></select>
               </label>
               <label class="field-label" for="page-response-mode">
                 <span>__MSG_aiResponseMode__</span>
@@ -616,10 +613,7 @@
                 <select
                   id="selection-translation-mode"
                   name="selection-translation-mode"
-                >
-                  <option value="fast">__MSG_modeFast__</option>
-                  <option value="ai">__MSG_modeAi__</option>
-                </select>
+                ></select>
               </label>
               <label
                 class="field-label"
@@ -936,10 +930,7 @@
               </label>
               <label class="field-label" for="subtitle-mode">
                 <span>__MSG_subtitleTranslationMode__</span>
-                <select id="subtitle-mode" name="subtitle-mode">
-                  <option value="fast">__MSG_modeFast__</option>
-                  <option value="ai">__MSG_modeAi__</option>
-                </select>
+                <select id="subtitle-mode" name="subtitle-mode"></select>
               </label>
               <label class="field-label" for="subtitle-response-mode">
                 <span>__MSG_aiResponseMode__</span>
@@ -1060,7 +1051,7 @@
               </section>
 
               <section
-                class="profile-json-editor"
+                class="profile-form-editor"
                 aria-labelledby="profile-editor-heading"
               >
                 <div class="profile-editor-heading">
@@ -1071,36 +1062,714 @@
                     >
                   </div>
                   <button
-                    id="profile-copy-current"
+                    id="profile-file-open"
                     class="button button-secondary"
                     type="button"
                   >
-                    __MSG_profileCopyJson__
+                    __MSG_profileFileOpen__
                   </button>
                 </div>
                 <p id="profile-editor-note" class="profile-editor-note">
                   __MSG_profileEditorEmpty__
                 </p>
-                <label class="profile-json-label" for="profile-json"
-                  >__MSG_profileJsonLabel__</label
-                >
-                <textarea
-                  id="profile-json"
-                  name="profile-json"
-                  rows="22"
-                  maxlength="50000"
-                  spellcheck="false"
-                  autocomplete="off"
-                  aria-describedby="profile-editor-note profile-message"
-                ></textarea>
-                <div class="profile-editor-actions">
-                  <button
-                    id="profile-format"
-                    class="button button-secondary"
-                    type="button"
+
+                <div class="profile-default-note" role="note">
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    width="20"
+                    height="20"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
                   >
-                    __MSG_profileFormatJson__
-                  </button>
+                    <path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Z" />
+                    <path d="M12 11v6M12 7h.01" />
+                  </svg>
+                  <div>
+                    <strong>__MSG_profileDefaultsTitle__</strong>
+                    <p>__MSG_profileDefaultsDescription__</p>
+                  </div>
+                </div>
+
+                <div class="profile-identity-grid">
+                  <label class="field-label" for="profile-name">
+                    <span>__MSG_profileName__</span>
+                    <input
+                      id="profile-name"
+                      name="profile-name"
+                      type="text"
+                      maxlength="120"
+                      autocomplete="off"
+                      spellcheck="false"
+                      placeholder="__MSG_profileNamePlaceholder__"
+                    />
+                  </label>
+                  <label class="field-label" for="profile-hostname">
+                    <span>__MSG_profileHostname__</span>
+                    <input
+                      id="profile-hostname"
+                      name="profile-hostname"
+                      type="text"
+                      maxlength="253"
+                      autocomplete="off"
+                      autocapitalize="none"
+                      spellcheck="false"
+                      placeholder="__MSG_profileHostnamePlaceholder__"
+                    />
+                    <small>__MSG_profileHostnameHelp__</small>
+                  </label>
+                </div>
+
+                <div class="profile-surface-list">
+                  <section class="profile-surface-card">
+                    <header class="profile-surface-heading">
+                      <div>
+                        <div class="profile-surface-title-line">
+                          <h4>__MSG_profilePageTitle__</h4>
+                          <span class="profile-inherit-state"
+                            >__MSG_profileInheritsGlobal__</span
+                          >
+                          <span class="profile-override-state"
+                            >__MSG_profileSiteOverride__</span
+                          >
+                        </div>
+                        <p>__MSG_profilePageDescription__</p>
+                      </div>
+                      <label
+                        class="profile-override-toggle"
+                        for="profile-page-override"
+                      >
+                        <input
+                          id="profile-page-override"
+                          name="profile-page-override"
+                          type="checkbox"
+                        />
+                        <span>__MSG_profileOverrideToggle__</span>
+                      </label>
+                    </header>
+                    <div class="profile-surface-fields">
+                      <label
+                        class="field-label"
+                        for="profile-page-source-language"
+                      >
+                        <span>__MSG_sourceLanguage__</span>
+                        <select
+                          id="profile-page-source-language"
+                          name="profile-page-source-language"
+                        ></select>
+                      </label>
+                      <label
+                        class="field-label"
+                        for="profile-page-target-language"
+                      >
+                        <span>__MSG_targetLanguage__</span>
+                        <select
+                          id="profile-page-target-language"
+                          name="profile-page-target-language"
+                        ></select>
+                      </label>
+                      <label class="field-label" for="profile-page-method">
+                        <span>__MSG_profileTranslationMethod__</span>
+                        <select
+                          id="profile-page-method"
+                          name="profile-page-method"
+                        ></select>
+                      </label>
+                      <label class="field-label" for="profile-page-model">
+                        <span>__MSG_model__</span>
+                        <input
+                          id="profile-page-model"
+                          name="profile-page-model"
+                          type="text"
+                          maxlength="256"
+                          autocomplete="off"
+                          spellcheck="false"
+                          placeholder="__MSG_profileModelPlaceholder__"
+                        />
+                      </label>
+                      <label
+                        class="field-label"
+                        for="profile-page-response-mode"
+                      >
+                        <span>__MSG_aiResponseMode__</span>
+                        <select
+                          id="profile-page-response-mode"
+                          name="profile-page-response-mode"
+                        >
+                          <option value="stream">
+                            __MSG_responseModeStream__
+                          </option>
+                          <option value="batch">
+                            __MSG_responseModeBatch__
+                          </option>
+                        </select>
+                      </label>
+                      <label
+                        class="field-label"
+                        for="profile-page-display-mode"
+                      >
+                        <span>__MSG_displayMode__</span>
+                        <select
+                          id="profile-page-display-mode"
+                          name="profile-page-display-mode"
+                        >
+                          <option value="translated">
+                            __MSG_pageDisplayReplace__
+                          </option>
+                          <option value="bilingual">
+                            __MSG_pageDisplayAppend__
+                          </option>
+                        </select>
+                      </label>
+                      <div class="profile-option-grid profile-option-wide">
+                        <label
+                          class="profile-option-toggle"
+                          for="profile-page-auto-translate"
+                        >
+                          <input
+                            id="profile-page-auto-translate"
+                            name="profile-page-auto-translate"
+                            type="checkbox"
+                          />
+                          <span
+                            ><strong>__MSG_profileAutoTranslate__</strong></span
+                          >
+                        </label>
+                        <label
+                          class="profile-option-toggle"
+                          for="profile-page-floating-button"
+                        >
+                          <input
+                            id="profile-page-floating-button"
+                            name="profile-page-floating-button"
+                            type="checkbox"
+                          />
+                          <span
+                            ><strong
+                              >__MSG_profileFloatingButton__</strong
+                            ></span
+                          >
+                        </label>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section class="profile-surface-card">
+                    <header class="profile-surface-heading">
+                      <div>
+                        <div class="profile-surface-title-line">
+                          <h4>__MSG_profileSelectionTitle__</h4>
+                          <span class="profile-inherit-state"
+                            >__MSG_profileInheritsGlobal__</span
+                          >
+                          <span class="profile-override-state"
+                            >__MSG_profileSiteOverride__</span
+                          >
+                        </div>
+                        <p>__MSG_profileSelectionDescription__</p>
+                      </div>
+                      <label
+                        class="profile-override-toggle"
+                        for="profile-selection-override"
+                      >
+                        <input
+                          id="profile-selection-override"
+                          name="profile-selection-override"
+                          type="checkbox"
+                        />
+                        <span>__MSG_profileOverrideToggle__</span>
+                      </label>
+                    </header>
+                    <div class="profile-surface-fields">
+                      <label
+                        class="field-label"
+                        for="profile-selection-source-language"
+                      >
+                        <span>__MSG_sourceLanguage__</span>
+                        <select
+                          id="profile-selection-source-language"
+                          name="profile-selection-source-language"
+                        ></select>
+                      </label>
+                      <label
+                        class="field-label"
+                        for="profile-selection-target-language"
+                      >
+                        <span>__MSG_targetLanguage__</span>
+                        <select
+                          id="profile-selection-target-language"
+                          name="profile-selection-target-language"
+                        ></select>
+                      </label>
+                      <label class="field-label" for="profile-selection-method">
+                        <span>__MSG_profileTranslationMethod__</span>
+                        <select
+                          id="profile-selection-method"
+                          name="profile-selection-method"
+                        ></select>
+                      </label>
+                      <label class="field-label" for="profile-selection-model">
+                        <span>__MSG_model__</span>
+                        <input
+                          id="profile-selection-model"
+                          name="profile-selection-model"
+                          type="text"
+                          maxlength="256"
+                          autocomplete="off"
+                          spellcheck="false"
+                          placeholder="__MSG_profileModelPlaceholder__"
+                        />
+                      </label>
+                      <label
+                        class="field-label"
+                        for="profile-selection-response-mode"
+                      >
+                        <span>__MSG_aiResponseMode__</span>
+                        <select
+                          id="profile-selection-response-mode"
+                          name="profile-selection-response-mode"
+                        >
+                          <option value="stream">
+                            __MSG_responseModeStream__
+                          </option>
+                          <option value="batch">
+                            __MSG_responseModeBatch__
+                          </option>
+                        </select>
+                      </label>
+                      <label
+                        class="field-label"
+                        for="profile-selection-display-mode"
+                      >
+                        <span>__MSG_displayMode__</span>
+                        <select
+                          id="profile-selection-display-mode"
+                          name="profile-selection-display-mode"
+                        >
+                          <option value="translated">
+                            __MSG_displayTranslated__
+                          </option>
+                          <option value="bilingual">
+                            __MSG_displayBilingual__
+                          </option>
+                        </select>
+                      </label>
+                      <label
+                        class="profile-option-toggle profile-option-wide"
+                        for="profile-selection-enabled"
+                      >
+                        <input
+                          id="profile-selection-enabled"
+                          name="profile-selection-enabled"
+                          type="checkbox"
+                        />
+                        <span
+                          ><strong
+                            >__MSG_profileSelectionEnabled__</strong
+                          ></span
+                        >
+                      </label>
+                    </div>
+                  </section>
+
+                  <section class="profile-surface-card profile-subtitle-card">
+                    <header class="profile-surface-heading">
+                      <div>
+                        <div class="profile-surface-title-line">
+                          <h4>__MSG_profileSubtitleTitle__</h4>
+                          <span class="profile-inherit-state"
+                            >__MSG_profileInheritsGlobal__</span
+                          >
+                          <span class="profile-override-state"
+                            >__MSG_profileSiteOverride__</span
+                          >
+                        </div>
+                        <p>__MSG_profileSubtitleDescription__</p>
+                      </div>
+                      <label
+                        class="profile-override-toggle"
+                        for="profile-subtitle-override"
+                      >
+                        <input
+                          id="profile-subtitle-override"
+                          name="profile-subtitle-override"
+                          type="checkbox"
+                        />
+                        <span>__MSG_profileOverrideToggle__</span>
+                      </label>
+                    </header>
+                    <div class="profile-surface-fields">
+                      <label
+                        class="field-label"
+                        for="profile-subtitle-source-language"
+                      >
+                        <span>__MSG_sourceLanguage__</span>
+                        <select
+                          id="profile-subtitle-source-language"
+                          name="profile-subtitle-source-language"
+                        ></select>
+                      </label>
+                      <label
+                        class="field-label"
+                        for="profile-subtitle-target-language"
+                      >
+                        <span>__MSG_targetLanguage__</span>
+                        <select
+                          id="profile-subtitle-target-language"
+                          name="profile-subtitle-target-language"
+                        ></select>
+                      </label>
+                      <label class="field-label" for="profile-subtitle-method">
+                        <span>__MSG_profileTranslationMethod__</span>
+                        <select
+                          id="profile-subtitle-method"
+                          name="profile-subtitle-method"
+                        ></select>
+                      </label>
+                      <label class="field-label" for="profile-subtitle-model">
+                        <span>__MSG_model__</span>
+                        <input
+                          id="profile-subtitle-model"
+                          name="profile-subtitle-model"
+                          type="text"
+                          maxlength="256"
+                          autocomplete="off"
+                          spellcheck="false"
+                          placeholder="__MSG_profileModelPlaceholder__"
+                        />
+                      </label>
+                      <label
+                        class="field-label"
+                        for="profile-subtitle-response-mode"
+                      >
+                        <span>__MSG_aiResponseMode__</span>
+                        <select
+                          id="profile-subtitle-response-mode"
+                          name="profile-subtitle-response-mode"
+                        >
+                          <option value="stream">
+                            __MSG_responseModeStream__
+                          </option>
+                          <option value="batch">
+                            __MSG_responseModeBatch__
+                          </option>
+                        </select>
+                      </label>
+                      <label
+                        class="field-label"
+                        for="profile-subtitle-display-mode"
+                      >
+                        <span>__MSG_displayMode__</span>
+                        <select
+                          id="profile-subtitle-display-mode"
+                          name="profile-subtitle-display-mode"
+                        >
+                          <option value="translated">
+                            __MSG_displayTranslated__
+                          </option>
+                          <option value="bilingual">
+                            __MSG_displayBilingual__
+                          </option>
+                          <option value="original">
+                            __MSG_displayOriginal__
+                          </option>
+                        </select>
+                      </label>
+                      <label
+                        class="field-label"
+                        for="profile-subtitle-position"
+                      >
+                        <span>__MSG_subtitlePosition__</span>
+                        <select
+                          id="profile-subtitle-position"
+                          name="profile-subtitle-position"
+                        >
+                          <option value="top">
+                            __MSG_subtitlePositionTop__
+                          </option>
+                          <option value="center">
+                            __MSG_subtitlePositionCenter__
+                          </option>
+                          <option value="bottom">
+                            __MSG_subtitlePositionBottom__
+                          </option>
+                          <option value="custom">
+                            __MSG_subtitlePositionCustom__
+                          </option>
+                        </select>
+                      </label>
+                      <label
+                        class="field-label"
+                        for="profile-subtitle-font-scale"
+                      >
+                        <span>__MSG_subtitleFontSize__</span>
+                        <input
+                          id="profile-subtitle-font-scale"
+                          name="profile-subtitle-font-scale"
+                          type="number"
+                          min="0.75"
+                          max="1.8"
+                          step="0.05"
+                        />
+                      </label>
+                      <label
+                        class="field-label"
+                        for="profile-subtitle-background-opacity"
+                      >
+                        <span>__MSG_subtitleBackground__</span>
+                        <input
+                          id="profile-subtitle-background-opacity"
+                          name="profile-subtitle-background-opacity"
+                          type="number"
+                          min="0.3"
+                          max="0.95"
+                          step="0.05"
+                        />
+                      </label>
+                      <label
+                        class="field-label"
+                        for="profile-subtitle-custom-x"
+                      >
+                        <span>__MSG_profileCustomPositionX__</span>
+                        <input
+                          id="profile-subtitle-custom-x"
+                          name="profile-subtitle-custom-x"
+                          type="number"
+                          min="0"
+                          max="1"
+                          step="0.01"
+                        />
+                      </label>
+                      <label
+                        class="field-label"
+                        for="profile-subtitle-custom-y"
+                      >
+                        <span>__MSG_profileCustomPositionY__</span>
+                        <input
+                          id="profile-subtitle-custom-y"
+                          name="profile-subtitle-custom-y"
+                          type="number"
+                          min="0"
+                          max="1"
+                          step="0.01"
+                        />
+                      </label>
+                      <div class="profile-option-grid profile-option-wide">
+                        <label
+                          class="profile-option-toggle"
+                          for="profile-subtitle-enabled"
+                        >
+                          <input
+                            id="profile-subtitle-enabled"
+                            name="profile-subtitle-enabled"
+                            type="checkbox"
+                          />
+                          <span
+                            ><strong
+                              >__MSG_profileSubtitleEnabled__</strong
+                            ></span
+                          >
+                        </label>
+                        <label
+                          class="profile-option-toggle"
+                          for="profile-subtitle-floating-button"
+                        >
+                          <input
+                            id="profile-subtitle-floating-button"
+                            name="profile-subtitle-floating-button"
+                            type="checkbox"
+                          />
+                          <span
+                            ><strong
+                              >__MSG_profileFloatingButton__</strong
+                            ></span
+                          >
+                        </label>
+                        <label
+                          class="profile-option-toggle"
+                          for="profile-subtitle-hide-native"
+                        >
+                          <input
+                            id="profile-subtitle-hide-native"
+                            name="profile-subtitle-hide-native"
+                            type="checkbox"
+                          />
+                          <span
+                            ><strong>__MSG_profileHideNative__</strong></span
+                          >
+                        </label>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section class="profile-surface-card profile-capture-card">
+                    <header class="profile-surface-heading">
+                      <div>
+                        <div class="profile-surface-title-line">
+                          <h4>__MSG_profileCaptureTitle__</h4>
+                          <span class="profile-inherit-state"
+                            >__MSG_profileCaptureBuiltin__</span
+                          >
+                          <span class="profile-override-state"
+                            >__MSG_profileSiteOverride__</span
+                          >
+                        </div>
+                        <p>__MSG_profileCaptureDescription__</p>
+                      </div>
+                      <label
+                        class="profile-override-toggle"
+                        for="profile-capture-override"
+                      >
+                        <input
+                          id="profile-capture-override"
+                          name="profile-capture-override"
+                          type="checkbox"
+                        />
+                        <span>__MSG_profileCaptureOverrideToggle__</span>
+                      </label>
+                    </header>
+                    <details
+                      id="profile-capture-details"
+                      class="profile-capture-details"
+                    >
+                      <summary>__MSG_profileCaptureAdvancedOpen__</summary>
+                      <div class="profile-capture-fields">
+                        <div class="profile-capture-basic-grid">
+                          <label
+                            class="field-label"
+                            for="profile-capture-parser"
+                          >
+                            <span>__MSG_profileCaptureParser__</span>
+                            <select
+                              id="profile-capture-parser"
+                              name="profile-capture-parser"
+                            >
+                              <option value="html5">HTML5 TextTrack</option>
+                              <option value="youtube">YouTube timedtext</option>
+                              <option value="netflix">Netflix manifest</option>
+                              <option value="dom">DOM / Network</option>
+                            </select>
+                          </label>
+                          <label
+                            class="field-label"
+                            for="profile-capture-priority"
+                          >
+                            <span>__MSG_profileCapturePriority__</span>
+                            <input
+                              id="profile-capture-priority"
+                              name="profile-capture-priority"
+                              type="number"
+                              min="0"
+                              max="1000"
+                              step="1"
+                            />
+                          </label>
+                          <label
+                            class="field-label"
+                            for="profile-capture-formats"
+                          >
+                            <span>__MSG_profileCaptureFormats__</span>
+                            <select
+                              id="profile-capture-formats"
+                              name="profile-capture-formats"
+                              multiple
+                              size="3"
+                            >
+                              <option value="vtt">WebVTT</option>
+                              <option value="ttml">TTML</option>
+                              <option value="json3">JSON3</option>
+                            </select>
+                          </label>
+                        </div>
+                        <label
+                          class="field-label"
+                          for="profile-capture-video-selector"
+                        >
+                          <span>__MSG_profileCaptureVideoSelector__</span>
+                          <input
+                            id="profile-capture-video-selector"
+                            name="profile-capture-video-selector"
+                            type="text"
+                            maxlength="500"
+                            spellcheck="false"
+                          />
+                        </label>
+                        <div class="profile-capture-text-grid">
+                          <label
+                            class="field-label"
+                            for="profile-capture-caption-selectors"
+                          >
+                            <span>__MSG_profileCaptureCaptionSelectors__</span>
+                            <textarea
+                              id="profile-capture-caption-selectors"
+                              name="profile-capture-caption-selectors"
+                              rows="4"
+                              spellcheck="false"
+                            ></textarea>
+                            <small>__MSG_profileOnePerLine__</small>
+                          </label>
+                          <label
+                            class="field-label"
+                            for="profile-capture-native-selectors"
+                          >
+                            <span>__MSG_profileCaptureNativeSelectors__</span>
+                            <textarea
+                              id="profile-capture-native-selectors"
+                              name="profile-capture-native-selectors"
+                              rows="4"
+                              spellcheck="false"
+                            ></textarea>
+                            <small>__MSG_profileOnePerLine__</small>
+                          </label>
+                          <label
+                            class="field-label"
+                            for="profile-capture-hostnames"
+                          >
+                            <span>__MSG_profileCaptureHostnames__</span>
+                            <textarea
+                              id="profile-capture-hostnames"
+                              name="profile-capture-hostnames"
+                              rows="4"
+                              spellcheck="false"
+                            ></textarea>
+                            <small>__MSG_profileOnePerLine__</small>
+                          </label>
+                          <label
+                            class="field-label"
+                            for="profile-capture-url-patterns"
+                          >
+                            <span>__MSG_profileCaptureUrlPatterns__</span>
+                            <textarea
+                              id="profile-capture-url-patterns"
+                              name="profile-capture-url-patterns"
+                              rows="4"
+                              spellcheck="false"
+                            ></textarea>
+                            <small>__MSG_profileOnePerLine__</small>
+                          </label>
+                          <label
+                            class="field-label"
+                            for="profile-capture-complete-patterns"
+                          >
+                            <span>__MSG_profileCaptureCompletePatterns__</span>
+                            <textarea
+                              id="profile-capture-complete-patterns"
+                              name="profile-capture-complete-patterns"
+                              rows="4"
+                              spellcheck="false"
+                            ></textarea>
+                            <small>__MSG_profileOnePerLine__</small>
+                          </label>
+                        </div>
+                      </div>
+                    </details>
+                  </section>
+                </div>
+
+                <div class="profile-editor-actions">
                   <button
                     id="profile-cancel"
                     class="button button-secondary"
@@ -1138,51 +1807,148 @@
                   aria-live="polite"
                 ></p>
               </section>
-            </div>
 
-            <details class="profile-reference">
-              <summary>__MSG_profileTemplateAndFields__</summary>
-              <div class="profile-template-heading">
-                <p>__MSG_profileTemplateDescription__</p>
-                <button
-                  id="profile-copy-template"
-                  class="button button-secondary"
-                  type="button"
-                >
-                  __MSG_profileCopyTemplate__
-                </button>
-              </div>
-              <pre id="profile-template" tabindex="0"></pre>
-              <dl class="profile-field-guide">
-                <div>
-                  <dt>id / version / name</dt>
-                  <dd>__MSG_profileFieldIdentity__</dd>
+              <dialog
+                id="profile-file-dialog"
+                class="profile-file-dialog"
+                aria-labelledby="profile-file-title"
+              >
+                <div class="profile-file-dialog-shell">
+                  <header class="profile-file-dialog-header">
+                    <div>
+                      <h2 id="profile-file-title">
+                        __MSG_profileAdvancedTitle__
+                      </h2>
+                      <p>__MSG_profileAdvancedDescription__</p>
+                    </div>
+                    <div class="profile-file-dialog-actions">
+                      <input
+                        id="profile-file-input"
+                        name="profile-file-input"
+                        type="file"
+                        accept="application/json,.json"
+                        hidden
+                      />
+                      <button
+                        id="profile-file-import"
+                        class="button button-secondary"
+                        type="button"
+                      >
+                        __MSG_profileFileImport__
+                      </button>
+                      <button
+                        id="profile-file-export"
+                        class="button button-secondary"
+                        type="button"
+                      >
+                        __MSG_profileFileExport__
+                      </button>
+                      <button
+                        id="profile-file-close"
+                        class="button button-secondary"
+                        type="button"
+                      >
+                        __MSG_profileFileClose__
+                      </button>
+                    </div>
+                  </header>
+                  <div class="profile-advanced-content">
+                    <section
+                      class="profile-json-editor"
+                      aria-labelledby="profile-json-heading"
+                    >
+                      <div class="profile-json-heading">
+                        <div>
+                          <h3 id="profile-json-heading">
+                            __MSG_profileJsonEditorTitle__
+                          </h3>
+                          <p>__MSG_profileJsonEditorDescription__</p>
+                        </div>
+                        <button
+                          id="profile-copy-current"
+                          class="button button-secondary"
+                          type="button"
+                        >
+                          __MSG_profileCopyJson__
+                        </button>
+                      </div>
+                      <label class="profile-json-label" for="profile-json"
+                        >__MSG_profileJsonLabel__</label
+                      >
+                      <textarea
+                        id="profile-json"
+                        name="profile-json"
+                        rows="22"
+                        maxlength="50000"
+                        spellcheck="false"
+                        autocomplete="off"
+                        aria-describedby="profile-editor-note profile-message"
+                      ></textarea>
+                      <div class="profile-json-actions">
+                        <button
+                          id="profile-format"
+                          class="button button-secondary"
+                          type="button"
+                        >
+                          __MSG_profileFormatJson__
+                        </button>
+                      </div>
+                    </section>
+
+                    <section
+                      class="profile-reference"
+                      aria-labelledby="profile-reference-heading"
+                    >
+                      <div class="profile-template-heading">
+                        <div>
+                          <h3 id="profile-reference-heading">
+                            __MSG_profileTemplateAndFields__
+                          </h3>
+                          <p>__MSG_profileTemplateDescription__</p>
+                        </div>
+                        <button
+                          id="profile-copy-template"
+                          class="button button-secondary"
+                          type="button"
+                        >
+                          __MSG_profileCopyTemplate__
+                        </button>
+                      </div>
+                      <pre id="profile-template" tabindex="0"></pre>
+                      <dl class="profile-field-guide">
+                        <div>
+                          <dt>id / version / name</dt>
+                          <dd>__MSG_profileFieldIdentity__</dd>
+                        </div>
+                        <div>
+                          <dt>overrides</dt>
+                          <dd>__MSG_profileFieldOverrides__</dd>
+                        </div>
+                        <div>
+                          <dt>subtitleCapture.customized</dt>
+                          <dd>__MSG_profileFieldCaptureCustomized__</dd>
+                        </div>
+                        <div>
+                          <dt>match</dt>
+                          <dd>__MSG_profileFieldMatch__</dd>
+                        </div>
+                        <div>
+                          <dt>subtitleCapture.parser / priority</dt>
+                          <dd id="profile-parser-guide"></dd>
+                        </div>
+                        <div>
+                          <dt>subtitleCapture.selectors / capture</dt>
+                          <dd>__MSG_profileFieldCapture__</dd>
+                        </div>
+                      </dl>
+                      <p class="profile-safety-note">
+                        __MSG_profileCaptureNarrowOnly__
+                      </p>
+                    </section>
+                  </div>
                 </div>
-                <div>
-                  <dt>parser</dt>
-                  <dd id="profile-parser-guide"></dd>
-                </div>
-                <div>
-                  <dt>priority</dt>
-                  <dd>__MSG_profileFieldPriority__</dd>
-                </div>
-                <div>
-                  <dt>match</dt>
-                  <dd>__MSG_profileFieldMatch__</dd>
-                </div>
-                <div>
-                  <dt>selectors</dt>
-                  <dd>__MSG_profileFieldSelectors__</dd>
-                </div>
-                <div>
-                  <dt>capture</dt>
-                  <dd>__MSG_profileFieldCapture__</dd>
-                </div>
-              </dl>
-              <p class="profile-safety-note">
-                __MSG_profileCaptureNarrowOnly__
-              </p>
-            </details>
+              </dialog>
+            </div>
           </section>
 
           <section

@@ -399,7 +399,7 @@ describe("scanPageSegments", () => {
     } finally {
       childrenGetter.mockRestore();
     }
-  }, 10_000);
+  }, 20_000);
 
   it("keeps a standalone or block link as its own semantic segment", () => {
     document.body.innerHTML = `

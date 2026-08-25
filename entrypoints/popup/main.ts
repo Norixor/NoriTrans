@@ -233,7 +233,7 @@ async function initialize(): Promise<void> {
     const method = parseTranslationMethod(translationMethodSelect.value);
     const provider =
       method?.mode === "ai"
-        ? "openai-compatible"
+        ? settings.provider.aiProvider
         : (method?.fastProvider ?? settings.provider.fastProvider);
     const sourceLanguage = sourceSelect.value || settings.page.sourceLanguage;
     const targetLanguage = targetSelect.value || settings.page.targetLanguage;
@@ -341,7 +341,7 @@ async function initialize(): Promise<void> {
     const method = parseTranslationMethod(translationMethodSelect.value);
     const provider =
       method?.mode === "ai"
-        ? "openai-compatible"
+        ? settings.provider.aiProvider
         : (method?.fastProvider ?? settings.provider.fastProvider);
     const pairAvailable =
       !translationCapabilities ||

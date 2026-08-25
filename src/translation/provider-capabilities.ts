@@ -7,7 +7,9 @@ import {
 } from "@/src/local-translation/languages";
 import { normalizeBergamotLanguage } from "@/src/local-translation/types";
 import { SOURCE_LANGUAGES, TARGET_LANGUAGES } from "@/src/shared/languages";
-import type { FastProviderId } from "@/src/shared/settings";
+import type { AiProviderId, FastProviderId } from "@/src/shared/settings";
+
+export type LanguageCapabilityProviderId = FastProviderId | AiProviderId;
 import {
   chromeTranslatorLanguage,
   chromeTranslatorSourceLanguageCandidates,
@@ -103,7 +105,7 @@ export async function queryDocumentTranslationCapabilities(): Promise<Translatio
 }
 
 export function providerLanguagePairAvailable(
-  provider: FastProviderId,
+  provider: LanguageCapabilityProviderId,
   sourceLanguage: string,
   targetLanguage: string,
   capabilities: TranslationCapabilities,
@@ -138,7 +140,7 @@ export function providerLanguagePairAvailable(
 }
 
 export function providerSourceLanguageAvailable(
-  provider: FastProviderId,
+  provider: LanguageCapabilityProviderId,
   sourceLanguage: string,
   capabilities: TranslationCapabilities,
 ): boolean {
@@ -153,7 +155,7 @@ export function providerSourceLanguageAvailable(
 }
 
 export function providerTargetLanguageAvailable(
-  provider: FastProviderId,
+  provider: LanguageCapabilityProviderId,
   targetLanguage: string,
   capabilities: TranslationCapabilities,
 ): boolean {

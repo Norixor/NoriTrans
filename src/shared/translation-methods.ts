@@ -1,8 +1,7 @@
 import type { FastProviderId } from "@/src/shared/settings";
 import type { TranslationMode } from "@/src/translation/types";
 
-export type TranslationMethodValue =
-  `fast:${FastProviderId}` | "ai:openai-compatible";
+export type TranslationMethodValue = `fast:${FastProviderId}` | "ai";
 
 export interface TranslationMethodSelection {
   mode: TranslationMode;
@@ -19,10 +18,6 @@ export const TRANSLATION_METHODS: readonly {
     labelKey: "translationMethodBergamotLocal",
   },
   {
-    value: "fast:openai-compatible",
-    labelKey: "translationMethodOpenAiFast",
-  },
-  {
     value: "fast:google-translate",
     labelKey: "translationMethodGoogleTranslate",
   },
@@ -32,8 +27,8 @@ export const TRANSLATION_METHODS: readonly {
   },
   { value: "fast:deepl", labelKey: "translationMethodDeepL" },
   {
-    value: "ai:openai-compatible",
-    labelKey: "translationMethodOpenAiAi",
+    value: "ai",
+    labelKey: "translationMethodAi",
   },
 ] as const;
 
@@ -41,20 +36,23 @@ export function translationMethodValue(
   mode: TranslationMode,
   fastProvider: FastProviderId,
 ): TranslationMethodValue {
-  return mode === "ai" ? "ai:openai-compatible" : `fast:${fastProvider}`;
+  return mode === "ai" ? "ai" : `fast:${fastProvider}`;
 }
 
 export function parseTranslationMethod(
   value: string,
 ): TranslationMethodSelection | undefined {
-  if (value === "ai:openai-compatible") {
+  if (
+    value === "ai" ||
+    value === "ai:openai-compatible" ||
+    value === "fast:openai-compatible"
+  ) {
     return { mode: "ai" };
   }
   const provider = value.startsWith("fast:") ? value.slice(5) : "";
   if (
     provider === "chrome-local" ||
     provider === "bergamot-local" ||
-    provider === "openai-compatible" ||
     provider === "google-translate" ||
     provider === "microsoft-translator" ||
     provider === "deepl"

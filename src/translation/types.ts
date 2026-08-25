@@ -1,3 +1,5 @@
+import type { FastProviderId } from "@/src/shared/settings";
+
 export type TranslationMode = "fast" | "ai";
 export type TranslationResponseMode = "stream" | "batch";
 export type TranslationTextFormat = "plain-text-v1" | "protected-text-v1";
@@ -29,7 +31,7 @@ export interface TranslationRequest {
   /** Optional per-surface AI model; omitted or blank inherits global settings. */
   modelOverride?: string;
   /** Local fast provider selected by a surface with its own provider setting. */
-  providerOverride?: "chrome-local" | "bergamot-local";
+  providerOverride?: FastProviderId;
 }
 
 /** A successful result whose ID must match exactly one requested segment. */

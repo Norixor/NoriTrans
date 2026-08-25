@@ -15,7 +15,7 @@ NorixorTrans 把网页翻译、视频字幕翻译和可选的本地 OCR 放在�
 - **网页翻译：** 基于语义文本节点工作，不替换整个页面的 HTML；支持动态内容、SPA 导航和安全恢复原文。
 - **视频字幕：** 能取得完整字幕轨道时进行整轨预翻译；只能看到当前字幕时，明确回退到低延迟流式快速翻译。
 - **本地 OCR：** 只有用户主动启用并框选区域后才识别烧录字幕，截图和识别文字始终留在本机。
-- **Provider 可选：** 支持 Chrome 本地 Translator API、用户明确下载语言包的 Bergamot、OpenAI-compatible、Google Cloud Translation、Microsoft Translator 与 DeepL；云端服务使用用户自己的凭据。
+- **Provider 可选：** 支持 Chrome 本地 Translator API、用户明确下载语言包的 Bergamot、AI 翻译、Google Cloud Translation、Microsoft Translator 与 DeepL；AI 翻译可选择 OpenAI-compatible 或 Anthropic Claude Messages 标准协议，云端服务使用用户自己的凭据。
 - **统一浮窗：** 通过可拖动、Shadow DOM 隔离的紧凑控制器管理网页、视频和图像翻译。
 
 ## 翻译模式
@@ -23,7 +23,7 @@ NorixorTrans 把网页翻译、视频字幕翻译和可选的本地 OCR 放在�
 | 模式     | 适用场景                                 | 行为                                                        |
 | -------- | ---------------------------------------- | ----------------------------------------------------------- |
 | 快速翻译 | 实时字幕、DOM 字幕、OCR 和低延迟网页翻译 | 使用配置的快速 Provider；流式字幕不会消耗 AI 批处理请求。   |
-| AI 精译  | 需要上下文的网页和完整字幕轨道           | 使用稳定段落 ID、有界批次、渐进结果、严格校验、取消和缓存。 |
+| AI 翻译  | 需要上下文的网页和完整字幕轨道           | 使用稳定段落 ID、有界批次、渐进结果、严格校验、取消和缓存。 |
 
 字幕轨道会明确区分为：
 
@@ -44,7 +44,15 @@ NorixorTrans 会优先使用完整来源，再逐级回退到当前字幕采集�
 
 仓库存在内置 Profile 只表示已经声明相应采集策略，不代表每个版本都完成了第三方真实站点线上验收。
 
-## 从源码安装
+## 推荐安装方式
+
+1. 从 [GitHub Releases](https://github.com/Norixor/NorixorTrans/releases) 下载最新版本的 ZIP 安装包；
+2. 打开 `chrome://extensions`，启用右上角的**开发者模式**；
+3. 将下载的 ZIP 安装包直接拖入扩展列表。
+
+正常安装不需要解压 ZIP，也不需要点击“加载已解压的扩展程序”。
+
+## 从源码开发
 
 环境要求：
 
@@ -59,13 +67,13 @@ pnpm install --frozen-lockfile
 pnpm build
 ```
 
-打开 `chrome://extensions`，启用**开发者模式**，点击**加载已解压的扩展程序**，选择：
+需要调试源码时，打开 `chrome://extensions`，启用**开发者模式**，点击**加载已解压的扩展程序**，选择：
 
 ```text
 .output/chrome-mv3
 ```
 
-源码构建不会自动更新。希望 Chrome 保留同一个本地开发安装时，请保持加载目录不变。
+这个步骤仅适用于源码开发。源码构建不会自动更新；希望 Chrome 保留同一个本地开发安装时，请保持加载目录不变。
 
 ## Provider 与隐私模型
 
@@ -73,7 +81,7 @@ pnpm build
 | ------------------------ | --------------------------------- | ------------------------------------------------------------- |
 | Chrome 本地翻译          | Chrome 本地模型运行时             | 不会把文字发送给配置的 AI Provider；Chrome 可能下载语言模型。 |
 | 下载式本地翻译           | 扩展 origin 的 Bergamot 运行时    | 按方向的语言包只在用户点击后安装，待译文字始终留在本机。      |
-| OpenAI-compatible 翻译   | 用户配置的服务端点                | 仅发送当前任务需要的文本段和有界上下文。                      |
+| AI 翻译                  | 用户配置的标准模型接口            | 仅发送当前任务需要的文本段和有界上下文。                      |
 | Google、Microsoft、DeepL | 用户选择的官方 Provider API       | 仅发送当前快速翻译任务需要的文本段。                          |
 | 本地图像字幕 OCR         | 扩展 origin 的 Offscreen Document | 截图和识别文字不上传，也不允许发送给 AI Provider。            |
 

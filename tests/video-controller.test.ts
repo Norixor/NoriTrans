@@ -138,7 +138,7 @@ const FAST_STREAM_SETTINGS: SubtitleSettings = {
 };
 const FAST_REMOTE_PROVIDER_SETTINGS = {
   ...DEFAULT_SETTINGS.provider,
-  fastProvider: "openai-compatible" as const,
+  fastProvider: "google-translate" as const,
 };
 
 class TestAdapter implements SubtitleAdapter {
@@ -2524,7 +2524,7 @@ describe("SubtitleController", () => {
         set: cacheSet,
       },
       providerCacheContext: {
-        fastProviderId: "openai-compatible",
+        fastProviderId: "chrome-local",
         aiProviderId: "openai-compatible",
         baseUrl: "https://provider.example/v1",
         model: "test-model",

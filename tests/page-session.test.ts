@@ -805,6 +805,30 @@ describe("PageTranslationSession", () => {
     session.restore();
   });
 
+  it("does not detect or translate a standalone interface symbol after skipping English target text", async () => {
+    document.documentElement.lang = "en";
+    document.body.innerHTML =
+      '<main><p>Already in English</p><button><span id="shortcut">⌥<span hidden>Option</span></span></button></main>';
+    const session = new PageTranslationSession(vi.fn());
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.page.sourceLanguage = "auto";
+    settings.page.targetLanguage = "en";
+    settings.page.displayMode = "translated";
+
+    await expect(session.translate(settings)).resolves.toMatchObject({
+      state: "translated",
+      completed: 2,
+      failed: 0,
+    });
+
+    expect(localRuntime.translateBatch).not.toHaveBeenCalled();
+    expect(document.querySelector("p")?.textContent).toBe("Already in English");
+    expect(document.querySelector("#shortcut")?.firstChild?.textContent).toBe(
+      "⌥",
+    );
+    session.restore();
+  });
+
   it("starts Chrome local translation after a bounded content-cache read", async () => {
     document.body.innerHTML = "<main><p>Local cache timeout</p></main>";
     aiRuntime.sendMessage.mockImplementation((message) => {

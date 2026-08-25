@@ -45,11 +45,12 @@ function gptProvider(): OpenAICompatibleProvider {
   });
 }
 
-function fastProvider(): OpenAICompatibleProvider {
-  return new OpenAICompatibleProvider("fast", {
-    baseUrl: "https://provider.example/v1",
-    apiKey: "test-only-key",
-    model: "test-model",
+function anthropicProvider(): OpenAICompatibleProvider {
+  return new OpenAICompatibleProvider("ai", {
+    protocol: "anthropic-messages",
+    baseUrl: "https://claude.example",
+    apiKey: "test-only-claude-key",
+    model: "claude-test-model",
     systemPrompt: "Translate",
     timeoutMs: 5_000,
   });
@@ -62,8 +63,27 @@ function completion(content: unknown): Response {
   });
 }
 
+function anthropicCompletion(content: string): Response {
+  return new Response(
+    JSON.stringify({
+      type: "message",
+      role: "assistant",
+      content: [{ type: "text", text: content }],
+      stop_reason: "end_turn",
+    }),
+    {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    },
+  );
+}
+
 function sseEvent(content: string): string {
   return `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`;
+}
+
+function anthropicSseEvent(content: string): string {
+  return `event: content_block_delta\ndata: ${JSON.stringify({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text: content } })}\n\n`;
 }
 
 function chunkedSseResponse(initial: string): {
@@ -259,23 +279,149 @@ describe("OpenAI-compatible translation responses", () => {
     ]);
   });
 
-  it("keeps OpenAI-compatible fast translation non-streaming", async () => {
+  it("uses the standard Anthropic Messages request and response contract", async () => {
     const fetch = vi.fn<typeof globalThis.fetch>(() =>
       Promise.resolve(
-        completion('{"results":[{"id":"segment-1","translatedText":"你好"}]}'),
+        anthropicCompletion(
+          '{"results":[{"id":"segment-1","translatedText":"Claude 译文"}]}',
+        ),
       ),
     );
     stubWireFetch(fetch);
 
-    await fastProvider().translateBatch(
-      { ...request, mode: "fast" },
+    await expect(
+      anthropicProvider().translateBatch(
+        { ...request, responseMode: "batch" },
+        new AbortController().signal,
+      ),
+    ).resolves.toEqual([{ id: "segment-1", translatedText: "Claude 译文" }]);
+
+    const call = fetch.mock.calls[0];
+    expect(call?.[0]).toBe("https://claude.example/v1/messages");
+    const headers = new Headers(call?.[1]?.headers);
+    expect(headers.get("x-api-key")).toBe("test-only-claude-key");
+    expect(headers.get("anthropic-version")).toBe("2023-06-01");
+    expect(headers.get("anthropic-dangerous-direct-browser-access")).toBe(
+      "true",
+    );
+    expect(headers.get("authorization")).toBeNull();
+    const body = call?.[1]?.body;
+    const payload: unknown =
+      typeof body === "string" ? (JSON.parse(body) as unknown) : {};
+    expect(payload).toMatchObject({
+      model: "claude-test-model",
+      max_tokens: 8_192,
+      messages: [{ role: "user" }],
+    });
+    expect(payload).toHaveProperty(
+      "system",
+      expect.stringContaining("Return compact JSON only"),
+    );
+    expect(payload).not.toHaveProperty("temperature");
+    expect(payload).not.toHaveProperty("response_format");
+    expect(payload).not.toHaveProperty("reasoning_effort");
+    expect(payload).toHaveProperty("output_config.format.type", "json_schema");
+  });
+
+  it("streams Anthropic text deltas through the shared progressive result parser", async () => {
+    const stream = chunkedSseResponse(
+      anthropicSseEvent(
+        '{"results":[{"id":"segment-1","translatedText":"第一条"},',
+      ),
+    );
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(stream.response);
+    stubWireFetch(fetch);
+    const progress: TranslationResult[] = [];
+    const translated = anthropicProvider().translateBatch(
+      { ...request, segments: multiRequest.segments.slice(0, 2) },
+      new AbortController().signal,
+      (result) => {
+        progress.push(result);
+      },
+    );
+
+    await vi.waitFor(() =>
+      expect(progress).toEqual([{ id: "segment-1", translatedText: "第一条" }]),
+    );
+    stream.append(
+      `${anthropicSseEvent('{"id":"segment-2","translatedText":"第二条"}]}')}event: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}\n\nevent: message_stop\ndata: {"type":"message_stop"}\n\n`,
+    );
+    stream.close();
+
+    await expect(translated).resolves.toEqual([
+      { id: "segment-1", translatedText: "第一条" },
+      { id: "segment-2", translatedText: "第二条" },
+    ]);
+  });
+
+  it("downgrades unsupported Anthropic structured output once per endpoint and model", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            type: "error",
+            error: {
+              type: "invalid_request_error",
+              message: "output_config is unsupported",
+            },
+          }),
+          { status: 400, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      .mockImplementation(() =>
+        Promise.resolve(
+          anthropicCompletion(
+            '{"results":[{"id":"segment-1","translatedText":"Claude 译文"}]}',
+          ),
+        ),
+      );
+    stubWireFetch(fetch);
+
+    await anthropicProvider().translateBatch(
+      { ...request, responseMode: "batch" },
+      new AbortController().signal,
+    );
+    await anthropicProvider().translateBatch(
+      { ...request, responseMode: "batch" },
       new AbortController().signal,
     );
 
-    const body = fetch.mock.calls[0]?.[1]?.body;
-    expect(typeof body === "string" ? JSON.parse(body) : {}).not.toHaveProperty(
-      "stream",
+    const payloads: unknown[] = fetch.mock.calls.map(([, init]): unknown =>
+      typeof init?.body === "string" ? (JSON.parse(init.body) as unknown) : {},
     );
+    expect(payloads[0]).toHaveProperty("output_config");
+    expect(payloads[1]).not.toHaveProperty("output_config");
+    expect(payloads[2]).not.toHaveProperty("output_config");
+  });
+
+  it("rejects an Anthropic stream that omits its terminal message_stop", async () => {
+    const stream = `${anthropicSseEvent('{"results":[{"id":"segment-1","translatedText":"不完整"}]}')}event: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}\n\n`;
+    stubWireFetch(
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(stream, {
+            status: 200,
+            headers: { "Content-Type": "text/event-stream" },
+          }),
+        ),
+      ),
+    );
+
+    const outcome = anthropicProvider().translateBatch(
+      request,
+      new AbortController().signal,
+    );
+    await expect(outcome).rejects.toMatchObject({ code: "invalid_response" });
+    await outcome.catch((error: unknown) => {
+      expect(
+        typeof error === "object" && error !== null && "details" in error
+          ? String(error.details)
+          : "",
+      ).toContain("message_stop");
+    });
   });
 
   it("keeps AI batch mode non-streaming while preserving strict JSON", async () => {

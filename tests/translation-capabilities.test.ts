@@ -17,12 +17,18 @@ import { describe, expect, it } from "vitest";
 describe("translation method and local language capabilities", () => {
   it("derives concrete methods without replacing the saved fast provider in AI mode", () => {
     expect(translationMethodValue("fast", "deepl")).toBe("fast:deepl");
-    expect(translationMethodValue("ai", "deepl")).toBe("ai:openai-compatible");
+    expect(translationMethodValue("ai", "deepl")).toBe("ai");
     expect(parseTranslationMethod("fast:bergamot-local")).toEqual({
       mode: "fast",
       fastProvider: "bergamot-local",
     });
+    expect(parseTranslationMethod("ai")).toEqual({
+      mode: "ai",
+    });
     expect(parseTranslationMethod("ai:openai-compatible")).toEqual({
+      mode: "ai",
+    });
+    expect(parseTranslationMethod("fast:openai-compatible")).toEqual({
       mode: "ai",
     });
   });

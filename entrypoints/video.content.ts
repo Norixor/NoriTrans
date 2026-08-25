@@ -100,14 +100,15 @@ async function ensureMainWorldCaptureHook(): Promise<boolean> {
 
 function providerCacheContext(settings: ContentSettings) {
   return {
-    fastProviderId: settings.provider.fastProvider,
+    fastProviderId:
+      settings.subtitles.fastProviderOverride ?? settings.provider.fastProvider,
     aiProviderId: settings.provider.aiProvider,
     baseUrl: [
       settings.provider.baseUrl,
       settings.provider.microsoftRegion,
       settings.provider.deeplPlan,
     ].join("\u001f"),
-    model: settings.provider.model,
+    model: settings.subtitles.modelOverride?.trim() || settings.provider.model,
     promptVersion: subtitlePromptVersion(settings.provider.systemPrompt),
   };
 }
@@ -250,6 +251,8 @@ function pageTranslationConfigurationChanged(
     previous.page.mode !== next.page.mode ||
     previous.page.aiResponseMode !== next.page.aiResponseMode ||
     previous.page.displayMode !== next.page.displayMode ||
+    previous.page.fastProviderOverride !== next.page.fastProviderOverride ||
+    previous.page.modelOverride !== next.page.modelOverride ||
     previous.provider.fastProvider !== next.provider.fastProvider ||
     previous.provider.aiProvider !== next.provider.aiProvider ||
     previous.provider.baseUrl !== next.provider.baseUrl ||

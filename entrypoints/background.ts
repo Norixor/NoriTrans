@@ -22,6 +22,15 @@ import {
   type AppSettings,
 } from "@/src/shared/settings";
 import {
+  applySiteProfileSettings,
+  resolveSiteTranslationProfile,
+} from "@/src/shared/site-profile-settings";
+import {
+  deleteSiteTranslationProfile,
+  loadSiteTranslationProfiles,
+  saveSiteTranslationProfile,
+} from "@/src/site-profiles/storage";
+import {
   autoTranslateSitePatternForHostname,
   updateSiteAutoTranslateRules,
 } from "@/src/shared/auto-translate-sites";
@@ -128,6 +137,7 @@ let ocrPermissionRequestTabId: number | undefined;
 const OCR_PERMISSION_REQUEST_TAB_KEY = "ocrPermissionRequestTabId";
 let contentRefreshPromise: Promise<void> | undefined;
 let settingsMutationTail: Promise<void> = Promise.resolve();
+let siteProfileMutationTail: Promise<void> = Promise.resolve();
 let cacheEpoch = 0;
 let cacheMutationTail: Promise<void> = Promise.resolve();
 let lastOcrCaptureAtMs = 0;
@@ -476,7 +486,7 @@ function providerOriginPattern(baseUrl: string): string {
 function providerOriginForMode(
   settings: AppSettings,
   mode: "fast" | "ai",
-  providerOverride?: "chrome-local" | "bergamot-local",
+  providerOverride?: AppSettings["provider"]["fastProvider"],
 ): string | undefined {
   const providerId =
     mode === "ai"
@@ -485,7 +495,7 @@ function providerOriginForMode(
   if (providerId === "chrome-local" || providerId === "bergamot-local") {
     return undefined;
   }
-  if (providerId === "openai-compatible")
+  if (providerId === "openai-compatible" || providerId === "anthropic-messages")
     return providerOriginPattern(settings.provider.baseUrl);
   if (providerId === "google-translate")
     return "https://translation.googleapis.com/*";
@@ -499,7 +509,7 @@ function providerOriginForMode(
 async function assertProviderPermission(
   settings: AppSettings,
   mode: "fast" | "ai",
-  providerOverride?: "chrome-local" | "bergamot-local",
+  providerOverride?: AppSettings["provider"]["fastProvider"],
 ): Promise<void> {
   const origin = providerOriginForMode(settings, mode, providerOverride);
   if (!origin) return;
@@ -697,12 +707,7 @@ function safeConnectionDiagnostic(error: unknown): string {
 async function testConnection(): Promise<{ ok: boolean; message?: string }> {
   const settings = await loadSettings();
   const controller = new AbortController();
-  const testMode =
-    settings.provider.fastProvider === "google-translate" ||
-    settings.provider.fastProvider === "microsoft-translator" ||
-    settings.provider.fastProvider === "deepl"
-      ? "fast"
-      : "ai";
+  const testMode = "ai" as const;
   try {
     await assertProviderPermission(settings, testMode);
     const results = await translateInBackground(
@@ -711,9 +716,7 @@ async function testConnection(): Promise<{ ok: boolean; message?: string }> {
         targetLanguage: settings.page.targetLanguage,
         mode: testMode,
         segments: [{ id: "connection-test", text: "Hello" }],
-        ...(testMode === "ai"
-          ? { prompt: settings.provider.systemPrompt }
-          : {}),
+        prompt: settings.provider.systemPrompt,
       },
       settings,
       controller.signal,
@@ -733,8 +736,10 @@ async function testConnection(): Promise<{ ok: boolean; message?: string }> {
 async function broadcastSettingsUpdated(
   settings: Awaited<ReturnType<typeof loadSettings>>,
 ): Promise<void> {
-  const contentSettings = toContentSettings(settings);
-  const tabs = await browser.tabs.query({});
+  const [tabs, siteProfiles] = await Promise.all([
+    browser.tabs.query({}),
+    loadSiteTranslationProfiles(),
+  ]);
   await Promise.allSettled(
     tabs.flatMap((tab) =>
       tab.id === undefined
@@ -742,10 +747,52 @@ async function broadcastSettingsUpdated(
         : [
             browser.tabs.sendMessage(tab.id, {
               type: "SETTINGS_UPDATED",
-              settings: contentSettings,
+              settings: effectiveContentSettings(
+                settings,
+                siteProfiles,
+                siteLocationFromUrl(tab.url),
+              ),
             }),
           ],
     ),
+  );
+}
+
+function siteLocationFromUrl(
+  rawUrl: string | undefined,
+): { hostname: string; pathname: string } | undefined {
+  if (!rawUrl) return undefined;
+  try {
+    const url = new URL(rawUrl);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return undefined;
+    return {
+      hostname: url.hostname.toLowerCase().replace(/\.$/u, ""),
+      pathname: url.pathname || "/",
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function effectiveContentSettings(
+  settings: AppSettings,
+  siteProfiles: Awaited<ReturnType<typeof loadSiteTranslationProfiles>>,
+  locationValue: ReturnType<typeof siteLocationFromUrl>,
+) {
+  const contentSettings = toContentSettings(settings);
+  return locationValue
+    ? applySiteProfileSettings(contentSettings, siteProfiles, locationValue)
+    : contentSettings;
+}
+
+async function contentSettingsForSender(
+  settings: AppSettings,
+  sender: Browser.runtime.MessageSender,
+) {
+  return effectiveContentSettings(
+    settings,
+    await loadSiteTranslationProfiles(),
+    siteLocationFromUrl(sender.tab?.url),
   );
 }
 
@@ -774,6 +821,32 @@ function mutateSettings(
     () => undefined,
   );
   return operation;
+}
+
+function serializeSiteProfileMutation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  const pending = siteProfileMutationTail.then(operation);
+  siteProfileMutationTail = pending.then(
+    () => undefined,
+    () => undefined,
+  );
+  return pending;
+}
+
+function updateSiteTranslationProfile(
+  id: string,
+  update: (
+    current: Awaited<ReturnType<typeof loadSiteTranslationProfiles>>[number],
+  ) => Awaited<ReturnType<typeof loadSiteTranslationProfiles>>[number],
+) {
+  return serializeSiteProfileMutation(async () => {
+    const current = (await loadSiteTranslationProfiles()).find(
+      (profile) => profile.id === id,
+    );
+    if (!current) throw new Error("site_translation_profile_not_found");
+    return saveSiteTranslationProfile(update(current));
+  });
 }
 
 async function restoreSessionHiddenFloatingControls(): Promise<{
@@ -1268,6 +1341,68 @@ async function handleBackgroundCommand(
       };
     }
     case "PAGE_QUICK_SETTINGS_SET": {
+      const locationValue = siteLocationFromUrl(sender.tab?.url);
+      const profiles = await loadSiteTranslationProfiles();
+      const siteProfile = locationValue
+        ? resolveSiteTranslationProfile(profiles, locationValue)
+        : undefined;
+      if (siteProfile) {
+        const currentSettings = await loadSettings();
+        const effective = applySiteProfileSettings(
+          toContentSettings(currentSettings),
+          profiles,
+          locationValue!,
+        );
+        await updateSiteTranslationProfile(siteProfile.id, (current) => ({
+          ...current,
+          overrides: {
+            ...current.overrides,
+            page: {
+              sourceLanguage: message.sourceLanguage,
+              targetLanguage: message.targetLanguage,
+              mode: message.mode,
+              fastProvider:
+                message.fastProvider ??
+                current.overrides.page?.fastProvider ??
+                currentSettings.provider.fastProvider,
+              modelOverride: current.overrides.page?.modelOverride ?? "",
+            },
+            ...(message.selectionTranslationMode
+              ? {
+                  selection: {
+                    sourceLanguage:
+                      effective.page.selectionTranslationSourceLanguage,
+                    targetLanguage:
+                      effective.page.selectionTranslationTargetLanguage,
+                    mode: message.selectionTranslationMode,
+                    fastProvider:
+                      current.overrides.selection?.fastProvider ??
+                      currentSettings.provider.fastProvider,
+                    modelOverride:
+                      current.overrides.selection?.modelOverride ??
+                      effective.page.selectionTranslationModelOverride,
+                  },
+                }
+              : {}),
+          },
+        }));
+        const updated = await mutateSettings((settings) => ({
+          ...settings,
+          page: {
+            ...settings.page,
+            aiResponseMode:
+              message.responseMode ?? settings.page.aiResponseMode,
+            displayMode: message.displayMode,
+            selectionTranslationEnabled:
+              message.selectionTranslationEnabled ??
+              settings.page.selectionTranslationEnabled,
+          },
+        }));
+        return {
+          ok: true,
+          settings: await contentSettingsForSender(updated, sender),
+        };
+      }
       const updated = await mutateSettings((settings) => ({
         ...settings,
         provider: message.fastProvider
@@ -1353,6 +1488,47 @@ async function handleBackgroundCommand(
     case "FLOATING_SESSION_RESTORE":
       return restoreSessionHiddenFloatingControls();
     case "SUBTITLE_QUICK_SETTINGS_SET": {
+      const locationValue = siteLocationFromUrl(sender.tab?.url);
+      const profiles = await loadSiteTranslationProfiles();
+      const siteProfile = locationValue
+        ? resolveSiteTranslationProfile(profiles, locationValue)
+        : undefined;
+      if (siteProfile) {
+        const currentSettings = await loadSettings();
+        await updateSiteTranslationProfile(siteProfile.id, (current) => ({
+          ...current,
+          overrides: {
+            ...current.overrides,
+            subtitles: {
+              sourceLanguage: message.sourceLanguage,
+              targetLanguage: message.targetLanguage,
+              mode: message.mode,
+              fastProvider:
+                message.fastProvider ??
+                current.overrides.subtitles?.fastProvider ??
+                currentSettings.provider.fastProvider,
+              modelOverride: current.overrides.subtitles?.modelOverride ?? "",
+            },
+          },
+        }));
+        const updated = await mutateSettings((settings) => ({
+          ...settings,
+          subtitles: {
+            ...settings.subtitles,
+            aiResponseMode:
+              message.responseMode ?? settings.subtitles.aiResponseMode,
+            displayMode: message.displayMode,
+            hideNativeSubtitles: message.hideNativeSubtitles,
+            fontScale: message.fontScale ?? settings.subtitles.fontScale,
+            backgroundOpacity:
+              message.backgroundOpacity ?? settings.subtitles.backgroundOpacity,
+          },
+        }));
+        return {
+          ok: true,
+          settings: await contentSettingsForSender(updated, sender),
+        };
+      }
       const updated = await mutateSettings((settings) => ({
         ...settings,
         provider: message.fastProvider
@@ -1472,15 +1648,17 @@ async function handleBackgroundCommand(
       return { ok: true };
     case "SITE_PROFILES_GET": {
       if (isExtensionPageSender(sender)) {
-        const [profiles, overrides] = await Promise.all([
+        const [profiles, overrides, translationProfiles] = await Promise.all([
           loadUserSiteProfiles(),
           loadSiteProfileOverrides(),
+          loadSiteTranslationProfiles(),
         ]);
         return {
           ok: true,
           builtIns: BUILT_IN_SITE_PROFILES,
           profiles,
           overrides,
+          translationProfiles,
         };
       }
       const hostname = verifiedContentHostname(sender, true);
@@ -1538,10 +1716,43 @@ async function handleBackgroundCommand(
       }
       await deleteSiteProfileOverride(message.id);
       return { ok: true };
+    case "SITE_TRANSLATION_PROFILE_SAVE": {
+      if (!isExtensionPageSender(sender)) {
+        return { ok: false, error: "private_settings" };
+      }
+      try {
+        const profile = await serializeSiteProfileMutation(() =>
+          saveSiteTranslationProfile(message.profile),
+        );
+        await broadcastSettingsUpdated(await loadSettings());
+        return { ok: true, profile };
+      } catch (error) {
+        if (error instanceof SiteProfileValidationError) {
+          return {
+            ok: false,
+            error: "site_profile_invalid",
+            path: error.path,
+            reason: error.reason,
+          };
+        }
+        throw error;
+      }
+    }
+    case "SITE_TRANSLATION_PROFILE_DELETE":
+      if (!isExtensionPageSender(sender)) {
+        return { ok: false, error: "private_settings" };
+      }
+      await serializeSiteProfileMutation(() =>
+        deleteSiteTranslationProfile(message.id),
+      );
+      await broadcastSettingsUpdated(await loadSettings());
+      return { ok: true };
     case "SETTINGS_GET":
       return loadSettings();
-    case "CONTENT_SETTINGS_GET":
-      return toContentSettings(await loadSettings());
+    case "CONTENT_SETTINGS_GET": {
+      const settings = await loadSettings();
+      return contentSettingsForSender(settings, sender);
+    }
     case "UPDATE_STATUS_GET":
       return getUpdateStatus();
     case "UPDATE_CHECK":

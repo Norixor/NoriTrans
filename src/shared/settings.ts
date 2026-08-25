@@ -8,10 +8,19 @@ export type DisplayMode = "translated" | "bilingual";
 export type SubtitleDisplayMode = "translated" | "bilingual" | "original";
 export type SubtitlePosition = "top" | "center" | "bottom" | "custom";
 export type UiLanguage = "auto" | "en" | "zh-CN";
+export const AI_PROVIDER_IDS = [
+  "openai-compatible",
+  "anthropic-messages",
+] as const;
+export type AiProviderId = (typeof AI_PROVIDER_IDS)[number];
+
+export function isAiProviderId(value: unknown): value is AiProviderId {
+  return (AI_PROVIDER_IDS as readonly unknown[]).includes(value);
+}
+
 export const FAST_PROVIDER_IDS = [
   "chrome-local",
   "bergamot-local",
-  "openai-compatible",
   "google-translate",
   "microsoft-translator",
   "deepl",
@@ -34,7 +43,7 @@ export interface SubtitleCustomPosition {
 
 export interface ProviderSettings {
   fastProvider: FastProviderId;
-  aiProvider: "openai-compatible";
+  aiProvider: AiProviderId;
   baseUrl: string;
   apiKey: string;
   googleApiKey: string;
@@ -53,6 +62,10 @@ export interface PageSettings {
   mode: TranslationMode;
   aiResponseMode: TranslationResponseMode;
   displayMode: DisplayMode;
+  /** Runtime-only per-site fast Provider; omitted inherits provider.fastProvider. */
+  fastProviderOverride?: FastProviderId;
+  /** Runtime-only per-site AI model; blank or omitted inherits provider.model. */
+  modelOverride?: string;
   autoTranslate: boolean;
   autoTranslateSitePatterns: string[];
   autoTranslateExcludedSitePatterns: string[];
@@ -65,6 +78,8 @@ export interface PageSettings {
   /** Empty inherits provider.model. */
   selectionTranslationModelOverride: string;
   selectionTranslationDisplayMode: DisplayMode;
+  /** Runtime-only per-site selection fast Provider. */
+  selectionTranslationFastProviderOverride?: FastProviderId;
 }
 
 export interface SubtitleSettings {
@@ -80,6 +95,10 @@ export interface SubtitleSettings {
   customPosition: SubtitleCustomPosition;
   fontScale: number;
   backgroundOpacity: number;
+  /** Runtime-only per-site fast Provider; omitted inherits provider.fastProvider. */
+  fastProviderOverride?: FastProviderId;
+  /** Runtime-only per-site AI model; blank or omitted inherits provider.model. */
+  modelOverride?: string;
 }
 
 export interface OcrSettings {
@@ -120,6 +139,7 @@ export interface ContentSettings {
   subtitles: SubtitleSettings;
   ocr: OcrSettings;
   imageTranslation: ImageTranslationSettings;
+  activeSiteProfile?: { id: string; name: string };
 }
 
 export const LEGACY_DEFAULT_SYSTEM_PROMPT = [
@@ -207,7 +227,7 @@ export function isAllowedProviderBaseUrl(value: string): boolean {
   if (value.length > 2_048) return false;
   try {
     const url = new URL(value);
-    if (url.username || url.password) return false;
+    if (url.username || url.password || url.search || url.hash) return false;
     if (url.protocol === "https:") return true;
     return (
       url.protocol === "http:" &&
@@ -253,18 +273,19 @@ export function mergeSettings(value: unknown): AppSettings {
     ? value.imageTranslation
     : {};
 
+  const legacyAiFastProvider = provider.fastProvider === "openai-compatible";
   const fastProvider: FastProviderId =
     provider.fastProvider === "bergamot-local" ||
-    provider.fastProvider === "openai-compatible" ||
     provider.fastProvider === "google-translate" ||
     provider.fastProvider === "microsoft-translator" ||
     provider.fastProvider === "deepl"
       ? provider.fastProvider
       : "chrome-local";
-  const pageMode = page.mode === "ai" ? "ai" : "fast";
+  const pageMode = legacyAiFastProvider || page.mode === "ai" ? "ai" : "fast";
   const pageDisplayMode =
     page.displayMode === "bilingual" ? "bilingual" : "translated";
-  const subtitleMode = subtitles.mode === "fast" ? "fast" : "ai";
+  const subtitleMode =
+    legacyAiFastProvider || subtitles.mode !== "fast" ? "ai" : "fast";
   const subtitleDisplayMode =
     subtitles.displayMode === "translated" ||
     subtitles.displayMode === "original"
@@ -284,7 +305,10 @@ export function mergeSettings(value: unknown): AppSettings {
     uiLanguage: normalizeUiLanguage(value.uiLanguage),
     provider: {
       fastProvider,
-      aiProvider: "openai-compatible",
+      aiProvider:
+        provider.aiProvider === "anthropic-messages"
+          ? "anthropic-messages"
+          : "openai-compatible",
       baseUrl:
         typeof provider.baseUrl === "string" &&
         isAllowedProviderBaseUrl(provider.baseUrl)
@@ -372,9 +396,10 @@ export function mergeSettings(value: unknown): AppSettings {
           : typeof page.targetLanguage === "string"
             ? page.targetLanguage
             : DEFAULT_SETTINGS.page.selectionTranslationTargetLanguage,
-      selectionTranslationMode:
-        page.selectionTranslationMode === "fast" ||
-        page.selectionTranslationMode === "ai"
+      selectionTranslationMode: legacyAiFastProvider
+        ? "ai"
+        : page.selectionTranslationMode === "fast" ||
+            page.selectionTranslationMode === "ai"
           ? page.selectionTranslationMode
           : pageMode,
       selectionTranslationAiResponseMode:
@@ -475,7 +500,8 @@ export function mergeSettings(value: unknown): AppSettings {
         typeof imageTranslation.targetLanguage === "string"
           ? imageTranslation.targetLanguage
           : DEFAULT_SETTINGS.imageTranslation.targetLanguage,
-      mode: imageTranslation.mode === "ai" ? "ai" : "fast",
+      mode:
+        legacyAiFastProvider || imageTranslation.mode === "ai" ? "ai" : "fast",
       modelOverride:
         typeof imageTranslation.modelOverride === "string"
           ? imageTranslation.modelOverride.trim().slice(0, 256)

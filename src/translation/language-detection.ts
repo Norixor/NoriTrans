@@ -76,6 +76,11 @@ function countScripts(text: string): ScriptCounts {
   };
 }
 
+/** Returns whether visible text contains language-bearing letters. */
+export function hasTranslatableLanguageContent(text: string): boolean {
+  return /\p{L}/u.test(text.normalize("NFKC"));
+}
+
 /** Returns true when the visible text is already dominated by the target script. */
 export function isPredominantlyTargetScript(
   text: string,

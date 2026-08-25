@@ -326,6 +326,8 @@ function selectionConfigurationChanged(
       next.page.selectionTranslationAiResponseMode ||
     previous.page.selectionTranslationModelOverride !==
       next.page.selectionTranslationModelOverride ||
+    previous.page.selectionTranslationFastProviderOverride !==
+      next.page.selectionTranslationFastProviderOverride ||
     previous.page.selectionTranslationDisplayMode !==
       next.page.selectionTranslationDisplayMode ||
     previous.provider.fastProvider !== next.provider.fastProvider ||
@@ -336,6 +338,13 @@ function selectionConfigurationChanged(
     previous.provider.model !== next.provider.model ||
     previous.provider.systemPrompt !== next.provider.systemPrompt ||
     previous.provider.timeoutMs !== next.provider.timeoutMs
+  );
+}
+
+function selectionFastProvider(settings: ContentSettings) {
+  return (
+    settings.page.selectionTranslationFastProviderOverride ??
+    settings.provider.fastProvider
   );
 }
 
@@ -721,7 +730,7 @@ export class SelectionTranslation {
     if (
       !settings.page.selectionTranslationEnabled ||
       settings.page.selectionTranslationMode !== "fast" ||
-      settings.provider.fastProvider !== "chrome-local"
+      selectionFastProvider(settings) !== "chrome-local"
     ) {
       return undefined;
     }
@@ -765,7 +774,7 @@ export class SelectionTranslation {
   ): Promise<TranslationResult[]> {
     if (
       request.mode === "fast" &&
-      settings.provider.fastProvider === "chrome-local"
+      selectionFastProvider(settings) === "chrome-local"
     ) {
       const provider = this.ensureLocalProvider(settings);
       if (provider) return provider.translateBatch(request, signal, onProgress);
@@ -796,6 +805,9 @@ export class SelectionTranslation {
         ? {
             modelOverride: this.settings.page.selectionTranslationModelOverride,
           }
+        : {}),
+      ...(this.settings.page.selectionTranslationMode === "fast"
+        ? { providerOverride: selectionFastProvider(this.settings) }
         : {}),
     };
     let hasSuccessfulResult = false;

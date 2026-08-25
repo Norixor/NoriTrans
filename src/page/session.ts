@@ -44,6 +44,7 @@ import {
 } from "@/src/shared/diagnostics";
 import {
   detectDominantSourceLanguage,
+  hasTranslatableLanguageContent,
   isPredominantlyTargetScript,
   supportedSourceLanguageHint,
 } from "@/src/translation/language-detection";
@@ -333,6 +334,16 @@ interface NormalizedPageSegmentGroup {
   members: PageSegment[];
 }
 
+function pageFastProvider(settings: ContentSettings) {
+  return (
+    settings.page.fastProviderOverride ?? settings.provider.fastProvider
+  );
+}
+
+function pageAiModel(settings: ContentSettings): string {
+  return settings.page.modelOverride?.trim() || settings.provider.model;
+}
+
 function pageTranslationConfigurationIdentity(
   settings: ContentSettings,
 ): string {
@@ -343,11 +354,11 @@ function pageTranslationConfigurationIdentity(
     provider:
       settings.page.mode === "ai"
         ? settings.provider.aiProvider
-        : settings.provider.fastProvider,
+        : pageFastProvider(settings),
     baseUrl: settings.provider.baseUrl,
     microsoftRegion: settings.provider.microsoftRegion,
     deeplPlan: settings.provider.deeplPlan,
-    model: settings.provider.model,
+    model: pageAiModel(settings),
     systemPrompt: settings.provider.systemPrompt,
   });
 }
@@ -1140,7 +1151,7 @@ export class PageTranslationSession {
     const runtimeContext = translationRuntimeDiagnosticContext();
     if (
       settings.page.mode === "fast" &&
-      settings.provider.fastProvider === "chrome-local" &&
+      pageFastProvider(settings) === "chrome-local" &&
       runtimeContext.frame === "child" &&
       runtimeContext.translatorPolicy === false
     ) {
@@ -1349,7 +1360,7 @@ export class PageTranslationSession {
     );
     const configuration =
       settings.page.mode === "fast" &&
-      settings.provider.fastProvider === "chrome-local"
+      pageFastProvider(settings) === "chrome-local"
         ? [
             settings.page.sourceLanguage,
             settings.page.targetLanguage,
@@ -1397,14 +1408,16 @@ export class PageTranslationSession {
     const skipTargetScript =
       settings.page.sourceLanguage === "auto" &&
       settings.page.mode === "fast" &&
-      (settings.provider.fastProvider === "chrome-local" ||
-        settings.provider.fastProvider === "bergamot-local");
+      (pageFastProvider(settings) === "chrome-local" ||
+        pageFastProvider(settings) === "bergamot-local");
     const skippedSegments = skipTargetScript
-      ? segments.filter((segment) =>
-          isPredominantlyTargetScript(
-            segment.text,
-            settings.page.targetLanguage,
-          ),
+      ? segments.filter(
+          (segment) =>
+            !hasTranslatableLanguageContent(segment.text) ||
+            isPredominantlyTargetScript(
+              segment.text,
+              settings.page.targetLanguage,
+            ),
         )
       : [];
     const skippedSet = new Set(skippedSegments);
@@ -1425,6 +1438,7 @@ export class PageTranslationSession {
     const detectionSegments = skipTargetScript
       ? documentSegments.filter(
           (segment) =>
+            hasTranslatableLanguageContent(segment.text) &&
             !isPredominantlyTargetScript(
               segment.text,
               settings.page.targetLanguage,
@@ -1443,7 +1457,7 @@ export class PageTranslationSession {
         : settings.page.sourceLanguage;
     if (
       settings.page.mode === "fast" &&
-      settings.provider.fastProvider === "chrome-local"
+      pageFastProvider(settings) === "chrome-local"
     ) {
       translationDiagnostic("PageTranslation", "plan", {
         ...translationRuntimeDiagnosticContext(),
@@ -1894,11 +1908,17 @@ export class PageTranslationSession {
       segments: expanded.segments,
       prompt: settings.provider.systemPrompt,
       scope: pageScope,
+      ...(settings.page.mode === "ai" && settings.page.modelOverride
+        ? { modelOverride: settings.page.modelOverride }
+        : {}),
+      ...(settings.page.mode === "fast"
+        ? { providerOverride: pageFastProvider(settings) }
+        : {}),
     } as const;
 
     if (
       settings.page.mode === "fast" &&
-      settings.provider.fastProvider === "chrome-local"
+      pageFastProvider(settings) === "chrome-local"
     ) {
       const cached: TranslationResult[] = [];
       const cacheEntries: Array<{
@@ -2649,7 +2669,7 @@ export class PageTranslationSession {
               : "translated";
     if (
       this.settings?.page.mode === "fast" &&
-      this.settings.provider.fastProvider === "chrome-local"
+      pageFastProvider(this.settings) === "chrome-local"
     ) {
       translationDiagnostic("PageTranslation", "terminal-status", {
         ...translationRuntimeDiagnosticContext(),

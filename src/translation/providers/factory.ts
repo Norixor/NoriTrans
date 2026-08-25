@@ -1,6 +1,10 @@
 import { NorixorTransError } from "@/src/shared/errors";
 import { runtimeErrorToken } from "@/src/shared/runtime-errors";
-import type { AppSettings } from "@/src/shared/settings";
+import type {
+  AiProviderId,
+  AppSettings,
+  FastProviderId,
+} from "@/src/shared/settings";
 import { BergamotLocalProvider } from "@/src/translation/providers/bergamot-local";
 import { DeepLProvider } from "@/src/translation/providers/deepl";
 import { GoogleTranslateProvider } from "@/src/translation/providers/google-translate";
@@ -12,13 +16,17 @@ import type {
 } from "@/src/translation/types";
 
 export function createBackgroundTranslationProvider(
-  providerId: AppSettings["provider"]["fastProvider"],
+  providerId: FastProviderId | AiProviderId,
   mode: TranslationMode,
   settings: AppSettings,
   model: string,
 ): TranslationProvider {
-  if (providerId === "openai-compatible") {
+  if (
+    providerId === "openai-compatible" ||
+    providerId === "anthropic-messages"
+  ) {
     return new OpenAICompatibleProvider(mode, {
+      protocol: providerId,
       baseUrl: settings.provider.baseUrl,
       apiKey: settings.provider.apiKey,
       model,

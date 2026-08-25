@@ -18,12 +18,9 @@
   "subtitleTranslation": { "message": "字幕翻译" },
   "translationMode": { "message": "翻译模式" },
   "modeFast": { "message": "快速翻译" },
-  "modeAi": { "message": "AI 精译" },
+  "modeAi": { "message": "AI 翻译" },
   "translationMethodChromeLocal": { "message": "Chrome 翻译" },
   "translationMethodBergamotLocal": { "message": "本地模型翻译" },
-  "translationMethodOpenAiFast": {
-    "message": "OpenAI-compatible · 快速翻译"
-  },
   "translationMethodGoogleTranslate": {
     "message": "Google Cloud Translation"
   },
@@ -31,9 +28,7 @@
     "message": "Microsoft Translator"
   },
   "translationMethodDeepL": { "message": "DeepL" },
-  "translationMethodOpenAiAi": {
-    "message": "OpenAI-compatible · AI 精译"
-  },
+  "translationMethodAi": { "message": "AI 翻译" },
   "aiResponseMode": { "message": "AI 返回方式" },
   "responseModeStream": { "message": "流式逐段（推荐）" },
   "responseModeBatch": { "message": "完整返回" },
@@ -144,13 +139,13 @@
   },
   "providerSettings": { "message": "翻译服务" },
   "providerSettingsDescription": {
-    "message": "快速翻译优先低延迟，AI 精译用于上下文一致性。"
+    "message": "快速翻译使用本地或机器翻译服务；AI 翻译使用配置的模型接口。"
   },
   "providerPrivacyNotice": {
     "message": "仅将必要的待译文本发送到你选择的 Provider；密钥只保存在 chrome.storage.local。Chrome 与下载式本地翻译都不会上传文本。"
   },
   "fastProvider": { "message": "快速翻译 Provider" },
-  "aiProvider": { "message": "AI 精译 Provider" },
+  "aiProvider": { "message": "AI 接口协议" },
   "providerChromeLocal": { "message": "Chrome 翻译" },
   "providerBergamotLocal": { "message": "本地翻译" },
   "ocrLocalTranslationUnavailable": {
@@ -163,6 +158,7 @@
   "viewProviderDetails": { "message": "查看响应详情" },
   "providerDetailsLabel": { "message": "Provider 响应诊断" },
   "providerOpenAiCompatible": { "message": "OpenAI-compatible" },
+  "providerAnthropicMessages": { "message": "Anthropic Claude" },
   "providerGoogleTranslate": { "message": "Google Cloud Translation" },
   "providerMicrosoftTranslator": { "message": "Microsoft Translator" },
   "providerDeepL": { "message": "DeepL" },
@@ -182,7 +178,7 @@
   "deeplPlanFree": { "message": "API Free" },
   "deeplPlanPro": { "message": "API Pro" },
   "aiProviderConfiguration": {
-    "message": "OpenAI-compatible AI 精译配置"
+    "message": "AI 翻译配置"
   },
   "baseUrl": { "message": "Base URL" },
   "baseUrlPlaceholder": { "message": "https://api.example.com/v1" },
@@ -208,7 +204,7 @@
   "settingsTabPage": { "message": "网页翻译" },
   "settingsTabSelection": { "message": "划词翻译" },
   "settingsTabVideo": { "message": "视频字幕" },
-  "settingsTabProfiles": { "message": "站点 Profile" },
+  "settingsTabProfiles": { "message": "站点专属设置" },
   "settingsTabProvider": { "message": "翻译服务" },
   "settingsTabLocalTranslation": { "message": "本地翻译" },
   "settingsTabOcrRuntimes": { "message": "OCR 设置" },
@@ -424,10 +420,11 @@
   },
   "subtitleFontSize": { "message": "字号" },
   "subtitleBackground": { "message": "背景不透明度" },
+  "subtitleOpacity": { "message": "透明度" },
   "subtitleFontDecrease": { "message": "减小字幕字号" },
   "subtitleFontIncrease": { "message": "增大字幕字号" },
-  "subtitleOpacityDecrease": { "message": "降低字幕背景不透明度" },
-  "subtitleOpacityIncrease": { "message": "提高字幕背景不透明度" },
+  "subtitleOpacityDecrease": { "message": "降低字幕透明度" },
+  "subtitleOpacityIncrease": { "message": "提高字幕透明度" },
   "percentageValue": {
     "message": "$VALUE$%",
     "placeholders": { "value": { "content": "$1" } }
@@ -483,23 +480,105 @@
   "floatingHideFailed": { "message": "浮窗隐藏失败，请重试。" },
   "closeQuickSettings": { "message": "关闭快速设置" },
   "createSiteProfile": { "message": "创建站点配置" },
-  "siteProfiles": { "message": "站点 Profile" },
+  "siteProfiles": { "message": "站点专属翻译" },
   "siteProfilesDescription": {
-    "message": "用于识别视频网站字幕的内置规则和用户采集规则。"
+    "message": "为不同站点保存网页、划词和视频翻译偏好，并保留高级字幕采集能力。"
   },
   "siteProfilesEditorDescription": {
-    "message": "查看规范化的内置与用户 JSON，新建 DOM-only Profile，或在不改动打包文件的前提下保存安全的本地覆盖。"
+    "message": "全局的网页、划词和视频设置是默认值；可为有特殊需求的站点单独覆盖翻译方式、语言、模型和显示体验。"
   },
-  "profileNew": { "message": "新建 Profile" },
-  "profileCatalog": { "message": "Profile 列表" },
-  "profileEditor": { "message": "JSON 编辑器" },
+  "profileNew": { "message": "新建站点" },
+  "profileCatalog": { "message": "站点列表" },
+  "profileCatalogGroupEmpty": { "message": "暂无 Profile" },
+  "profileEditor": { "message": "翻译设置" },
+  "profileDefaultsTitle": { "message": "未覆盖的设置会自动跟随全局" },
+  "profileDefaultsDescription": {
+    "message": "只开启需要单独调整的模块。关闭覆盖后，这个站点会继续使用对应的全局默认设置。"
+  },
+  "profileName": { "message": "配置名称" },
+  "profileNamePlaceholder": { "message": "例如：YouTube 工作区" },
+  "profileHostname": { "message": "站点域名" },
+  "profileHostnamePlaceholder": { "message": "例如：youtube.com" },
+  "profileHostnameHelp": {
+    "message": "填写域名即可匹配该站点及其受支持的子域名。"
+  },
+  "profilePageTitle": { "message": "网页翻译" },
+  "profilePageDescription": {
+    "message": "设置这个站点的整页翻译、自动翻译及译文显示方式。"
+  },
+  "profileSelectionTitle": { "message": "划词翻译" },
+  "profileSelectionDescription": {
+    "message": "设置在这个站点选中文字后的翻译方式和显示内容。"
+  },
+  "profileSubtitleTitle": { "message": "视频与字幕" },
+  "profileSubtitleDescription": {
+    "message": "设置这个站点的视频字幕翻译、模型和原字幕显示。"
+  },
+  "profileCaptureTitle": { "message": "字幕采集" },
+  "profileCaptureDescription": {
+    "message": "用户可通过选项配置字幕来源；开发者可在文件管理弹窗中编辑完整 Profile。"
+  },
+  "profileCaptureBuiltin": { "message": "使用内置规则" },
+  "profileCaptureOverrideToggle": { "message": "自定义采集规则" },
+  "profileCaptureAdvancedOpen": { "message": "展开高级字幕采集配置" },
+  "profileCaptureParser": { "message": "解析器" },
+  "profileCapturePriority": { "message": "匹配优先级" },
+  "profileCaptureFormats": { "message": "字幕格式" },
+  "profileCaptureVideoSelector": { "message": "视频元素选择器" },
+  "profileCaptureCaptionSelectors": { "message": "字幕节点选择器" },
+  "profileCaptureNativeSelectors": { "message": "原生字幕选择器" },
+  "profileCaptureHostnames": { "message": "允许采集的域名" },
+  "profileCaptureUrlPatterns": { "message": "字幕网络请求规则" },
+  "profileCaptureCompletePatterns": { "message": "完整字幕文件规则" },
+  "profileOnePerLine": { "message": "每行填写一项。" },
+  "profileInheritsGlobal": { "message": "跟随全局" },
+  "profileSiteOverride": { "message": "站点覆盖" },
+  "profileOverrideToggle": { "message": "为此站点单独设置" },
+  "profileTranslationMethod": { "message": "翻译方式" },
+  "profileModelPlaceholder": { "message": "留空则使用该方式的默认模型" },
+  "profileAutoTranslate": { "message": "进入站点后自动翻译网页" },
+  "profileFloatingButton": { "message": "在此站点显示浮窗" },
+  "profileSelectionEnabled": { "message": "在此站点启用划词翻译" },
+  "profileSubtitleEnabled": { "message": "在此站点启用视频字幕" },
+  "profileHideNative": { "message": "显示译文时隐藏原字幕" },
+  "profileCustomPositionX": { "message": "自定义位置 X（0–1）" },
+  "profileCustomPositionY": { "message": "自定义位置 Y（0–1）" },
+  "profileDisplayContent": { "message": "显示内容" },
+  "profilePageAutoTranslateHelp": {
+    "message": "打开或导航到此站点时自动开始网页翻译。"
+  },
+  "profileSelectionEnabledHelp": {
+    "message": "仅在此站点显示划词翻译入口。"
+  },
+  "profileSubtitleEnabledHelp": {
+    "message": "仅在此站点启用视频字幕翻译。"
+  },
+  "profileHideNativeHelp": {
+    "message": "显示扩展字幕时隐藏网站自身字幕。"
+  },
+  "profileAdvancedTitle": { "message": "Profile 文件管理" },
+  "profileFileOpen": { "message": "开发者 Profile 文件" },
+  "profileFileClose": { "message": "关闭" },
+  "profileFileImport": { "message": "导入" },
+  "profileFileExport": { "message": "导出" },
+  "profileFileImported": { "message": "Profile 已导入，请确认后保存。" },
+  "profileFileExported": { "message": "Profile 已导出。" },
+  "profileFileImportFailed": { "message": "无法导入此 Profile 文件。" },
+  "profileFileExportFailed": { "message": "无法导出当前 Profile。" },
+  "profileAdvancedDescription": {
+    "message": "开发者可查看、校验和编辑当前站点的完整配置文件"
+  },
+  "profileJsonEditorTitle": { "message": "完整 Profile 文件" },
+  "profileJsonEditorDescription": {
+    "message": "包含网页、划词、视频翻译与字幕采集配置；表单和文件内容会互相同步。"
+  },
   "profileUnsaved": { "message": "未保存" },
   "profileKindBuiltin": { "message": "内置" },
   "profileKindOverride": { "message": "用户覆盖" },
   "profileKindUser": { "message": "用户 Profile" },
   "profileEditorEmpty": { "message": "请选择一个 Profile 或新建 Profile。" },
   "profileBuiltinEditNote": {
-    "message": "这里显示打包版本的完整规范化 JSON；保存时会新建本地用户覆盖，不会修改打包文件。"
+    "message": "这是扩展打包的内置站点配置。修改后保存为本地覆盖，不会改动内置文件。"
   },
   "profileOverrideEditNote": {
     "message": "此本地覆盖会在运行时替代同 ID 的内置 Profile；恢复内置版本即可移除覆盖。"
@@ -508,7 +587,7 @@
     "message": "此用户 Profile 可以继续编辑、复制或删除。"
   },
   "profileNewEditNote": {
-    "message": "可粘贴或编辑 DOM-only 用户 Profile；保存前由后台生产校验器统一检查。"
+    "message": "填写站点和需要覆盖的翻译模块；只有自定义字幕采集时才需要展开高级配置。"
   },
   "profileJsonLabel": { "message": "规范化 Profile JSON" },
   "profileCopyJson": { "message": "复制 JSON" },
@@ -519,11 +598,17 @@
   "profileSaveOverride": { "message": "保存本地覆盖" },
   "profileTemplateAndFields": { "message": "最小模板与字段说明" },
   "profileTemplateDescription": {
-    "message": "此模板可通过当前 DOM-only 用户 Profile 生产校验。"
+    "message": "一个文件同时包含网页、划词、视频字幕翻译与字幕采集规则。"
   },
   "profileCopyTemplate": { "message": "复制模板" },
   "profileFieldIdentity": {
     "message": "小写 user-* ID、schema 版本 1，以及简短显示名称。"
+  },
+  "profileFieldOverrides": {
+    "message": "分别覆盖网页、划词和视频字幕的语言、翻译方式与模型；未提供的模块继续跟随全局设置。"
+  },
+  "profileFieldCaptureCustomized": {
+    "message": "false 表示继续使用随扩展更新的内置采集规则；true 表示保存本文件中的自定义采集规则。"
   },
   "profileFieldParser": {
     "message": "生产 parser 白名单：$PARSERS$。新建用户 Profile 只能使用 dom。",
@@ -539,7 +624,7 @@
     "message": "视频 selector、字幕 selector 数组和原字幕 selector 数组；空或危险 selector 会被拒绝。"
   },
   "profileFieldCapture": {
-    "message": "格式、允许的主机后缀、URL 子串及可选的完整文件子串；新建用户 Profile 的这些数组必须为空。"
+    "message": "视频和字幕节点选择器，以及格式、允许主机、URL 子串和完整文件子串。"
   },
   "profileCaptureNarrowOnly": {
     "message": "安全边界：内置覆盖必须保持相同 ID 与 parser，match 和 capture 范围只能等价或收紧。"

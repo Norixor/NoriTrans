@@ -20,13 +20,10 @@
   "subtitleTranslation": { "message": "Subtitle translation" },
   "translationMode": { "message": "Translation mode" },
   "modeFast": { "message": "Fast" },
-  "modeAi": { "message": "AI refined" },
+  "modeAi": { "message": "AI translation" },
   "translationMethodChromeLocal": { "message": "Chrome Translator" },
   "translationMethodBergamotLocal": {
     "message": "Local model translation"
-  },
-  "translationMethodOpenAiFast": {
-    "message": "OpenAI-compatible · Fast"
   },
   "translationMethodGoogleTranslate": {
     "message": "Google Cloud Translation"
@@ -35,9 +32,7 @@
     "message": "Microsoft Translator"
   },
   "translationMethodDeepL": { "message": "DeepL" },
-  "translationMethodOpenAiAi": {
-    "message": "OpenAI-compatible · AI refined"
-  },
+  "translationMethodAi": { "message": "AI translation" },
   "aiResponseMode": { "message": "AI response" },
   "responseModeStream": { "message": "Progressive stream (recommended)" },
   "responseModeBatch": { "message": "Complete response" },
@@ -162,13 +157,13 @@
   },
   "providerSettings": { "message": "Translation providers" },
   "providerSettingsDescription": {
-    "message": "Fast translation prioritizes latency; AI refined translation improves context consistency."
+    "message": "Fast translation uses local or machine-translation services; AI translation uses the configured model API."
   },
   "providerPrivacyNotice": {
     "message": "Only the necessary text is sent to the provider you select. Provider keys stay in chrome.storage.local. Chrome and downloaded local translation do not upload text."
   },
   "fastProvider": { "message": "Fast provider" },
-  "aiProvider": { "message": "AI provider" },
+  "aiProvider": { "message": "AI API protocol" },
   "providerChromeLocal": { "message": "Chrome Translator" },
   "providerBergamotLocal": { "message": "Local translation" },
   "ocrLocalTranslationUnavailable": {
@@ -181,6 +176,7 @@
   "viewProviderDetails": { "message": "View response details" },
   "providerDetailsLabel": { "message": "Provider response diagnostic" },
   "providerOpenAiCompatible": { "message": "OpenAI-compatible" },
+  "providerAnthropicMessages": { "message": "Anthropic Claude" },
   "providerGoogleTranslate": { "message": "Google Cloud Translation" },
   "providerMicrosoftTranslator": { "message": "Microsoft Translator" },
   "providerDeepL": { "message": "DeepL" },
@@ -200,7 +196,7 @@
   "deeplPlanFree": { "message": "API Free" },
   "deeplPlanPro": { "message": "API Pro" },
   "aiProviderConfiguration": {
-    "message": "OpenAI-compatible AI translation"
+    "message": "AI translation configuration"
   },
   "baseUrl": { "message": "Base URL" },
   "baseUrlPlaceholder": { "message": "https://api.example.com/v1" },
@@ -228,7 +224,7 @@
   "settingsTabPage": { "message": "Page translation" },
   "settingsTabSelection": { "message": "Selection translation" },
   "settingsTabVideo": { "message": "Video subtitles" },
-  "settingsTabProfiles": { "message": "Site profiles" },
+  "settingsTabProfiles": { "message": "Site settings" },
   "settingsTabProvider": { "message": "Translation service" },
   "settingsTabLocalTranslation": { "message": "Local translation" },
   "settingsTabOcrRuntimes": { "message": "OCR settings" },
@@ -460,6 +456,7 @@
   },
   "subtitleFontSize": { "message": "Font size" },
   "subtitleBackground": { "message": "Background opacity" },
+  "subtitleOpacity": { "message": "Opacity" },
   "subtitleFontDecrease": { "message": "Decrease subtitle font size" },
   "subtitleFontIncrease": { "message": "Increase subtitle font size" },
   "subtitleOpacityDecrease": {
@@ -531,23 +528,127 @@
   },
   "closeQuickSettings": { "message": "Close quick settings" },
   "createSiteProfile": { "message": "Create site profile" },
-  "siteProfiles": { "message": "Site profiles" },
+  "siteProfiles": { "message": "Site-specific translation" },
   "siteProfilesDescription": {
-    "message": "Built-in and captured rules used to find subtitles on video sites."
+    "message": "Save page, selection, and video translation preferences for each site while retaining advanced subtitle capture."
   },
   "siteProfilesEditorDescription": {
-    "message": "Inspect normalized built-in and user JSON, create DOM-only profiles, or save a safe local override without changing packaged files."
+    "message": "Your global page, selection, and video settings are the defaults. Override the method, languages, model, or display only for sites that need something different."
   },
-  "profileNew": { "message": "New profile" },
-  "profileCatalog": { "message": "Profile catalog" },
-  "profileEditor": { "message": "JSON editor" },
+  "profileNew": { "message": "New site" },
+  "profileCatalog": { "message": "Sites" },
+  "profileCatalogGroupEmpty": { "message": "No profiles yet" },
+  "profileEditor": { "message": "Translation settings" },
+  "profileDefaultsTitle": {
+    "message": "Anything you do not override follows your global settings"
+  },
+  "profileDefaultsDescription": {
+    "message": "Turn on only the sections that need a site-specific value. Turning an override off makes this site inherit the corresponding global defaults again."
+  },
+  "profileName": { "message": "Profile name" },
+  "profileNamePlaceholder": { "message": "For example, YouTube workspace" },
+  "profileHostname": { "message": "Site domain" },
+  "profileHostnamePlaceholder": { "message": "For example, youtube.com" },
+  "profileHostnameHelp": {
+    "message": "Enter a domain to match the site and its supported subdomains."
+  },
+  "profilePageTitle": { "message": "Page translation" },
+  "profilePageDescription": {
+    "message": "Control full-page translation, automatic translation, and translated page display for this site."
+  },
+  "profileSelectionTitle": { "message": "Selection translation" },
+  "profileSelectionDescription": {
+    "message": "Choose how selected text is translated and displayed on this site."
+  },
+  "profileSubtitleTitle": { "message": "Video and subtitles" },
+  "profileSubtitleDescription": {
+    "message": "Control video subtitle translation, its model, and native subtitle display for this site."
+  },
+  "profileCaptureTitle": { "message": "Subtitle capture" },
+  "profileCaptureDescription": {
+    "message": "Users can configure subtitle sources with fields; developers can edit the complete Profile in the file manager dialog."
+  },
+  "profileCaptureBuiltin": { "message": "Uses built-in rules" },
+  "profileCaptureOverrideToggle": { "message": "Customize capture rules" },
+  "profileCaptureAdvancedOpen": {
+    "message": "Open advanced subtitle capture settings"
+  },
+  "profileCaptureParser": { "message": "Parser" },
+  "profileCapturePriority": { "message": "Match priority" },
+  "profileCaptureFormats": { "message": "Subtitle formats" },
+  "profileCaptureVideoSelector": { "message": "Video element selector" },
+  "profileCaptureCaptionSelectors": { "message": "Caption node selectors" },
+  "profileCaptureNativeSelectors": { "message": "Native caption selectors" },
+  "profileCaptureHostnames": { "message": "Allowed capture domains" },
+  "profileCaptureUrlPatterns": { "message": "Subtitle network request rules" },
+  "profileCaptureCompletePatterns": {
+    "message": "Complete subtitle file rules"
+  },
+  "profileOnePerLine": { "message": "Enter one item per line." },
+  "profileInheritsGlobal": { "message": "Follows global" },
+  "profileSiteOverride": { "message": "Site override" },
+  "profileOverrideToggle": { "message": "Customize for this site" },
+  "profileTranslationMethod": { "message": "Translation method" },
+  "profileModelPlaceholder": {
+    "message": "Leave blank to use the method's default model"
+  },
+  "profileAutoTranslate": {
+    "message": "Translate pages automatically on this site"
+  },
+  "profileFloatingButton": { "message": "Show the floating control here" },
+  "profileSelectionEnabled": {
+    "message": "Enable selection translation on this site"
+  },
+  "profileSubtitleEnabled": {
+    "message": "Enable video subtitles on this site"
+  },
+  "profileHideNative": {
+    "message": "Hide native subtitles while translations are shown"
+  },
+  "profileCustomPositionX": { "message": "Custom position X (0–1)" },
+  "profileCustomPositionY": { "message": "Custom position Y (0–1)" },
+  "profileDisplayContent": { "message": "Displayed content" },
+  "profilePageAutoTranslateHelp": {
+    "message": "Start page translation automatically when this site opens or navigates."
+  },
+  "profileSelectionEnabledHelp": {
+    "message": "Show the selection translation control only on this site."
+  },
+  "profileSubtitleEnabledHelp": {
+    "message": "Enable video subtitle translation only on this site."
+  },
+  "profileHideNativeHelp": {
+    "message": "Hide the site's subtitles while extension subtitles are visible."
+  },
+  "profileAdvancedTitle": { "message": "Profile file manager" },
+  "profileFileOpen": { "message": "Developer Profile file" },
+  "profileFileClose": { "message": "Close" },
+  "profileFileImport": { "message": "Import" },
+  "profileFileExport": { "message": "Export" },
+  "profileFileImported": {
+    "message": "Profile imported. Review it before saving."
+  },
+  "profileFileExported": { "message": "Profile exported." },
+  "profileFileImportFailed": {
+    "message": "This Profile file could not be imported."
+  },
+  "profileFileExportFailed": {
+    "message": "The current Profile could not be exported."
+  },
+  "profileAdvancedDescription": {
+    "message": "Developers can inspect, validate, and edit the complete site configuration"
+  },
+  "profileJsonEditorTitle": { "message": "Complete Profile file" },
+  "profileJsonEditorDescription": {
+    "message": "Includes page, selection, video translation, and subtitle capture settings. The form and file stay synchronized."
+  },
   "profileUnsaved": { "message": "Unsaved" },
   "profileKindBuiltin": { "message": "Built in" },
   "profileKindOverride": { "message": "User override" },
   "profileKindUser": { "message": "User profile" },
   "profileEditorEmpty": { "message": "Choose a profile or create a new one." },
   "profileBuiltinEditNote": {
-    "message": "This is the packaged normalized JSON. Saving creates a local user override; the packaged file is not changed."
+    "message": "This site configuration is packaged with the extension. Saving changes creates a local override without modifying packaged files."
   },
   "profileOverrideEditNote": {
     "message": "This local override replaces the matching built-in profile at runtime. Restore the built-in version to remove it."
@@ -556,7 +657,7 @@
     "message": "This user profile can be edited, copied, or deleted."
   },
   "profileNewEditNote": {
-    "message": "Paste or edit a DOM-only user profile. The background validator checks the production schema before saving."
+    "message": "Enter the site and turn on only the translation sections you want to override. Open advanced capture only when the site needs custom subtitle rules."
   },
   "profileJsonLabel": { "message": "Normalized profile JSON" },
   "profileCopyJson": { "message": "Copy JSON" },
@@ -567,11 +668,17 @@
   "profileSaveOverride": { "message": "Save local override" },
   "profileTemplateAndFields": { "message": "Minimal template and field guide" },
   "profileTemplateDescription": {
-    "message": "This template is accepted by the current DOM-only user-profile validator."
+    "message": "One file contains page, selection, video subtitle translation, and subtitle capture rules."
   },
   "profileCopyTemplate": { "message": "Copy template" },
   "profileFieldIdentity": {
     "message": "Lowercase user-* ID, schema version 1, and a short display name."
+  },
+  "profileFieldOverrides": {
+    "message": "Overrides languages, translation method, and model independently for page, selection, and video subtitles. Omitted surfaces continue following global settings."
+  },
+  "profileFieldCaptureCustomized": {
+    "message": "false follows bundled capture rules as the extension updates; true saves the custom capture rules in this file."
   },
   "profileFieldParser": {
     "message": "Production parser allowlist: $PARSERS$. New user profiles must use dom.",
@@ -587,7 +694,7 @@
     "message": "A video selector plus caption and native-caption selector arrays. Empty or unsafe selectors are rejected."
   },
   "profileFieldCapture": {
-    "message": "Formats, allowed host suffixes, URL substrings, and optional complete-file substrings. New user profiles keep these arrays empty."
+    "message": "Video and caption selectors plus formats, allowed hosts, URL substrings, and complete-file substrings."
   },
   "profileCaptureNarrowOnly": {
     "message": "Security boundary: a built-in override keeps the same ID and parser. Match and capture scope may only stay equivalent or become narrower."

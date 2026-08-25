@@ -10,6 +10,7 @@ import {
   type LanguageOption,
 } from "@/src/shared/languages";
 import type {
+  AiProviderId,
   ContentSettings,
   FastProviderId,
   ImageTranslationSettings,
@@ -734,7 +735,7 @@ export class UnifiedFloatingControl {
         message("subtitleFontIncrease"),
       ),
       this.createAdjustment(
-        message("subtitleBackground"),
+        message("subtitleOpacity"),
         this.subtitleOpacityValue,
         this.subtitleOpacityDecreaseButton,
         this.subtitleOpacityIncreaseButton,
@@ -1201,7 +1202,7 @@ export class UnifiedFloatingControl {
     targetSelect: HTMLSelectElement,
     sourceLanguage: string,
     targetLanguage: string,
-    provider: FastProviderId,
+    provider: FastProviderId | AiProviderId,
   ): void {
     const locale = currentUiLocale();
     const sourceOptions = SOURCE_LANGUAGES.filter(
@@ -1242,7 +1243,7 @@ export class UnifiedFloatingControl {
   }
 
   private pairAvailable(
-    provider: FastProviderId,
+    provider: FastProviderId | AiProviderId,
     sourceLanguage: string,
     targetLanguage: string,
   ): boolean {
@@ -1279,9 +1280,11 @@ export class UnifiedFloatingControl {
       location.hostname,
     );
     const fastProvider =
-      this.pendingPageFastProvider ?? this.settings.provider.fastProvider;
+      this.pendingPageFastProvider ??
+      settings.fastProviderOverride ??
+      this.settings.provider.fastProvider;
     const pageProvider =
-      settings.mode === "ai" ? "openai-compatible" : fastProvider;
+      settings.mode === "ai" ? this.settings.provider.aiProvider : fastProvider;
     this.syncLanguagePairOptions(
       this.pageSourceLanguageSelect,
       this.pageTargetLanguageSelect,
@@ -1301,7 +1304,7 @@ export class UnifiedFloatingControl {
       settings.selectionTranslationEnabled;
     this.selectionTranslationModeSelect.value = translationMethodValue(
       settings.selectionTranslationMode,
-      fastProvider,
+      settings.selectionTranslationFastProviderOverride ?? fastProvider,
     );
     this.setPageSettingsDisabled(this.pendingPageSettings !== undefined);
   }
@@ -1312,9 +1315,11 @@ export class UnifiedFloatingControl {
       ...this.pendingSubtitleSettings?.patch,
     };
     const fastProvider =
-      this.pendingSubtitleFastProvider ?? this.settings.provider.fastProvider;
+      this.pendingSubtitleFastProvider ??
+      settings.fastProviderOverride ??
+      this.settings.provider.fastProvider;
     const provider =
-      settings.mode === "ai" ? "openai-compatible" : fastProvider;
+      settings.mode === "ai" ? this.settings.provider.aiProvider : fastProvider;
     this.syncLanguagePairOptions(
       this.subtitleSourceLanguageSelect,
       this.subtitleTargetLanguageSelect,
@@ -1367,7 +1372,7 @@ export class UnifiedFloatingControl {
     const fastProvider =
       this.pendingImageFastProvider ?? this.settings.provider.fastProvider;
     const provider =
-      settings.mode === "ai" ? "openai-compatible" : fastProvider;
+      settings.mode === "ai" ? this.settings.provider.aiProvider : fastProvider;
     this.syncLanguagePairOptions(
       this.imageSourceLanguageSelect,
       this.imageTargetLanguageSelect,
@@ -2366,8 +2371,9 @@ export class UnifiedFloatingControl {
     const retry = status.failed > 0 && status.state !== "cancelled";
     const provider =
       this.settings.subtitles.mode === "ai"
-        ? "openai-compatible"
-        : this.settings.provider.fastProvider;
+        ? this.settings.provider.aiProvider
+        : (this.settings.subtitles.fastProviderOverride ??
+          this.settings.provider.fastProvider);
     const pairAvailable = this.pairAvailable(
       provider,
       this.settings.subtitles.sourceLanguage,
@@ -2420,7 +2426,7 @@ export class UnifiedFloatingControl {
     const running = this.imageTaskActive();
     const provider =
       this.settings.imageTranslation.mode === "ai"
-        ? "openai-compatible"
+        ? this.settings.provider.aiProvider
         : this.settings.provider.fastProvider;
     this.imageStartButton.disabled =
       !this.settings.imageTranslation.enabled ||
@@ -2576,8 +2582,9 @@ export class UnifiedFloatingControl {
       this.currentPageStatus.state === "translating";
     const provider =
       this.settings.page.mode === "ai"
-        ? "openai-compatible"
-        : this.settings.provider.fastProvider;
+        ? this.settings.provider.aiProvider
+        : (this.settings.page.fastProviderOverride ??
+          this.settings.provider.fastProvider);
     this.translateButton.disabled =
       this.pageBusy ||
       translating ||

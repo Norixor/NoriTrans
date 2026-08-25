@@ -15,7 +15,7 @@ NorixorTrans keeps webpage translation, video subtitle translation, and optional
 - **Webpages:** translate semantic text nodes without replacing a page's entire HTML, follow dynamic content and SPA navigation, and safely restore the original text.
 - **Video subtitles:** use complete subtitle tracks when available and fall back explicitly to low-latency stream translation when only the current caption can be observed.
 - **Local OCR:** recognize burned-in image subtitles only after the user enables OCR and selects a capture region. Screenshots and recognized text stay on the device.
-- **Provider choice:** use Chrome's local Translator API, explicitly downloaded Bergamot language packs, an OpenAI-compatible endpoint, Google Cloud Translation, Microsoft Translator, or DeepL with your own credentials.
+- **Provider choice:** use Chrome's local Translator API, explicitly downloaded Bergamot language packs, AI translation, Google Cloud Translation, Microsoft Translator, or DeepL with your own credentials. AI translation supports both OpenAI-compatible and Anthropic Claude Messages protocols.
 - **One compact control:** manage webpage, video, and image translation from a draggable Shadow DOM control.
 
 ## Translation modes
@@ -44,7 +44,15 @@ The repository includes 20 built-in profiles covering standard HTML5, a generic 
 
 A bundled site profile describes a supported subtitle acquisition strategy; it does not claim that a third-party site has been live-verified for every release.
 
-## Install from source
+## Recommended installation
+
+1. Download the latest ZIP package from [GitHub Releases](https://github.com/Norixor/NorixorTrans/releases).
+2. Open `chrome://extensions` and enable **Developer mode** in the upper-right corner.
+3. Drag the downloaded ZIP package directly into the extensions list.
+
+The recommended installation does not require extracting the ZIP or choosing **Load unpacked**.
+
+## Develop from source
 
 Requirements:
 
@@ -59,26 +67,24 @@ pnpm install --frozen-lockfile
 pnpm build
 ```
 
-Then open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select:
+For source debugging, open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select:
 
 ```text
 .output/chrome-mv3
 ```
 
-Unpacked builds do not update automatically. Keep the same extension directory if you want Chrome to preserve the same local development installation.
-
-When upgrading an unpacked release, replace the files inside the directory that Chrome already loaded and click **Reload** on `chrome://extensions`. Do not load the new release from a second directory: Chrome derives an unpacked extension's identity from its directory, so a different directory creates a separate installation with separate local settings.
+This workflow is only for source development. Unpacked builds do not update automatically. Keep the same extension directory if you want Chrome to preserve the same local development installation.
 
 ## Provider and privacy model
 
-| Capability                    | Processing location                 | Data sent externally                                                                    |
-| ----------------------------- | ----------------------------------- | --------------------------------------------------------------------------------------- |
-| Chrome local translation      | Chrome's local model runtime        | No text is sent to the configured AI provider. Chrome may download language models.     |
-| Downloaded local translation  | Extension-origin Bergamot runtime   | Directional packs install only after an explicit click; translated text stays local.    |
-| OpenAI-compatible translation | The endpoint configured by the user | Only the text segments and bounded translation context required for the active request. |
-| Google, Microsoft, or DeepL   | The selected official provider API  | Only the text segments required for the active fast-translation request.                |
-| Local subtitle OCR            | Extension-origin Offscreen Document | Screenshots and recognized text are not uploaded and cannot be sent to an AI provider.  |
-| Version update check          | GitHub Releases API                 | No webpage, subtitle, image, provider credential, or translation text is sent.          |
+| Capability                   | Processing location                           | Data sent externally                                                                    |
+| ---------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Chrome local translation     | Chrome's local model runtime                  | No text is sent to the configured AI provider. Chrome may download language models.     |
+| Downloaded local translation | Extension-origin Bergamot runtime             | Directional packs install only after an explicit click; translated text stays local.    |
+| AI translation               | The standard model API configured by the user | Only the text segments and bounded translation context required for the active request. |
+| Google, Microsoft, or DeepL  | The selected official provider API            | Only the text segments required for the active fast-translation request.                |
+| Local subtitle OCR           | Extension-origin Offscreen Document           | Screenshots and recognized text are not uploaded and cannot be sent to an AI provider.  |
+| Version update check         | GitHub Releases API                           | No webpage, subtitle, image, provider credential, or translation text is sent.          |
 
 Additional guarantees:
 

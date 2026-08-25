@@ -203,11 +203,14 @@ describe("ChromeLocalProvider readiness", () => {
     await provider.dispose();
   });
 
-  it("rejects invalid protected markers from packed fallback and exact translation", async () => {
+  it("recovers Chrome marker rewrites by translating protected parts", async () => {
     const source = createProtectedText(["Hello", "world"]);
-    const translate = vi.fn((text: string) =>
-      Promise.resolve(text.replace(/\uE000NT1:0:1:close\uE001/u, "")),
-    );
+    const translate = vi.fn((text: string) => {
+      if (text.includes("\uE000NT1:")) {
+        return Promise.resolve(text.replaceAll("\uE000NT1:0:", "\uE000NT1:1:"));
+      }
+      return Promise.resolve(`译:${text}`);
+    });
     setTranslator({
       availability: vi.fn(() => Promise.resolve("available")),
       create: vi.fn(() => Promise.resolve({ translate, destroy: vi.fn() })),
@@ -227,9 +230,49 @@ describe("ChromeLocalProvider readiness", () => {
         new AbortController().signal,
         progress,
       ),
+    ).resolves.toEqual([
+      {
+        id: "first",
+        translatedText: createProtectedText(["译:Hello", "译:world"]),
+      },
+      {
+        id: "second",
+        translatedText: createProtectedText(["译:Hello", "译:world"]),
+      },
+    ]);
+    expect(progress).toHaveBeenCalledTimes(2);
+    expect(
+      translate.mock.calls.filter(([text]) => !text.includes("\uE000NT")),
+    ).toHaveLength(4);
+    await provider.dispose();
+  });
+
+  it("rejects an empty Chrome protected-part fallback result", async () => {
+    const source = createProtectedText(["Hello"]);
+    const translate = vi.fn((text: string) =>
+      Promise.resolve(
+        text.includes("\uE000NT1:")
+          ? text.replaceAll("\uE000NT1:0:", "\uE000NT1:1:")
+          : "",
+      ),
+    );
+    setTranslator({
+      availability: vi.fn(() => Promise.resolve("available")),
+      create: vi.fn(() => Promise.resolve({ translate, destroy: vi.fn() })),
+    });
+    const provider = new ChromeLocalProvider({ keepAliveForTask: true });
+
+    await expect(
+      provider.translateBatch(
+        {
+          ...request,
+          segments: [
+            { id: "single", text: source, format: "protected-text-v1" },
+          ],
+        },
+        new AbortController().signal,
+      ),
     ).rejects.toMatchObject({ code: "invalid_response" });
-    expect(progress).not.toHaveBeenCalled();
-    expect(translate).toHaveBeenCalledTimes(3);
     await provider.dispose();
   });
 

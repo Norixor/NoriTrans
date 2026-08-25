@@ -1,5 +1,6 @@
 import { NorixorTransError } from "@/src/shared/errors";
 import { runtimeErrorToken } from "@/src/shared/runtime-errors";
+import type { AiProviderId } from "@/src/shared/settings";
 import {
   assertValidProtectedTranslation,
   protectedTextParts,
@@ -15,6 +16,8 @@ import type {
 } from "@/src/translation/types";
 
 export interface OpenAICompatibleConfig {
+  /** Defaults to the legacy OpenAI-compatible wire protocol. */
+  protocol?: AiProviderId;
   baseUrl: string;
   apiKey: string;
   model: string;
@@ -26,6 +29,9 @@ interface ChatCompletionResponse {
   type?: unknown;
   delta?: unknown;
   output_text?: unknown;
+  content?: unknown;
+  error?: unknown;
+  stop_reason?: unknown;
   choices?: Array<{
     text?: unknown;
     message?: {
@@ -43,6 +49,8 @@ interface ChatCompletionResponse {
 
 const JSON_PROTOCOL_PROMPT =
   'Return compact JSON only: {"results":[["<input id>","<translation>"]]}. Each item is exactly [id, translation]. Include every input id exactly once, copied verbatim and kept in input order. Translation must be non-empty and translate only the text referenced by that segment; context is reference only. If uncertain, provide the best translation instead of omitting an id. No markdown, commentary, labels, or extra keys.';
+const ANTHROPIC_JSON_PROTOCOL_PROMPT =
+  'Return compact JSON only: {"results":[{"id":"<input id>","translatedText":"<translation>"}]}. Include every input id exactly once, copied verbatim and kept in input order. Translation must be non-empty and translate only the text referenced by that segment; context is reference only. If uncertain, provide the best translation instead of omitting an id. No markdown, commentary, labels, or extra keys.';
 const COMPACT_CONTEXT_PROMPT =
   "Each input segment is [id,text,before,after,format?]. Translate only text from that same tuple; before/after are ordered reference context. format p means protected-text-v1. mediaTitle is reference context only and must not be returned.";
 const PROTECTED_TEXT_PROMPT =
@@ -75,6 +83,7 @@ type ResponseFormatMode = "json-schema" | "json-object" | "none";
 interface OptionalRequestCapabilities {
   responseFormatMode?: ResponseFormatMode;
   reasoningEffortSupported?: boolean;
+  anthropicOutputFormatSupported?: boolean;
 }
 
 const optionalRequestCapabilities = new Map<
@@ -82,8 +91,15 @@ const optionalRequestCapabilities = new Map<
   OptionalRequestCapabilities
 >();
 
+function configuredProtocol(config: OpenAICompatibleConfig): AiProviderId {
+  return config.protocol === "anthropic-messages"
+    ? "anthropic-messages"
+    : "openai-compatible";
+}
+
 function streamingCapabilityKey(config: OpenAICompatibleConfig): string {
-  let normalizedBaseUrl = endpoint(config.baseUrl);
+  const protocol = configuredProtocol(config);
+  let normalizedBaseUrl = endpoint(config.baseUrl, protocol);
   try {
     const parsed = new URL(normalizedBaseUrl);
     parsed.hash = "";
@@ -91,7 +107,7 @@ function streamingCapabilityKey(config: OpenAICompatibleConfig): string {
   } catch {
     // Configuration validation reports malformed URLs when the request runs.
   }
-  return `${normalizedBaseUrl}\u001f${config.model.trim().normalize("NFC")}`;
+  return `${protocol}\u001f${normalizedBaseUrl}\u001f${config.model.trim().normalize("NFC")}`;
 }
 
 function touchStreamingCapability(
@@ -298,11 +314,26 @@ function wireRequestAliases(
   };
 }
 
-function endpoint(baseUrl: string): string {
-  const normalized = baseUrl.trim().replace(/\/+$/, "");
-  return normalized.endsWith("/chat/completions")
-    ? normalized
-    : `${normalized}/chat/completions`;
+function endpoint(baseUrl: string, protocol: AiProviderId): string {
+  const url = new URL(baseUrl.trim());
+  if (url.username || url.password || url.search || url.hash) {
+    throw new TypeError(
+      "Provider Base URL must not contain credentials, query, or fragment.",
+    );
+  }
+  const normalizedPath = url.pathname.replace(/\/+$/u, "");
+  if (protocol === "anthropic-messages") {
+    url.pathname = normalizedPath.endsWith("/messages")
+      ? normalizedPath
+      : normalizedPath.endsWith("/v1")
+        ? `${normalizedPath}/messages`
+        : `${normalizedPath}/v1/messages`;
+  } else {
+    url.pathname = normalizedPath.endsWith("/chat/completions")
+      ? normalizedPath
+      : `${normalizedPath}/chat/completions`;
+  }
+  return url.toString();
 }
 
 function responseFormat(expectedResults: number) {
@@ -333,6 +364,33 @@ function responseFormat(expectedResults: number) {
   };
 }
 
+function anthropicOutputFormat() {
+  return {
+    format: {
+      type: "json_schema",
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          results: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                id: { type: "string" },
+                translatedText: { type: "string" },
+              },
+              required: ["id", "translatedText"],
+            },
+          },
+        },
+        required: ["results"],
+      },
+    },
+  };
+}
+
 function jsonObjectResponseFormat() {
   return { type: "json_object" };
 }
@@ -345,7 +403,8 @@ function lowLatencyReasoningEffort(model: string): "none" | undefined {
 
 function rejectsOptionalParameter(
   response: { status: number; body: string },
-  parameter: "response_format" | "reasoning_effort" | "stream",
+  parameter:
+    "response_format" | "reasoning_effort" | "output_config" | "stream",
 ): boolean {
   if (response.status !== 400 && response.status !== 422) return false;
   const body = response.body.toLowerCase();
@@ -354,7 +413,9 @@ function rejectsOptionalParameter(
       ? /response[_ -]?format|json[_ -]?schema|structured/iu.test(body)
       : parameter === "reasoning_effort"
         ? /reasoning[_ -]?effort/iu.test(body)
-        : /\bstream(?:ing)?\b/iu.test(body);
+        : parameter === "output_config"
+          ? /output[_ -]?config|json[_ -]?schema|structured/iu.test(body)
+          : /\bstream(?:ing)?\b/iu.test(body);
   return (
     mentionsParameter &&
     /unsupported|not support|unknown|unrecognized|unexpected|invalid|extra|additional/iu.test(
@@ -383,6 +444,13 @@ function textContent(content: unknown): string {
 }
 
 function streamedEventContent(payload: ChatCompletionResponse): string {
+  if (
+    payload.type === "content_block_delta" &&
+    isRecord(payload.delta) &&
+    payload.delta.type === "text_delta"
+  ) {
+    return typeof payload.delta.text === "string" ? payload.delta.text : "";
+  }
   const chatContent = (payload.choices ?? [])
     .map((choice) =>
       textContent(
@@ -565,6 +633,7 @@ class StreamingResultsParser {
 async function readStreamingContent(
   response: Response,
   request: TranslationRequest,
+  protocol: AiProviderId,
   onProgress?: TranslationProgressCallback,
 ): Promise<{ content: string; emittedResults: TranslationResult[] }> {
   if (!response.body) return { content: "", emittedResults: [] };
@@ -573,6 +642,8 @@ async function readStreamingContent(
   const decoder = new TextDecoder();
   let buffer = "";
   let done = false;
+  let stopReason: string | undefined;
+  let sawMessageStop = false;
 
   const consumeEvent = async (event: string): Promise<void> => {
     const data = event
@@ -590,6 +661,28 @@ async function readStreamingContent(
         `Invalid server-sent event JSON. Event length: ${data.length} characters.`,
       );
     }
+    if (payload.type === "error") {
+      const errorType =
+        isRecord(payload.error) && typeof payload.error.type === "string"
+          ? diagnosticId(payload.error.type)
+          : "unknown";
+      throw new NorixorTransError(
+        runtimeErrorToken("request_failed"),
+        "request_failed",
+        errorType === "overloaded_error" ||
+          errorType === "rate_limit_error" ||
+          errorType === "api_error" ||
+          errorType === "timeout_error",
+        `The streamed Provider response reported an error event of type ${errorType}.`,
+      );
+    }
+    if (payload.type === "message_delta" && isRecord(payload.delta)) {
+      stopReason =
+        typeof payload.delta.stop_reason === "string"
+          ? payload.delta.stop_reason
+          : stopReason;
+    }
+    if (payload.type === "message_stop") sawMessageStop = true;
     const chunk = streamedEventContent(payload);
     if (chunk) await parser.push(chunk);
   };
@@ -610,6 +703,7 @@ async function readStreamingContent(
     }
     if (buffer.trim()) await consumeEvent(buffer);
   } catch (error) {
+    if (error instanceof NorixorTransError && !error.retryable) throw error;
     if (parser.emittedResults() > 0) {
       const emittedResults = parser.emittedResults();
       throw new PartialStreamingResponseError(
@@ -620,6 +714,40 @@ async function readStreamingContent(
       );
     }
     throw error;
+  }
+  if (protocol === "anthropic-messages") {
+    let terminalError: NorixorTransError | undefined;
+    if (!sawMessageStop) {
+      terminalError = invalidResponse(
+        "The Anthropic stream ended without a message_stop event.",
+      );
+    } else if (stopReason === undefined) {
+      terminalError = invalidResponse(
+        "The Anthropic stream ended without a terminal stop_reason.",
+      );
+    } else if (stopReason === "refusal") {
+      terminalError = new NorixorTransError(
+        runtimeErrorToken("request_failed"),
+        "request_failed",
+        false,
+        "The Anthropic response stopped with refusal.",
+      );
+    } else if (stopReason !== "end_turn" && stopReason !== "stop_sequence") {
+      terminalError = invalidResponse(
+        `The Anthropic stream stopped with ${diagnosticId(stopReason)}.`,
+      );
+    }
+    if (terminalError) {
+      if (parser.emittedResults() > 0) {
+        throw new PartialStreamingResponseError(
+          parser.results(),
+          terminalError.details,
+          false,
+          terminalError,
+        );
+      }
+      throw terminalError;
+    }
   }
   return {
     content: parser.content(),
@@ -838,6 +966,8 @@ class PartialStreamingResponseError extends NorixorTransError {
   constructor(
     readonly partialResults: TranslationResult[],
     details?: string,
+    readonly allowRecovery = true,
+    readonly terminalError?: NorixorTransError,
   ) {
     super(
       runtimeErrorToken("invalid_response"),
@@ -932,7 +1062,7 @@ function assessmentDiagnostics(
 }
 
 export class OpenAICompatibleProvider implements TranslationProvider {
-  readonly id = "openai-compatible";
+  readonly id: AiProviderId;
   readonly capabilities: ProviderCapabilities = {
     maxBatchCharacters: 12_000,
     maxBatchSegments: 60,
@@ -942,7 +1072,9 @@ export class OpenAICompatibleProvider implements TranslationProvider {
   constructor(
     readonly mode: TranslationMode,
     private readonly config: OpenAICompatibleConfig,
-  ) {}
+  ) {
+    this.id = configuredProtocol(config);
+  }
 
   async translateBatch(
     request: TranslationRequest,
@@ -984,6 +1116,9 @@ export class OpenAICompatibleProvider implements TranslationProvider {
       results = await this.translateOnce(request, signal, onProgress);
     } catch (error) {
       if (error instanceof PartialStreamingResponseError && !signal.aborted) {
+        if (!error.allowRecovery) {
+          throw error.terminalError ?? invalidResponse(error.details);
+        }
         const assessed = assessResults(request.segments, error.partialResults);
         const diagnostics = assessmentDiagnostics(assessed);
         if (assessed.missing.length === 0) {
@@ -1275,8 +1410,10 @@ export class OpenAICompatibleProvider implements TranslationProvider {
 
     try {
       const input = compactRequestInput(wireRequest);
+      const protocol = configuredProtocol(this.config);
       const optionalCapabilities = optionalCapabilitiesFor(capabilityKey);
       const reasoningEffort =
+        protocol === "anthropic-messages" ||
         optionalCapabilities.reasoningEffortSupported === false
           ? undefined
           : lowLatencyReasoningEffort(this.config.model);
@@ -1289,36 +1426,47 @@ export class OpenAICompatibleProvider implements TranslationProvider {
       attemptedStreaming = streamChoice.useStream;
       if (controller.signal.aborted)
         throw new DOMException("Aborted", "AbortError");
-      const payload: Record<string, unknown> = {
-        model: this.config.model,
-        temperature: 0,
-        ...(attemptedStreaming ? { stream: true } : {}),
-        ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
-        messages: [
-          {
-            role: "system",
-            content: [
-              request.prompt?.trim() || this.config.systemPrompt,
-              JSON_PROTOCOL_PROMPT,
-              COMPACT_CONTEXT_PROMPT,
-              wireRequest.segments.some(
-                (segment) => segment.format === "protected-text-v1",
-              )
-                ? PROTECTED_TEXT_PROMPT
-                : "",
-            ]
-              .filter(Boolean)
-              .join("\n"),
-          },
-          {
-            role: "user",
-            content: JSON.stringify(input),
-          },
-        ],
-      };
+      const systemPrompt = [
+        request.prompt?.trim() || this.config.systemPrompt,
+        protocol === "anthropic-messages"
+          ? ANTHROPIC_JSON_PROTOCOL_PROMPT
+          : JSON_PROTOCOL_PROMPT,
+        COMPACT_CONTEXT_PROMPT,
+        wireRequest.segments.some(
+          (segment) => segment.format === "protected-text-v1",
+        )
+          ? PROTECTED_TEXT_PROMPT
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+      const payload: Record<string, unknown> =
+        protocol === "anthropic-messages"
+          ? {
+              model: this.config.model,
+              max_tokens: 8_192,
+              ...(attemptedStreaming ? { stream: true } : {}),
+              ...(optionalCapabilities.anthropicOutputFormatSupported === false
+                ? {}
+                : { output_config: anthropicOutputFormat() }),
+              system: systemPrompt,
+              messages: [{ role: "user", content: JSON.stringify(input) }],
+            }
+          : {
+              model: this.config.model,
+              temperature: 0,
+              ...(attemptedStreaming ? { stream: true } : {}),
+              ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: JSON.stringify(input) },
+              ],
+            };
 
       let responseFormatMode: ResponseFormatMode =
-        optionalCapabilities.responseFormatMode ?? "json-schema";
+        protocol === "anthropic-messages"
+          ? "none"
+          : (optionalCapabilities.responseFormatMode ?? "json-schema");
       const requestPayload: Record<string, unknown> = {
         ...payload,
         ...(responseFormatMode === "json-schema"
@@ -1351,6 +1499,15 @@ export class OpenAICompatibleProvider implements TranslationProvider {
             responseFormatMode = "none";
             optionalCapabilities.responseFormatMode = "none";
           }
+        } else if (
+          "output_config" in requestPayload &&
+          rejectsOptionalParameter(
+            { status: response.status, body: errorBody },
+            "output_config",
+          )
+        ) {
+          delete requestPayload.output_config;
+          optionalCapabilities.anthropicOutputFormatSupported = false;
         } else if (
           "reasoning_effort" in requestPayload &&
           rejectsOptionalParameter(
@@ -1388,6 +1545,12 @@ export class OpenAICompatibleProvider implements TranslationProvider {
       }
 
       optionalCapabilities.responseFormatMode = responseFormatMode;
+      if (
+        protocol === "anthropic-messages" &&
+        "output_config" in requestPayload
+      ) {
+        optionalCapabilities.anthropicOutputFormatSupported = true;
+      }
       if (reasoningEffort && "reasoning_effort" in requestPayload) {
         optionalCapabilities.reasoningEffortSupported = true;
       }
@@ -1410,6 +1573,7 @@ export class OpenAICompatibleProvider implements TranslationProvider {
           streamed = await readStreamingContent(
             response,
             wireRequest,
+            protocol,
             wireAliases.restoreProgress,
           );
         } catch (error) {
@@ -1512,14 +1676,39 @@ export class OpenAICompatibleProvider implements TranslationProvider {
         data = JSON.parse(responseText) as ChatCompletionResponse;
       } catch {
         throw invalidResponse(
-          `Chat completion response is not valid JSON. Response length: ${responseText.length} characters.`,
+          `Provider response is not valid JSON. Response length: ${responseText.length} characters.`,
         );
       }
       const responseMessage = data.choices?.[0]?.message;
+      if (protocol === "anthropic-messages") {
+        if (data.type !== "message") {
+          throw invalidResponse(
+            `Anthropic response type must be message. Received: ${diagnosticId(data.type ?? "missing")}.`,
+          );
+        }
+        if (data.stop_reason === "refusal") {
+          throw new NorixorTransError(
+            runtimeErrorToken("request_failed"),
+            "request_failed",
+            false,
+            "The Anthropic response stopped with refusal.",
+          );
+        }
+        if (
+          data.stop_reason !== "end_turn" &&
+          data.stop_reason !== "stop_sequence"
+        ) {
+          throw invalidResponse(
+            `The Anthropic response stopped with ${diagnosticId(data.stop_reason ?? "missing")}.`,
+          );
+        }
+      }
       const content =
-        responseMessage?.parsed ??
-        responseMessage?.content ??
-        responseMessage?.tool_calls?.[0]?.function?.arguments;
+        protocol === "anthropic-messages"
+          ? data.content
+          : (responseMessage?.parsed ??
+            responseMessage?.content ??
+            responseMessage?.tool_calls?.[0]?.function?.arguments);
       if (
         content === undefined ||
         content === null ||
@@ -1538,6 +1727,8 @@ export class OpenAICompatibleProvider implements TranslationProvider {
         throw new PartialStreamingResponseError(
           wireAliases.restoreResults(error.partialResults),
           error.details,
+          error.allowRecovery,
+          error.terminalError,
         );
       }
       if (signal.aborted) {
@@ -1575,12 +1766,21 @@ export class OpenAICompatibleProvider implements TranslationProvider {
   }
 
   private async request(body: object, signal: AbortSignal): Promise<Response> {
-    return fetch(endpoint(this.config.baseUrl), {
+    const protocol = configuredProtocol(this.config);
+    return fetch(endpoint(this.config.baseUrl, protocol), {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.config.apiKey}`,
-        "Content-Type": "application/json",
-      },
+      headers:
+        protocol === "anthropic-messages"
+          ? {
+              "x-api-key": this.config.apiKey,
+              "anthropic-version": "2023-06-01",
+              "anthropic-dangerous-direct-browser-access": "true",
+              "Content-Type": "application/json",
+            }
+          : {
+              Authorization: `Bearer ${this.config.apiKey}`,
+              "Content-Type": "application/json",
+            },
       body: JSON.stringify(body),
       signal,
     });

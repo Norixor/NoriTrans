@@ -2,6 +2,7 @@ import {
   isAllowedProviderBaseUrl,
   loadSettings,
   mergeSettings,
+  type AiProviderId,
   type AppSettings,
   type FastProviderId,
 } from "@/src/shared/settings";
@@ -16,13 +17,33 @@ import {
   localizeDocument,
   message,
 } from "@/src/shared/i18n";
+import {
+  parseTranslationMethod,
+  TRANSLATION_METHODS,
+  translationMethodValue,
+} from "@/src/shared/translation-methods";
 import type { SubtitleSiteProfile } from "@/src/subtitles/profiles/types";
+import type {
+  SitePageTranslationOverride,
+  SiteSelectionTranslationOverride,
+  SiteSubtitleTranslationOverride,
+  SiteSurfaceTranslationOverride,
+  SiteTranslationProfile,
+} from "@/src/site-profiles/types";
+import {
+  createSiteProfileDocument,
+  parseSiteProfileDocument,
+  type SiteProfileDocument,
+} from "@/src/site-profiles/document";
+import { isSiteTranslationProfile } from "@/src/site-profiles/validation";
 import {
   isBuiltInProfileOverride,
   isUserSiteProfile,
   MINIMAL_USER_SITE_PROFILE_TEMPLATE,
+  parseEditableSiteProfile,
   parseSiteProfile,
   SITE_PROFILE_PARSER_ALLOWLIST,
+  SiteProfileValidationError,
   type SiteProfileValidationReason,
 } from "@/src/subtitles/profiles/registry";
 import { createLocalOcrEngine, ocrRecognitionText } from "@/src/ocr/engine";
@@ -115,6 +136,7 @@ function isSiteProfilesResponse(value: unknown): value is {
   builtIns: SubtitleSiteProfile[];
   profiles: SubtitleSiteProfile[];
   overrides: SubtitleSiteProfile[];
+  translationProfiles: SiteTranslationProfile[];
 } {
   return (
     isSuccessfulResponse(value) &&
@@ -133,7 +155,20 @@ function isSiteProfilesResponse(value: unknown): value is {
     value.profiles.every((profile) => isUserSiteProfile(profile)) &&
     "overrides" in value &&
     Array.isArray(value.overrides) &&
-    value.overrides.every((profile) => isBuiltInProfileOverride(profile))
+    value.overrides.every((profile) => isBuiltInProfileOverride(profile)) &&
+    "translationProfiles" in value &&
+    Array.isArray(value.translationProfiles) &&
+    value.translationProfiles.every(isSiteTranslationProfile)
+  );
+}
+
+function isSiteTranslationProfileSaveResponse(
+  value: unknown,
+): value is { ok: true; profile: SiteTranslationProfile } {
+  return (
+    isSuccessfulResponse(value) &&
+    "profile" in value &&
+    isSiteTranslationProfile(value.profile)
   );
 }
 
@@ -374,6 +409,7 @@ async function initialize(): Promise<void> {
   );
   const uiLanguage = element<HTMLSelectElement>("ui-language");
   const fastProvider = element<HTMLSelectElement>("fast-provider");
+  const aiProvider = element<HTMLSelectElement>("ai-provider");
   const googleProviderFields = element<HTMLElement>("google-provider-fields");
   const microsoftProviderFields = element<HTMLElement>(
     "microsoft-provider-fields",
@@ -522,6 +558,133 @@ async function initialize(): Promise<void> {
   const clearCredentialsButton =
     element<HTMLButtonElement>("clear-credentials");
   const profileNew = element<HTMLButtonElement>("profile-new");
+  const profileName = element<HTMLInputElement>("profile-name");
+  const profileHostname = element<HTMLInputElement>("profile-hostname");
+  const profilePageOverride = element<HTMLInputElement>(
+    "profile-page-override",
+  );
+  const profileSelectionOverride = element<HTMLInputElement>(
+    "profile-selection-override",
+  );
+  const profileSubtitleOverride = element<HTMLInputElement>(
+    "profile-subtitle-override",
+  );
+  const profilePageSourceLanguage = element<HTMLSelectElement>(
+    "profile-page-source-language",
+  );
+  const profilePageTargetLanguage = element<HTMLSelectElement>(
+    "profile-page-target-language",
+  );
+  const profilePageMethod = element<HTMLSelectElement>("profile-page-method");
+  const profilePageModel = element<HTMLInputElement>("profile-page-model");
+  const profilePageResponseMode = element<HTMLSelectElement>(
+    "profile-page-response-mode",
+  );
+  const profilePageDisplayMode = element<HTMLSelectElement>(
+    "profile-page-display-mode",
+  );
+  const profilePageAutoTranslate = element<HTMLInputElement>(
+    "profile-page-auto-translate",
+  );
+  const profilePageFloatingButton = element<HTMLInputElement>(
+    "profile-page-floating-button",
+  );
+  const profileSelectionSourceLanguage = element<HTMLSelectElement>(
+    "profile-selection-source-language",
+  );
+  const profileSelectionTargetLanguage = element<HTMLSelectElement>(
+    "profile-selection-target-language",
+  );
+  const profileSelectionMethod = element<HTMLSelectElement>(
+    "profile-selection-method",
+  );
+  const profileSelectionModel = element<HTMLInputElement>(
+    "profile-selection-model",
+  );
+  const profileSelectionResponseMode = element<HTMLSelectElement>(
+    "profile-selection-response-mode",
+  );
+  const profileSelectionDisplayMode = element<HTMLSelectElement>(
+    "profile-selection-display-mode",
+  );
+  const profileSelectionEnabled = element<HTMLInputElement>(
+    "profile-selection-enabled",
+  );
+  const profileSubtitleSourceLanguage = element<HTMLSelectElement>(
+    "profile-subtitle-source-language",
+  );
+  const profileSubtitleTargetLanguage = element<HTMLSelectElement>(
+    "profile-subtitle-target-language",
+  );
+  const profileSubtitleMethod = element<HTMLSelectElement>(
+    "profile-subtitle-method",
+  );
+  const profileSubtitleModel = element<HTMLInputElement>(
+    "profile-subtitle-model",
+  );
+  const profileSubtitleResponseMode = element<HTMLSelectElement>(
+    "profile-subtitle-response-mode",
+  );
+  const profileSubtitleDisplayMode = element<HTMLSelectElement>(
+    "profile-subtitle-display-mode",
+  );
+  const profileSubtitlePosition = element<HTMLSelectElement>(
+    "profile-subtitle-position",
+  );
+  const profileSubtitleFontScale = element<HTMLInputElement>(
+    "profile-subtitle-font-scale",
+  );
+  const profileSubtitleBackgroundOpacity = element<HTMLInputElement>(
+    "profile-subtitle-background-opacity",
+  );
+  const profileSubtitleCustomX = element<HTMLInputElement>(
+    "profile-subtitle-custom-x",
+  );
+  const profileSubtitleCustomY = element<HTMLInputElement>(
+    "profile-subtitle-custom-y",
+  );
+  const profileSubtitleEnabled = element<HTMLInputElement>(
+    "profile-subtitle-enabled",
+  );
+  const profileSubtitleFloatingButton = element<HTMLInputElement>(
+    "profile-subtitle-floating-button",
+  );
+  const profileSubtitleHideNative = element<HTMLInputElement>(
+    "profile-subtitle-hide-native",
+  );
+  const profileCaptureOverride = element<HTMLInputElement>(
+    "profile-capture-override",
+  );
+  const profileCaptureDetails = element<HTMLDetailsElement>(
+    "profile-capture-details",
+  );
+  const profileCaptureParser = element<HTMLSelectElement>(
+    "profile-capture-parser",
+  );
+  const profileCapturePriority = element<HTMLInputElement>(
+    "profile-capture-priority",
+  );
+  const profileCaptureFormats = element<HTMLSelectElement>(
+    "profile-capture-formats",
+  );
+  const profileCaptureVideoSelector = element<HTMLInputElement>(
+    "profile-capture-video-selector",
+  );
+  const profileCaptureCaptionSelectors = element<HTMLTextAreaElement>(
+    "profile-capture-caption-selectors",
+  );
+  const profileCaptureNativeSelectors = element<HTMLTextAreaElement>(
+    "profile-capture-native-selectors",
+  );
+  const profileCaptureHostnames = element<HTMLTextAreaElement>(
+    "profile-capture-hostnames",
+  );
+  const profileCaptureUrlPatterns = element<HTMLTextAreaElement>(
+    "profile-capture-url-patterns",
+  );
+  const profileCaptureCompletePatterns = element<HTMLTextAreaElement>(
+    "profile-capture-complete-patterns",
+  );
   const profileCatalogList = element<HTMLUListElement>("profile-catalog-list");
   const profileTotalCount = element<HTMLSpanElement>("profile-total-count");
   const profileLoading = element<HTMLParagraphElement>("profile-loading");
@@ -532,6 +695,12 @@ async function initialize(): Promise<void> {
   );
   const profileCopyCurrent = element<HTMLButtonElement>("profile-copy-current");
   const profileFormat = element<HTMLButtonElement>("profile-format");
+  const profileFileDialog = element<HTMLDialogElement>("profile-file-dialog");
+  const profileFileOpen = element<HTMLButtonElement>("profile-file-open");
+  const profileFileClose = element<HTMLButtonElement>("profile-file-close");
+  const profileFileImport = element<HTMLButtonElement>("profile-file-import");
+  const profileFileExport = element<HTMLButtonElement>("profile-file-export");
+  const profileFileInput = element<HTMLInputElement>("profile-file-input");
   const profileCancel = element<HTMLButtonElement>("profile-cancel");
   const profileDelete = element<HTMLButtonElement>("profile-delete");
   const profileRestore = element<HTMLButtonElement>("profile-restore");
@@ -546,6 +715,7 @@ async function initialize(): Promise<void> {
   let builtInProfiles: SubtitleSiteProfile[] = [];
   let customProfiles: SubtitleSiteProfile[] = [];
   let profileOverrides: SubtitleSiteProfile[] = [];
+  let translationProfiles: SiteTranslationProfile[] = [];
   let updateStatus: ExtensionUpdateStatus | undefined;
   let ocrRuntimes: OcrRuntimeStatus[] = [];
   let ocrRuntimeCommandPending = false;
@@ -568,16 +738,76 @@ async function initialize(): Promise<void> {
   let chromeTranslationPairsLoaded = false;
   const dirtyControls = new DirtyControlTracker();
 
+  const profileLanguageLabel = (code: string): string =>
+    code === "auto"
+      ? message("languageAuto")
+      : displayLanguageName(code, currentUiLocale());
+  for (const select of [
+    profilePageSourceLanguage,
+    profileSelectionSourceLanguage,
+    profileSubtitleSourceLanguage,
+  ]) {
+    select.replaceChildren(
+      ...SOURCE_LANGUAGES.map(
+        ({ code }) => new Option(profileLanguageLabel(code), code),
+      ),
+    );
+  }
+  for (const select of [
+    profilePageTargetLanguage,
+    profileSelectionTargetLanguage,
+    profileSubtitleTargetLanguage,
+  ]) {
+    select.replaceChildren(
+      ...TARGET_LANGUAGES.map(
+        ({ code }) => new Option(profileLanguageLabel(code), code),
+      ),
+    );
+  }
+
+  const translationMethodSelects = [
+    pageMode,
+    selectionTranslationMode,
+    subtitleMode,
+    profilePageMethod,
+    profileSelectionMethod,
+    profileSubtitleMethod,
+  ] as const;
+  for (const select of translationMethodSelects) {
+    select.replaceChildren(
+      ...TRANSLATION_METHODS.map(
+        (method) => new Option(message(method.labelKey), method.value),
+      ),
+    );
+  }
+
   const selectedProviderValue = (): FastProviderId => {
     const value = fastProvider.value;
     return value === "bergamot-local" ||
-      value === "openai-compatible" ||
       value === "google-translate" ||
       value === "microsoft-translator" ||
       value === "deepl"
       ? value
       : "chrome-local";
   };
+
+  const translationMethodProvider = (
+    select: HTMLSelectElement,
+  ): FastProviderId | AiProviderId => {
+    const method = parseTranslationMethod(select.value);
+    return method?.mode === "ai"
+      ? settings.provider.aiProvider
+      : (method?.fastProvider ?? selectedProviderValue());
+  };
+
+  const translationMethodCapabilitiesReady = (
+    provider: FastProviderId | AiProviderId,
+  ): boolean =>
+    provider === "chrome-local"
+      ? chromeTranslationPairsLoaded
+      : provider === "bergamot-local"
+        ? localTranslationRuntimeLoaded
+        : true;
 
   const syncLanguageRestrictions = (): void => {
     const capabilities: TranslationCapabilities = {
@@ -593,7 +823,7 @@ async function initialize(): Promise<void> {
     const syncPair = (
       sourceSelect: HTMLSelectElement,
       targetSelect: HTMLSelectElement,
-      provider: FastProviderId,
+      provider: FastProviderId | AiProviderId,
       ready: boolean,
     ): void => {
       const sourceLanguage = sourceSelect.value;
@@ -628,35 +858,56 @@ async function initialize(): Promise<void> {
       replace(sourceSelect, SOURCE_LANGUAGES, sourceLanguage, sourceAvailable);
       replace(targetSelect, TARGET_LANGUAGES, targetLanguage, targetAvailable);
     };
-    const fast = selectedProviderValue();
-    const ready =
-      fast === "chrome-local"
-        ? chromeTranslationPairsLoaded
-        : fast === "bergamot-local"
-          ? localTranslationRuntimeLoaded
-          : true;
+    const pageProvider = translationMethodProvider(pageMode);
     syncPair(
       pageSourceLanguage,
       pageTargetLanguage,
-      pageMode.value === "ai" ? "openai-compatible" : fast,
-      pageMode.value === "ai" || ready,
+      pageProvider,
+      translationMethodCapabilitiesReady(pageProvider),
+    );
+    const selectionProvider = translationMethodProvider(
+      selectionTranslationMode,
     );
     syncPair(
       selectionTranslationSourceLanguage,
       selectionTranslationTargetLanguage,
-      selectionTranslationMode.value === "ai" ? "openai-compatible" : fast,
-      selectionTranslationMode.value === "ai" || ready,
+      selectionProvider,
+      translationMethodCapabilitiesReady(selectionProvider),
     );
+    const subtitleProvider = translationMethodProvider(subtitleMode);
     syncPair(
       subtitleSourceLanguage,
       subtitleTargetLanguage,
-      subtitleMode.value === "ai" ? "openai-compatible" : fast,
-      subtitleMode.value === "ai" || ready,
+      subtitleProvider,
+      translationMethodCapabilitiesReady(subtitleProvider),
     );
+    for (const [source, target, method] of [
+      [profilePageSourceLanguage, profilePageTargetLanguage, profilePageMethod],
+      [
+        profileSelectionSourceLanguage,
+        profileSelectionTargetLanguage,
+        profileSelectionMethod,
+      ],
+      [
+        profileSubtitleSourceLanguage,
+        profileSubtitleTargetLanguage,
+        profileSubtitleMethod,
+      ],
+    ] as const) {
+      const provider = translationMethodProvider(method);
+      syncPair(
+        source,
+        target,
+        provider,
+        translationMethodCapabilitiesReady(provider),
+      );
+    }
+    const fast = selectedProviderValue();
+    const ready = translationMethodCapabilitiesReady(fast);
     syncPair(
       imageSourceLanguage,
       imageTargetLanguage,
-      imageMode.value === "ai" ? "openai-compatible" : fast,
+      imageMode.value === "ai" ? settings.provider.aiProvider : fast,
       imageMode.value === "ai" || ready,
     );
     const ocrReady =
@@ -893,6 +1144,7 @@ async function initialize(): Promise<void> {
   const syncForm = (): void => {
     uiLanguage.value = settings.uiLanguage;
     fastProvider.value = settings.provider.fastProvider;
+    aiProvider.value = settings.provider.aiProvider;
     baseUrl.value = settings.provider.baseUrl;
     apiKey.value = settings.provider.apiKey;
     googleApiKey.value = settings.provider.googleApiKey;
@@ -905,7 +1157,10 @@ async function initialize(): Promise<void> {
     systemPrompt.value = settings.provider.systemPrompt;
     pageSourceLanguage.value = settings.page.sourceLanguage;
     pageTargetLanguage.value = settings.page.targetLanguage;
-    pageMode.value = settings.page.mode;
+    pageMode.value = translationMethodValue(
+      settings.page.mode,
+      settings.provider.fastProvider,
+    );
     pageResponseMode.value = settings.page.aiResponseMode;
     pageResponseMode.disabled = settings.page.mode !== "ai";
     pageDisplayMode.value = settings.page.displayMode;
@@ -916,7 +1171,10 @@ async function initialize(): Promise<void> {
       settings.page.selectionTranslationSourceLanguage;
     selectionTranslationTargetLanguage.value =
       settings.page.selectionTranslationTargetLanguage;
-    selectionTranslationMode.value = settings.page.selectionTranslationMode;
+    selectionTranslationMode.value = translationMethodValue(
+      settings.page.selectionTranslationMode,
+      settings.provider.fastProvider,
+    );
     selectionTranslationResponseMode.value =
       settings.page.selectionTranslationAiResponseMode;
     selectionTranslationResponseMode.disabled =
@@ -936,7 +1194,10 @@ async function initialize(): Promise<void> {
     subtitleEnabled.checked = settings.subtitles.enabled;
     subtitleSourceLanguage.value = settings.subtitles.sourceLanguage;
     subtitleTargetLanguage.value = settings.subtitles.targetLanguage;
-    subtitleMode.value = settings.subtitles.mode;
+    subtitleMode.value = translationMethodValue(
+      settings.subtitles.mode,
+      settings.provider.fastProvider,
+    );
     subtitleResponseMode.value = settings.subtitles.aiResponseMode;
     subtitleResponseMode.disabled = settings.subtitles.mode !== "ai";
     subtitleDisplayMode.value = settings.subtitles.displayMode;
@@ -969,13 +1230,40 @@ async function initialize(): Promise<void> {
 
   const selectedFastProvider = selectedProviderValue;
 
+  const syncFastTranslationMethods = (provider: FastProviderId): void => {
+    for (const select of translationMethodSelects) {
+      if (parseTranslationMethod(select.value)?.mode === "fast") {
+        select.value = translationMethodValue("fast", provider);
+      }
+    }
+  };
+
   const syncFastProviderFields = (): void => {
     const value = selectedFastProvider();
+    syncFastTranslationMethods(value);
     googleProviderFields.hidden = value !== "google-translate";
     microsoftProviderFields.hidden = value !== "microsoft-translator";
     deeplProviderFields.hidden = value !== "deepl";
     syncLanguageRestrictions();
   };
+
+  const syncTranslationMethodDependentControls = (): void => {
+    const pageAi = parseTranslationMethod(pageMode.value)?.mode === "ai";
+    const selectionAi =
+      parseTranslationMethod(selectionTranslationMode.value)?.mode === "ai";
+    const subtitleAi =
+      parseTranslationMethod(subtitleMode.value)?.mode === "ai";
+    pageResponseMode.disabled = !pageAi;
+    selectionTranslationResponseMode.disabled = !selectionAi;
+    selectionTranslationModelOverride.disabled = !selectionAi;
+    subtitleResponseMode.disabled = !subtitleAi;
+  };
+
+  const selectedTranslationMode = (
+    select: HTMLSelectElement,
+    fallback: AppSettings["page"]["mode"],
+  ): AppSettings["page"]["mode"] =>
+    parseTranslationMethod(select.value)?.mode ?? fallback;
 
   const readForm = (): AppSettings => ({
     ...settings,
@@ -985,7 +1273,10 @@ async function initialize(): Promise<void> {
         : "auto",
     provider: {
       fastProvider: selectedFastProvider(),
-      aiProvider: "openai-compatible",
+      aiProvider:
+        aiProvider.value === "anthropic-messages"
+          ? "anthropic-messages"
+          : "openai-compatible",
       baseUrl: baseUrl.value.trim().replace(/\/$/, ""),
       apiKey: apiKey.value.trim(),
       googleApiKey: googleApiKey.value.trim(),
@@ -1000,7 +1291,7 @@ async function initialize(): Promise<void> {
     page: {
       sourceLanguage: pageSourceLanguage.value,
       targetLanguage: pageTargetLanguage.value,
-      mode: pageMode.value === "ai" ? "ai" : "fast",
+      mode: selectedTranslationMode(pageMode, settings.page.mode),
       aiResponseMode: pageResponseMode.value === "batch" ? "batch" : "stream",
       displayMode:
         pageDisplayMode.value === "translated" ? "translated" : "bilingual",
@@ -1016,8 +1307,10 @@ async function initialize(): Promise<void> {
         selectionTranslationSourceLanguage.value,
       selectionTranslationTargetLanguage:
         selectionTranslationTargetLanguage.value,
-      selectionTranslationMode:
-        selectionTranslationMode.value === "ai" ? "ai" : "fast",
+      selectionTranslationMode: selectedTranslationMode(
+        selectionTranslationMode,
+        settings.page.selectionTranslationMode,
+      ),
       selectionTranslationAiResponseMode:
         selectionTranslationResponseMode.value === "batch" ? "batch" : "stream",
       selectionTranslationModelOverride:
@@ -1032,7 +1325,7 @@ async function initialize(): Promise<void> {
       enabled: subtitleEnabled.checked,
       sourceLanguage: subtitleSourceLanguage.value,
       targetLanguage: subtitleTargetLanguage.value,
-      mode: subtitleMode.value === "fast" ? "fast" : "ai",
+      mode: selectedTranslationMode(subtitleMode, settings.subtitles.mode),
       aiResponseMode:
         subtitleResponseMode.value === "batch" ? "batch" : "stream",
       displayMode:
@@ -1870,13 +2163,431 @@ async function initialize(): Promise<void> {
     }
   }
 
-  type ProfileEditorKind = "builtin" | "override" | "user" | "new";
+  type ProfileEditorKind = "builtin" | "override" | "user" | "site" | "new";
   let activeProfileId = "";
-  let activeProfileKind: ProfileEditorKind = "new";
   let editorSnapshot = "";
+  const profileCatalogExpanded = { builtin: true, user: true };
+  let activeProfileMatch: SiteTranslationProfile["match"] = structuredClone(
+    MINIMAL_USER_SITE_PROFILE_TEMPLATE.match,
+  );
+  let syncingProfileEditor = false;
 
-  const normalizedProfileJson = (profile: SubtitleSiteProfile): string =>
+  const normalizedProfileJson = (profile: SiteProfileDocument): string =>
     JSON.stringify(profile, null, 2);
+
+  const splitProfileLines = (value: string): string[] =>
+    value
+      .split(/\r?\n/gu)
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+  const captureControls = [
+    profileCaptureParser,
+    profileCapturePriority,
+    profileCaptureFormats,
+    profileCaptureVideoSelector,
+    profileCaptureCaptionSelectors,
+    profileCaptureNativeSelectors,
+    profileCaptureHostnames,
+    profileCaptureUrlPatterns,
+    profileCaptureCompletePatterns,
+  ] as const;
+
+  const fallbackSurfaceValues = (
+    surface: "page" | "selection" | "subtitles",
+  ):
+    | SitePageTranslationOverride
+    | SiteSelectionTranslationOverride
+    | SiteSubtitleTranslationOverride => {
+    if (surface === "selection") {
+      return {
+        sourceLanguage: settings.page.selectionTranslationSourceLanguage,
+        targetLanguage: settings.page.selectionTranslationTargetLanguage,
+        mode: settings.page.selectionTranslationMode,
+        fastProvider: settings.provider.fastProvider,
+        modelOverride: settings.page.selectionTranslationModelOverride,
+        enabled: settings.page.selectionTranslationEnabled,
+        aiResponseMode: settings.page.selectionTranslationAiResponseMode,
+        displayMode: settings.page.selectionTranslationDisplayMode,
+      };
+    }
+    if (surface === "page") {
+      return {
+        sourceLanguage: settings.page.sourceLanguage,
+        targetLanguage: settings.page.targetLanguage,
+        mode: settings.page.mode,
+        fastProvider: settings.provider.fastProvider,
+        modelOverride: "",
+        aiResponseMode: settings.page.aiResponseMode,
+        displayMode: settings.page.displayMode,
+        autoTranslate: settings.page.autoTranslate,
+        floatingButtonEnabled: settings.page.floatingButtonEnabled,
+      };
+    }
+    return {
+      sourceLanguage: settings.subtitles.sourceLanguage,
+      targetLanguage: settings.subtitles.targetLanguage,
+      mode: settings.subtitles.mode,
+      fastProvider: settings.provider.fastProvider,
+      modelOverride: "",
+      enabled: settings.subtitles.enabled,
+      floatingButtonEnabled: settings.subtitles.floatingButtonEnabled,
+      aiResponseMode: settings.subtitles.aiResponseMode,
+      displayMode: settings.subtitles.displayMode,
+      hideNativeSubtitles: settings.subtitles.hideNativeSubtitles,
+      position: settings.subtitles.position,
+      customPosition: structuredClone(settings.subtitles.customPosition),
+      fontScale: settings.subtitles.fontScale,
+      backgroundOpacity: settings.subtitles.backgroundOpacity,
+    };
+  };
+
+  const surfaceControls = {
+    page: {
+      toggle: profilePageOverride,
+      source: profilePageSourceLanguage,
+      target: profilePageTargetLanguage,
+      method: profilePageMethod,
+      model: profilePageModel,
+    },
+    selection: {
+      toggle: profileSelectionOverride,
+      source: profileSelectionSourceLanguage,
+      target: profileSelectionTargetLanguage,
+      method: profileSelectionMethod,
+      model: profileSelectionModel,
+    },
+    subtitles: {
+      toggle: profileSubtitleOverride,
+      source: profileSubtitleSourceLanguage,
+      target: profileSubtitleTargetLanguage,
+      method: profileSubtitleMethod,
+      model: profileSubtitleModel,
+    },
+  } as const;
+
+  const surfaceAdditionalControls = {
+    page: [
+      profilePageResponseMode,
+      profilePageDisplayMode,
+      profilePageAutoTranslate,
+      profilePageFloatingButton,
+    ],
+    selection: [
+      profileSelectionResponseMode,
+      profileSelectionDisplayMode,
+      profileSelectionEnabled,
+    ],
+    subtitles: [
+      profileSubtitleResponseMode,
+      profileSubtitleDisplayMode,
+      profileSubtitlePosition,
+      profileSubtitleFontScale,
+      profileSubtitleBackgroundOpacity,
+      profileSubtitleCustomX,
+      profileSubtitleCustomY,
+      profileSubtitleEnabled,
+      profileSubtitleFloatingButton,
+      profileSubtitleHideNative,
+    ],
+  } as const;
+
+  const syncProfileSurface = (
+    surface: keyof typeof surfaceControls,
+    override: SiteTranslationProfile["overrides"][typeof surface],
+  ): void => {
+    const controls = surfaceControls[surface];
+    const value = override ?? fallbackSurfaceValues(surface);
+    controls.toggle.checked = Boolean(override);
+    controls.source.value = value.sourceLanguage;
+    controls.target.value = value.targetLanguage;
+    controls.method.value = translationMethodValue(
+      value.mode,
+      value.fastProvider,
+    );
+    controls.model.value = value.modelOverride;
+    const enabled = Boolean(override);
+    controls.source.disabled = !enabled;
+    controls.target.disabled = !enabled;
+    controls.method.disabled = !enabled;
+    controls.model.disabled = !enabled || value.mode !== "ai";
+    if (surface === "page") {
+      const pageValue = value as SitePageTranslationOverride;
+      profilePageResponseMode.value = pageValue.aiResponseMode ?? "stream";
+      profilePageDisplayMode.value = pageValue.displayMode ?? "translated";
+      profilePageAutoTranslate.checked = pageValue.autoTranslate ?? false;
+      profilePageFloatingButton.checked =
+        pageValue.floatingButtonEnabled ?? true;
+      for (const control of [
+        profilePageResponseMode,
+        profilePageDisplayMode,
+        profilePageAutoTranslate,
+        profilePageFloatingButton,
+      ]) {
+        control.disabled = !enabled;
+      }
+      profilePageResponseMode.disabled = !enabled || value.mode !== "ai";
+    } else if (surface === "selection") {
+      const selectionValue = value as SiteSelectionTranslationOverride;
+      profileSelectionResponseMode.value =
+        selectionValue.aiResponseMode ?? "stream";
+      profileSelectionDisplayMode.value =
+        selectionValue.displayMode ?? "bilingual";
+      profileSelectionEnabled.checked = selectionValue.enabled ?? true;
+      for (const control of [
+        profileSelectionResponseMode,
+        profileSelectionDisplayMode,
+        profileSelectionEnabled,
+      ]) {
+        control.disabled = !enabled;
+      }
+      profileSelectionResponseMode.disabled = !enabled || value.mode !== "ai";
+    } else {
+      const subtitleValue = value as SiteSubtitleTranslationOverride;
+      profileSubtitleResponseMode.value =
+        subtitleValue.aiResponseMode ?? "stream";
+      profileSubtitleDisplayMode.value =
+        subtitleValue.displayMode ?? "bilingual";
+      profileSubtitlePosition.value = subtitleValue.position ?? "bottom";
+      profileSubtitleFontScale.value = String(subtitleValue.fontScale ?? 1.2);
+      profileSubtitleBackgroundOpacity.value = String(
+        subtitleValue.backgroundOpacity ?? 0.5,
+      );
+      profileSubtitleCustomX.value = String(
+        subtitleValue.customPosition?.x ?? 0.5,
+      );
+      profileSubtitleCustomY.value = String(
+        subtitleValue.customPosition?.y ?? 0.82,
+      );
+      profileSubtitleEnabled.checked = subtitleValue.enabled ?? true;
+      profileSubtitleFloatingButton.checked =
+        subtitleValue.floatingButtonEnabled ?? true;
+      profileSubtitleHideNative.checked =
+        subtitleValue.hideNativeSubtitles ?? false;
+      for (const control of [
+        profileSubtitleResponseMode,
+        profileSubtitleDisplayMode,
+        profileSubtitlePosition,
+        profileSubtitleFontScale,
+        profileSubtitleBackgroundOpacity,
+        profileSubtitleEnabled,
+        profileSubtitleFloatingButton,
+        profileSubtitleHideNative,
+      ]) {
+        control.disabled = !enabled;
+      }
+      profileSubtitleResponseMode.disabled = !enabled || value.mode !== "ai";
+      const customPositionEnabled =
+        enabled && profileSubtitlePosition.value === "custom";
+      profileSubtitleCustomX.disabled = !customPositionEnabled;
+      profileSubtitleCustomY.disabled = !customPositionEnabled;
+    }
+    controls.toggle
+      .closest<HTMLElement>(".profile-surface-card")
+      ?.toggleAttribute("data-overridden", enabled);
+  };
+
+  const currentTranslationProfile = (): SiteTranslationProfile | undefined =>
+    translationProfiles.find((profile) => profile.id === activeProfileId);
+
+  const translationProfileId = (hostname: string): string => {
+    if (activeProfileId) return activeProfileId;
+    const base = hostname
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/gu, "-")
+      .replace(/^-+|-+$/gu, "")
+      .slice(0, 56);
+    return `user-${base || "custom"}`;
+  };
+
+  const buildSurfaceOverride = (
+    surface: keyof typeof surfaceControls,
+  ): SiteTranslationProfile["overrides"][typeof surface] => {
+    const controls = surfaceControls[surface];
+    if (!controls.toggle.checked) return undefined;
+    const method = parseTranslationMethod(controls.method.value);
+    if (!method) throw new Error("invalid-translation-method");
+    const base: SiteSurfaceTranslationOverride = {
+      sourceLanguage: controls.source.value,
+      targetLanguage: controls.target.value,
+      mode: method.mode,
+      fastProvider:
+        method.mode === "fast"
+          ? (method.fastProvider ?? settings.provider.fastProvider)
+          : settings.provider.fastProvider,
+      modelOverride: controls.model.value.trim(),
+    };
+    if (surface === "page") {
+      return {
+        ...base,
+        aiResponseMode: profilePageResponseMode.value as "stream" | "batch",
+        displayMode: profilePageDisplayMode.value as "translated" | "bilingual",
+        autoTranslate: profilePageAutoTranslate.checked,
+        floatingButtonEnabled: profilePageFloatingButton.checked,
+      };
+    }
+    if (surface === "selection") {
+      return {
+        ...base,
+        enabled: profileSelectionEnabled.checked,
+        aiResponseMode: profileSelectionResponseMode.value as
+          "stream" | "batch",
+        displayMode: profileSelectionDisplayMode.value as
+          "translated" | "bilingual",
+      };
+    }
+    return {
+      ...base,
+      enabled: profileSubtitleEnabled.checked,
+      floatingButtonEnabled: profileSubtitleFloatingButton.checked,
+      aiResponseMode: profileSubtitleResponseMode.value as "stream" | "batch",
+      displayMode: profileSubtitleDisplayMode.value as
+        "translated" | "bilingual" | "original",
+      hideNativeSubtitles: profileSubtitleHideNative.checked,
+      position: profileSubtitlePosition.value as
+        "top" | "center" | "bottom" | "custom",
+      customPosition: {
+        x: Number(profileSubtitleCustomX.value),
+        y: Number(profileSubtitleCustomY.value),
+      },
+      fontScale: Number(profileSubtitleFontScale.value),
+      backgroundOpacity: Number(profileSubtitleBackgroundOpacity.value),
+    };
+  };
+
+  const buildTranslationProfile = (): SiteTranslationProfile => {
+    const hostname = profileHostname.value
+      .trim()
+      .toLowerCase()
+      .replace(/^\.+|\.+$/gu, "");
+    const page = buildSurfaceOverride("page") as
+      SitePageTranslationOverride | undefined;
+    const selection = buildSurfaceOverride("selection") as
+      SiteSelectionTranslationOverride | undefined;
+    const subtitles = buildSurfaceOverride("subtitles") as
+      SiteSubtitleTranslationOverride | undefined;
+    const originalHostname = activeProfileMatch.hostnameSuffixes[0] ?? "";
+    const match =
+      hostname === originalHostname
+        ? structuredClone(activeProfileMatch)
+        : { hostnameSuffixes: [hostname] };
+    return {
+      id: translationProfileId(hostname),
+      version: 1,
+      name: profileName.value.trim(),
+      match,
+      overrides: {
+        ...(page ? { page } : {}),
+        ...(selection ? { selection } : {}),
+        ...(subtitles ? { subtitles } : {}),
+      },
+    };
+  };
+
+  const buildCaptureProfile = (
+    translation: SiteTranslationProfile,
+  ): SubtitleSiteProfile => {
+    const formats = Array.from(profileCaptureFormats.selectedOptions).map(
+      (option) => option.value,
+    ) as SubtitleSiteProfile["capture"]["formats"];
+    const completeFilePatterns = splitProfileLines(
+      profileCaptureCompletePatterns.value,
+    );
+    return {
+      id: translation.id,
+      version: 1,
+      name: translation.name,
+      parser: profileCaptureParser.value as SubtitleSiteProfile["parser"],
+      priority: Number(profileCapturePriority.value),
+      match: structuredClone(translation.match),
+      selectors: {
+        video: profileCaptureVideoSelector.value.trim(),
+        captions: splitProfileLines(profileCaptureCaptionSelectors.value),
+        nativeCaptions: splitProfileLines(profileCaptureNativeSelectors.value),
+      },
+      capture: {
+        formats,
+        allowedHostnameSuffixes: splitProfileLines(
+          profileCaptureHostnames.value,
+        ),
+        urlPatterns: splitProfileLines(profileCaptureUrlPatterns.value),
+        ...(completeFilePatterns.length > 0 ? { completeFilePatterns } : {}),
+      },
+    };
+  };
+
+  const buildProfileDocument = (): SiteProfileDocument => {
+    const translation = buildTranslationProfile();
+    return createSiteProfileDocument(
+      translation,
+      buildCaptureProfile(translation),
+      profileCaptureOverride.checked,
+    );
+  };
+
+  const syncTranslationEditor = (profile: SubtitleSiteProfile): void => {
+    const translationProfile = currentTranslationProfile();
+    profileName.value = translationProfile?.name ?? profile.name;
+    profileHostname.value =
+      translationProfile?.match.hostnameSuffixes[0] ??
+      profile.match.hostnameSuffixes[0] ??
+      "";
+    syncProfileSurface("page", translationProfile?.overrides.page);
+    syncProfileSurface("selection", translationProfile?.overrides.selection);
+    syncProfileSurface("subtitles", translationProfile?.overrides.subtitles);
+    syncLanguageRestrictions();
+  };
+
+  const syncCaptureEditor = (
+    profile: SubtitleSiteProfile,
+    customized: boolean,
+  ): void => {
+    profileCaptureOverride.checked = customized;
+    profileCaptureDetails.open = customized;
+    profileCaptureParser.value = profile.parser;
+    profileCapturePriority.value = String(profile.priority);
+    for (const option of profileCaptureFormats.options) {
+      option.selected = profile.capture.formats.includes(
+        option.value as SubtitleSiteProfile["capture"]["formats"][number],
+      );
+    }
+    profileCaptureVideoSelector.value = profile.selectors.video;
+    profileCaptureCaptionSelectors.value =
+      profile.selectors.captions.join("\n");
+    profileCaptureNativeSelectors.value =
+      profile.selectors.nativeCaptions.join("\n");
+    profileCaptureHostnames.value =
+      profile.capture.allowedHostnameSuffixes.join("\n");
+    profileCaptureUrlPatterns.value = profile.capture.urlPatterns.join("\n");
+    profileCaptureCompletePatterns.value =
+      profile.capture.completeFilePatterns?.join("\n") ?? "";
+    for (const control of captureControls) control.disabled = !customized;
+  };
+
+  const syncJsonFromVisualEditor = (): void => {
+    if (syncingProfileEditor) return;
+    try {
+      profileJson.value = normalizedProfileJson(buildProfileDocument());
+    } catch {
+      // Keep the last valid document while the user is midway through a field.
+    }
+  };
+
+  const applyDocumentToVisualEditor = (
+    document: SiteProfileDocument,
+    capture: SubtitleSiteProfile,
+  ): void => {
+    syncingProfileEditor = true;
+    activeProfileMatch = structuredClone(document.match);
+    profileName.value = document.name;
+    profileHostname.value = document.match.hostnameSuffixes[0] ?? "";
+    syncProfileSurface("page", document.overrides.page);
+    syncProfileSurface("selection", document.overrides.selection);
+    syncProfileSurface("subtitles", document.overrides.subtitles);
+    syncCaptureEditor(capture, document.subtitleCapture.customized);
+    syncLanguageRestrictions();
+    syncingProfileEditor = false;
+  };
 
   const profileKindMessage = (kind: ProfileEditorKind): string =>
     message(
@@ -1884,7 +2595,7 @@ async function initialize(): Promise<void> {
         ? "profileKindBuiltin"
         : kind === "override"
           ? "profileKindOverride"
-          : kind === "user"
+          : kind === "user" || kind === "site"
             ? "profileKindUser"
             : "profileUnsaved",
     );
@@ -1894,8 +2605,12 @@ async function initialize(): Promise<void> {
     kind: ProfileEditorKind,
   ): void => {
     activeProfileId = kind === "new" ? "" : profile.id;
-    activeProfileKind = kind;
-    editorSnapshot = normalizedProfileJson(profile);
+    activeProfileMatch = structuredClone(
+      currentTranslationProfile()?.match ?? profile.match,
+    );
+    syncTranslationEditor(profile);
+    syncCaptureEditor(profile, kind === "override" || kind === "user");
+    editorSnapshot = normalizedProfileJson(buildProfileDocument());
     profileJson.value = editorSnapshot;
     profileEditorKind.textContent = profileKindMessage(kind);
     profileEditorKind.dataset.kind = kind;
@@ -1904,11 +2619,14 @@ async function initialize(): Promise<void> {
         ? "profileBuiltinEditNote"
         : kind === "override"
           ? "profileOverrideEditNote"
-          : kind === "user"
+          : kind === "user" || kind === "site"
             ? "profileUserEditNote"
             : "profileNewEditNote",
     );
-    profileDelete.hidden = kind !== "user";
+    profileDelete.hidden =
+      kind !== "user" &&
+      kind !== "site" &&
+      !translationProfiles.some((candidate) => candidate.id === profile.id);
     profileRestore.hidden = kind !== "override";
     profileSave.textContent = message(
       kind === "builtin" ? "profileSaveOverride" : "profileSave",
@@ -1929,56 +2647,100 @@ async function initialize(): Promise<void> {
     if (profile) syncProfileEditor(profile, "user");
   };
 
+  const selectTranslationProfile = (id: string): void => {
+    const profile = translationProfiles.find(
+      (candidate) => candidate.id === id,
+    );
+    if (!profile) return;
+    syncProfileEditor(
+      {
+        ...MINIMAL_USER_SITE_PROFILE_TEMPLATE,
+        id: profile.id,
+        name: profile.name,
+        match: profile.match,
+      },
+      "site",
+    );
+  };
+
   function renderProfileCatalog(): void {
     profileLoading.hidden = true;
     profileCatalogList.replaceChildren();
     profileCatalogList.setAttribute("aria-busy", "false");
     profileTotalCount.textContent = String(
-      builtInProfiles.length + customProfiles.length,
+      new Set([
+        ...builtInProfiles.map((profile) => profile.id),
+        ...customProfiles.map((profile) => profile.id),
+        ...translationProfiles.map((profile) => profile.id),
+      ]).size,
     );
 
     const addGroup = (
+      group: keyof typeof profileCatalogExpanded,
       labelKey: string,
       entries: Array<{
         profile: SubtitleSiteProfile;
-        kind: "builtin" | "override" | "user";
+        kind: "builtin" | "override" | "user" | "site";
       }>,
     ): void => {
-      const heading = document.createElement("li");
-      heading.className = "profile-catalog-group";
-      heading.textContent = message(labelKey);
-      profileCatalogList.append(heading);
+      const sectionItem = document.createElement("li");
+      sectionItem.className = "profile-catalog-section-item";
+      const section = document.createElement("details");
+      section.className = "profile-catalog-section";
+      section.open = profileCatalogExpanded[group];
+      const summary = document.createElement("summary");
+      const label = document.createElement("span");
+      label.textContent = message(labelKey);
+      const count = document.createElement("em");
+      count.textContent = String(entries.length);
+      summary.append(label, count);
+      const list = document.createElement("ul");
+      list.className = "profile-catalog-group-list";
+      section.addEventListener("toggle", () => {
+        profileCatalogExpanded[group] = section.open;
+      });
       for (const entry of entries) {
         const item = document.createElement("li");
         const button = document.createElement("button");
         button.type = "button";
         button.className = "profile-catalog-item";
         button.dataset.kind = entry.kind;
-        const isActive =
-          activeProfileId === entry.profile.id &&
-          (activeProfileKind === entry.kind ||
-            (entry.kind === "override" && activeProfileKind === "builtin"));
+        const isActive = activeProfileId === entry.profile.id;
         if (isActive) button.setAttribute("aria-current", "true");
         const name = document.createElement("strong");
         name.textContent = entry.profile.name;
         const meta = document.createElement("span");
-        meta.textContent = `${entry.profile.id} · ${entry.profile.parser}`;
+        meta.textContent = entry.profile.match.hostnameSuffixes
+          .filter((hostname) => hostname !== "*")
+          .join(", ");
         const badge = document.createElement("em");
         badge.textContent = profileKindMessage(entry.kind);
         button.append(name, meta, badge);
         button.addEventListener("click", () => {
           if (entry.kind === "user") selectUserProfile(entry.profile.id);
-          else selectBuiltInProfile(entry.profile.id);
+          else if (entry.kind === "site") {
+            selectTranslationProfile(entry.profile.id);
+          } else selectBuiltInProfile(entry.profile.id);
         });
         item.append(button);
-        profileCatalogList.append(item);
+        list.append(item);
       }
+      if (entries.length === 0) {
+        const empty = document.createElement("li");
+        empty.className = "profile-catalog-group-empty";
+        empty.textContent = message("profileCatalogGroupEmpty");
+        list.append(empty);
+      }
+      section.append(summary, list);
+      sectionItem.append(section);
+      profileCatalogList.append(sectionItem);
     };
 
     const overrides = new Map(
       profileOverrides.map((profile) => [profile.id, profile] as const),
     );
     addGroup(
+      "builtin",
       "builtInProfiles",
       builtInProfiles.map((profile) => {
         const override = overrides.get(profile.id);
@@ -1988,10 +2750,28 @@ async function initialize(): Promise<void> {
         };
       }),
     );
-    addGroup(
-      "customProfiles",
-      customProfiles.map((profile) => ({ profile, kind: "user" as const })),
+    const captureIds = new Set([
+      ...builtInProfiles.map((profile) => profile.id),
+      ...customProfiles.map((profile) => profile.id),
+    ]);
+    const translationOnlyProfiles = translationProfiles.filter(
+      (profile) => !captureIds.has(profile.id),
     );
+    addGroup("user", "customProfiles", [
+      ...customProfiles.map((profile) => ({
+        profile,
+        kind: "user" as const,
+      })),
+      ...translationOnlyProfiles.map((profile) => ({
+        profile: {
+          ...MINIMAL_USER_SITE_PROFILE_TEMPLATE,
+          id: profile.id,
+          name: profile.name,
+          match: profile.match,
+        },
+        kind: "site" as const,
+      })),
+    ]);
   }
 
   const showProfileValidationFailure = (failure: {
@@ -2023,17 +2803,156 @@ async function initialize(): Promise<void> {
     showFeedback(profileMessage, "profileJsonCopied", "success");
   };
 
+  for (const [surface, controls] of Object.entries(surfaceControls) as Array<
+    [
+      keyof typeof surfaceControls,
+      (typeof surfaceControls)[keyof typeof surfaceControls],
+    ]
+  >) {
+    controls.toggle.addEventListener("change", () => {
+      syncProfileSurface(
+        surface,
+        controls.toggle.checked ? fallbackSurfaceValues(surface) : undefined,
+      );
+      syncLanguageRestrictions();
+      syncJsonFromVisualEditor();
+    });
+    controls.method.addEventListener("change", () => {
+      controls.model.disabled =
+        !controls.toggle.checked ||
+        parseTranslationMethod(controls.method.value)?.mode !== "ai";
+      syncLanguageRestrictions();
+      const responseMode =
+        surface === "page"
+          ? profilePageResponseMode
+          : surface === "selection"
+            ? profileSelectionResponseMode
+            : profileSubtitleResponseMode;
+      responseMode.disabled =
+        !controls.toggle.checked ||
+        parseTranslationMethod(controls.method.value)?.mode !== "ai";
+      syncJsonFromVisualEditor();
+    });
+    for (const control of [controls.source, controls.target, controls.model]) {
+      control.addEventListener("input", syncJsonFromVisualEditor);
+      control.addEventListener("change", syncJsonFromVisualEditor);
+    }
+    for (const control of surfaceAdditionalControls[surface]) {
+      control.addEventListener("input", syncJsonFromVisualEditor);
+      control.addEventListener("change", syncJsonFromVisualEditor);
+    }
+  }
+  profileSubtitlePosition.addEventListener("change", () => {
+    const enabled =
+      profileSubtitleOverride.checked &&
+      profileSubtitlePosition.value === "custom";
+    profileSubtitleCustomX.disabled = !enabled;
+    profileSubtitleCustomY.disabled = !enabled;
+  });
+
+  for (const control of [profileName, profileHostname]) {
+    control.addEventListener("input", syncJsonFromVisualEditor);
+  }
+  profileCaptureOverride.addEventListener("change", () => {
+    for (const control of captureControls) {
+      control.disabled = !profileCaptureOverride.checked;
+    }
+    if (profileCaptureOverride.checked) profileCaptureDetails.open = true;
+    syncJsonFromVisualEditor();
+  });
+  for (const control of captureControls) {
+    control.addEventListener("input", syncJsonFromVisualEditor);
+    control.addEventListener("change", syncJsonFromVisualEditor);
+  }
+  profileJson.addEventListener("change", () => {
+    try {
+      const parsed = parseSiteProfileDocument(JSON.parse(profileJson.value));
+      applyDocumentToVisualEditor(parsed.document, parsed.capture);
+      profileJson.value = normalizedProfileJson(parsed.document);
+    } catch (error) {
+      if (error instanceof SiteProfileValidationError) {
+        showProfileValidationFailure(error);
+      } else {
+        showProfileValidationFailure({ path: "$", reason: "format" });
+      }
+    }
+  });
+
   profileNew.addEventListener("click", () => {
     syncProfileEditor(MINIMAL_USER_SITE_PROFILE_TEMPLATE, "new");
+    profileName.value = "";
+    profileHostname.value = "";
+    syncJsonFromVisualEditor();
+    profileName.focus();
+  });
+  profileFileOpen.addEventListener("click", () => {
+    profileFileDialog.showModal();
     profileJson.focus();
+  });
+  profileFileClose.addEventListener("click", () => profileFileDialog.close());
+  profileFileDialog.addEventListener("click", (event) => {
+    if (event.target === profileFileDialog) profileFileDialog.close();
+  });
+  profileFileImport.addEventListener("click", () => profileFileInput.click());
+  profileFileInput.addEventListener("change", () => {
+    void (async () => {
+      const file = profileFileInput.files?.[0];
+      profileFileInput.value = "";
+      if (!file || file.size > 50_000) {
+        showFeedback(profileMessage, "profileFileImportFailed", "error");
+        return;
+      }
+      try {
+        const parsed = parseSiteProfileDocument(JSON.parse(await file.text()));
+        if (activeProfileId && parsed.translation.id !== activeProfileId) {
+          activeProfileId = "";
+          profileEditorKind.textContent = profileKindMessage("new");
+          profileEditorKind.dataset.kind = "new";
+          profileDelete.hidden = true;
+          profileRestore.hidden = true;
+          profileSave.textContent = message("profileSave");
+        }
+        profileJson.value = normalizedProfileJson(parsed.document);
+        applyDocumentToVisualEditor(parsed.document, parsed.capture);
+        showFeedback(profileMessage, "profileFileImported", "success");
+      } catch (error) {
+        if (error instanceof SiteProfileValidationError) {
+          showProfileValidationFailure(error);
+        } else {
+          showFeedback(profileMessage, "profileFileImportFailed", "error");
+        }
+      }
+    })();
+  });
+  profileFileExport.addEventListener("click", () => {
+    try {
+      const parsed = parseSiteProfileDocument(JSON.parse(profileJson.value));
+      const blob = new Blob([normalizedProfileJson(parsed.document), "\n"], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${parsed.document.id}.profile.json`;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      showFeedback(profileMessage, "profileFileExported", "success");
+    } catch {
+      showFeedback(profileMessage, "profileFileExportFailed", "error");
+    }
   });
   profileFormat.addEventListener("click", () => {
     try {
-      const parsed: unknown = JSON.parse(profileJson.value);
-      profileJson.value = JSON.stringify(parsed, null, 2);
+      const parsed = parseSiteProfileDocument(JSON.parse(profileJson.value));
+      profileJson.value = normalizedProfileJson(parsed.document);
+      applyDocumentToVisualEditor(parsed.document, parsed.capture);
       showFeedback(profileMessage, "profileJsonFormatted", "success");
-    } catch {
-      showProfileValidationFailure({ path: "$", reason: "format" });
+    } catch (error) {
+      if (error instanceof SiteProfileValidationError) {
+        showProfileValidationFailure(error);
+      } else {
+        showProfileValidationFailure({ path: "$", reason: "format" });
+      }
     }
   });
   profileCopyCurrent.addEventListener("click", () => {
@@ -2048,54 +2967,133 @@ async function initialize(): Promise<void> {
   });
   profileCancel.addEventListener("click", () => {
     profileJson.value = editorSnapshot;
+    const parsed = parseSiteProfileDocument(JSON.parse(editorSnapshot));
+    applyDocumentToVisualEditor(parsed.document, parsed.capture);
     showFeedback(profileMessage, "profileChangesCancelled");
   });
   profileSave.addEventListener("click", () => {
     void (async () => {
-      let parsed: unknown;
+      let parsedDocument: ReturnType<typeof parseSiteProfileDocument>;
       try {
-        parsed = JSON.parse(profileJson.value);
-      } catch {
-        showProfileValidationFailure({ path: "$", reason: "format" });
+        parsedDocument = parseSiteProfileDocument(
+          JSON.parse(profileJson.value),
+        );
+        if (
+          activeProfileId &&
+          parsedDocument.translation.id !== activeProfileId
+        ) {
+          throw new Error("existing_site_profile_id_changed");
+        }
+        if (parsedDocument.document.subtitleCapture.customized) {
+          parseEditableSiteProfile(parsedDocument.capture);
+        }
+      } catch (error) {
+        if (error instanceof SiteProfileValidationError) {
+          showProfileValidationFailure(error);
+        } else {
+          showProfileValidationFailure({ path: "$", reason: "format" });
+        }
         return;
       }
       profileSave.disabled = true;
       try {
-        const response: unknown = await browser.runtime.sendMessage({
-          type: "SITE_PROFILE_EDITOR_SAVE",
-          profile: parsed,
+        const translationResponse: unknown = await browser.runtime.sendMessage({
+          type: "SITE_TRANSLATION_PROFILE_SAVE",
+          profile: parsedDocument.translation,
         });
-        const validationFailure = profileValidationFailure(response);
+        const validationFailure = profileValidationFailure(translationResponse);
         if (validationFailure) {
           showProfileValidationFailure(validationFailure);
           return;
         }
-        if (!isProfileEditorSaveResponse(response)) {
+        if (!isSiteTranslationProfileSaveResponse(translationResponse)) {
           throw new Error("site-profile-save-failed");
         }
-        if (response.kind === "user") {
-          customProfiles = [
-            response.profile,
-            ...customProfiles.filter(
-              (candidate) => candidate.id !== response.profile.id,
-            ),
-          ].sort((left, right) => left.name.localeCompare(right.name));
+        translationProfiles = [
+          translationResponse.profile,
+          ...translationProfiles.filter(
+            (candidate) => candidate.id !== translationResponse.profile.id,
+          ),
+        ].sort((left, right) => left.name.localeCompare(right.name));
+
+        let captureProfile: SubtitleSiteProfile = {
+          ...MINIMAL_USER_SITE_PROFILE_TEMPLATE,
+          id: translationResponse.profile.id,
+          name: translationResponse.profile.name,
+          match: translationResponse.profile.match,
+        };
+        let nextKind: ProfileEditorKind = "site";
+        if (parsedDocument.document.subtitleCapture.customized) {
+          const captureResponse: unknown = await browser.runtime.sendMessage({
+            type: "SITE_PROFILE_EDITOR_SAVE",
+            profile: parsedDocument.capture,
+          });
+          const captureFailure = profileValidationFailure(captureResponse);
+          if (captureFailure) {
+            showProfileValidationFailure(captureFailure);
+            return;
+          }
+          if (!isProfileEditorSaveResponse(captureResponse)) {
+            throw new Error("site-profile-save-failed");
+          }
+          captureProfile = captureResponse.profile;
+          nextKind = captureResponse.kind;
+          if (captureResponse.kind === "user") {
+            customProfiles = [
+              captureResponse.profile,
+              ...customProfiles.filter(
+                (candidate) => candidate.id !== captureResponse.profile.id,
+              ),
+            ].sort((left, right) => left.name.localeCompare(right.name));
+          } else {
+            profileOverrides = [
+              captureResponse.profile,
+              ...profileOverrides.filter(
+                (candidate) => candidate.id !== captureResponse.profile.id,
+              ),
+            ];
+          }
         } else {
-          profileOverrides = [
-            response.profile,
-            ...profileOverrides.filter(
-              (candidate) => candidate.id !== response.profile.id,
-            ),
-          ];
+          const existingOverride = profileOverrides.find(
+            (candidate) => candidate.id === activeProfileId,
+          );
+          const existingUser = customProfiles.find(
+            (candidate) => candidate.id === activeProfileId,
+          );
+          if (existingOverride) {
+            const response: unknown = await browser.runtime.sendMessage({
+              type: "SITE_PROFILE_OVERRIDE_RESTORE",
+              id: existingOverride.id,
+            });
+            if (!isSuccessfulResponse(response)) {
+              throw new Error("site-profile-restore-failed");
+            }
+            profileOverrides = profileOverrides.filter(
+              (candidate) => candidate.id !== existingOverride.id,
+            );
+          }
+          if (existingUser) {
+            const response: unknown = await browser.runtime.sendMessage({
+              type: "SITE_PROFILE_EDITOR_DELETE",
+              id: existingUser.id,
+            });
+            if (!isSuccessfulResponse(response)) {
+              throw new Error("site-profile-delete-failed");
+            }
+            customProfiles = customProfiles.filter(
+              (candidate) => candidate.id !== existingUser.id,
+            );
+          }
+          const builtIn = builtInProfiles.find(
+            (candidate) => candidate.id === translationResponse.profile.id,
+          );
+          if (builtIn) {
+            captureProfile = builtIn;
+            nextKind = "builtin";
+          }
         }
-        syncProfileEditor(response.profile, response.kind);
-        showFeedback(
-          profileMessage,
-          response.kind === "override"
-            ? "profileOverrideSaved"
-            : "profileSaved",
-          "success",
-        );
+        syncProfileEditor(captureProfile, nextKind);
+        showFeedback(profileMessage, "profileSaved", "success");
       } catch {
         showFeedback(profileMessage, "profileSaveFailed", "error");
       } finally {
@@ -2104,22 +3102,41 @@ async function initialize(): Promise<void> {
     })();
   });
   profileDelete.addEventListener("click", () => {
-    const profile = customProfiles.find(
+    const captureProfile = customProfiles.find(
       (candidate) => candidate.id === activeProfileId,
     );
-    if (!profile || !confirm(message("profileDeleteConfirm", profile.name)))
+    const translationProfile = translationProfiles.find(
+      (candidate) => candidate.id === activeProfileId,
+    );
+    const profileNameValue = translationProfile?.name ?? captureProfile?.name;
+    if (
+      !profileNameValue ||
+      !confirm(message("profileDeleteConfirm", profileNameValue))
+    )
       return;
     void (async () => {
       profileDelete.disabled = true;
       try {
-        const response: unknown = await browser.runtime.sendMessage({
-          type: "SITE_PROFILE_EDITOR_DELETE",
-          id: profile.id,
-        });
-        if (!isSuccessfulResponse(response)) throw new Error("delete-failed");
-        customProfiles = customProfiles.filter(
-          (candidate) => candidate.id !== profile.id,
-        );
+        if (translationProfile) {
+          const response: unknown = await browser.runtime.sendMessage({
+            type: "SITE_TRANSLATION_PROFILE_DELETE",
+            id: translationProfile.id,
+          });
+          if (!isSuccessfulResponse(response)) throw new Error("delete-failed");
+          translationProfiles = translationProfiles.filter(
+            (candidate) => candidate.id !== translationProfile.id,
+          );
+        }
+        if (captureProfile) {
+          const response: unknown = await browser.runtime.sendMessage({
+            type: "SITE_PROFILE_EDITOR_DELETE",
+            id: captureProfile.id,
+          });
+          if (!isSuccessfulResponse(response)) throw new Error("delete-failed");
+          customProfiles = customProfiles.filter(
+            (candidate) => candidate.id !== captureProfile.id,
+          );
+        }
         const first = builtInProfiles[0];
         if (first) selectBuiltInProfile(first.id);
         else syncProfileEditor(MINIMAL_USER_SITE_PROFILE_TEMPLATE, "new");
@@ -2140,6 +3157,22 @@ async function initialize(): Promise<void> {
     void (async () => {
       profileRestore.disabled = true;
       try {
+        const translationProfile = translationProfiles.find(
+          (candidate) => candidate.id === profile.id,
+        );
+        if (translationProfile) {
+          const translationResponse: unknown =
+            await browser.runtime.sendMessage({
+              type: "SITE_TRANSLATION_PROFILE_DELETE",
+              id: translationProfile.id,
+            });
+          if (!isSuccessfulResponse(translationResponse)) {
+            throw new Error("restore-failed");
+          }
+          translationProfiles = translationProfiles.filter(
+            (candidate) => candidate.id !== translationProfile.id,
+          );
+        }
         const response: unknown = await browser.runtime.sendMessage({
           type: "SITE_PROFILE_OVERRIDE_RESTORE",
           id: profile.id,
@@ -2168,9 +3201,12 @@ async function initialize(): Promise<void> {
       if (!isSiteProfilesResponse(response)) {
         throw new Error("site-profiles-load-failed");
       }
-      builtInProfiles = response.builtIns;
+      builtInProfiles = response.builtIns.filter(
+        (profile) => !profile.match.hostnameSuffixes.includes("*"),
+      );
       customProfiles = response.profiles;
       profileOverrides = response.overrides;
+      translationProfiles = response.translationProfiles;
       renderProfileCatalog();
       const first = builtInProfiles[0];
       if (first) selectBuiltInProfile(first.id);
@@ -2179,13 +3215,24 @@ async function initialize(): Promise<void> {
       builtInProfiles = [];
       customProfiles = [];
       profileOverrides = [];
+      translationProfiles = [];
       renderProfileCatalog();
       showFeedback(profileMessage, "profileLoadFailed", "error");
     }
   };
 
   profileTemplate.textContent = normalizedProfileJson(
-    MINIMAL_USER_SITE_PROFILE_TEMPLATE,
+    createSiteProfileDocument(
+      {
+        id: MINIMAL_USER_SITE_PROFILE_TEMPLATE.id,
+        version: 1,
+        name: MINIMAL_USER_SITE_PROFILE_TEMPLATE.name,
+        match: MINIMAL_USER_SITE_PROFILE_TEMPLATE.match,
+        overrides: {},
+      },
+      MINIMAL_USER_SITE_PROFILE_TEMPLATE,
+      true,
+    ),
   );
   profileParserGuide.textContent = message("profileFieldParser", [
     SITE_PROFILE_PARSER_ALLOWLIST.join(", "),
@@ -2458,20 +3505,29 @@ async function initialize(): Promise<void> {
   };
   form.addEventListener("input", markDirtyControl);
   form.addEventListener("change", markDirtyControl);
-  fastProvider.addEventListener("change", syncFastProviderFields);
+  fastProvider.addEventListener("change", () => {
+    syncFastProviderFields();
+    syncTranslationMethodDependentControls();
+  });
+  const handleTranslationMethodChange = (select: HTMLSelectElement): void => {
+    const method = parseTranslationMethod(select.value);
+    if (method?.fastProvider) {
+      fastProvider.value = method.fastProvider;
+      dirtyControls.mark(controlIdentifier(fastProvider));
+      syncFastProviderFields();
+    } else {
+      syncLanguageRestrictions();
+    }
+    syncTranslationMethodDependentControls();
+  };
   pageMode.addEventListener("change", () => {
-    pageResponseMode.disabled = pageMode.value !== "ai";
-    syncLanguageRestrictions();
+    handleTranslationMethodChange(pageMode);
   });
   selectionTranslationMode.addEventListener("change", () => {
-    const aiMode = selectionTranslationMode.value === "ai";
-    selectionTranslationResponseMode.disabled = !aiMode;
-    selectionTranslationModelOverride.disabled = !aiMode;
-    syncLanguageRestrictions();
+    handleTranslationMethodChange(selectionTranslationMode);
   });
   subtitleMode.addEventListener("change", () => {
-    subtitleResponseMode.disabled = subtitleMode.value !== "ai";
-    syncLanguageRestrictions();
+    handleTranslationMethodChange(subtitleMode);
   });
   imageMode.addEventListener("change", () => {
     imageModelOverride.disabled = imageMode.value !== "ai";
@@ -2549,6 +3605,8 @@ async function initialize(): Promise<void> {
       }
     }
     syncRangeOutputs();
+    syncFastProviderFields();
+    syncTranslationMethodDependentControls();
     if (dirtyControls.size > 0) {
       showFeedback(saveMessage, "settingsUpdatedExternally");
     }

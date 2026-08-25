@@ -66,4 +66,30 @@ describe("settings compatibility", () => {
       }).page.selectionTranslationEnabled,
     ).toBe(false);
   });
+
+  it("migrates the removed AI fast-provider choice into the single AI translation mode", () => {
+    expect(
+      mergeSettings({
+        provider: { fastProvider: "openai-compatible" },
+        page: { mode: "fast", selectionTranslationMode: "fast" },
+        subtitles: { mode: "fast" },
+        imageTranslation: { mode: "fast" },
+      }),
+    ).toMatchObject({
+      provider: {
+        fastProvider: "chrome-local",
+        aiProvider: "openai-compatible",
+      },
+      page: { mode: "ai", selectionTranslationMode: "ai" },
+      subtitles: { mode: "ai" },
+      imageTranslation: { mode: "ai" },
+    });
+  });
+
+  it("preserves the selected Anthropic Messages AI protocol", () => {
+    expect(
+      mergeSettings({ provider: { aiProvider: "anthropic-messages" } }).provider
+        .aiProvider,
+    ).toBe("anthropic-messages");
+  });
 });

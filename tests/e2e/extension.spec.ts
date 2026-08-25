@@ -10,6 +10,7 @@ import {
 import { existsSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { getOcrRuntimeLanguage } from "@/src/ocr/runtime-catalog";
+import { TRANSLATION_METHODS } from "@/src/shared/translation-methods";
 
 interface SubtitleStatus {
   state: string;
@@ -135,10 +136,11 @@ async function configureProvider(page: Page): Promise<void> {
     };
     settings.provider = {
       ...settings.provider,
-      fastProvider: "openai-compatible",
+      fastProvider: "google-translate",
       aiProvider: "openai-compatible",
       baseUrl,
       apiKey: "e2e-only-key",
+      googleApiKey: "e2e-google-key",
       model: "e2e-model",
     };
     settings.subtitles = {
@@ -386,6 +388,43 @@ test.beforeAll(async () => {
       }),
     );
   }
+  await context.route(
+    "https://translation.googleapis.com/**",
+    async (route) => {
+      try {
+        const payload: unknown = JSON.parse(
+          route.request().postData() ?? "null",
+        );
+        if (!isRecord(payload) || !Array.isArray(payload.q)) {
+          throw new Error("Invalid Google translation fixture payload");
+        }
+        const texts = payload.q.filter(
+          (value): value is string => typeof value === "string",
+        );
+        if (texts.length !== payload.q.length) {
+          throw new Error("Invalid Google translation fixture text");
+        }
+        for (const text of texts) {
+          if (text.includes("SELECTION_E2E")) selectionProviderTexts.push(text);
+          if (text.includes("CACHE_DUPLICATE_E2E")) {
+            dynamicDuplicateProviderTexts.push(text);
+          }
+        }
+        await route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({
+            data: {
+              translations: texts.map((text) => ({
+                translatedText: `已译 ${text}`,
+              })),
+            },
+          }),
+        });
+      } catch {
+        await route.fulfill({ status: 400, body: "invalid fixture request" });
+      }
+    },
+  );
   await context.route("https://provider.youtube.com/**", async (route) => {
     try {
       const rawPayload = route.request().postData();
@@ -758,11 +797,10 @@ test("popup and options honor dark mode, reduced motion, and narrow widths", asy
     const builtInProfiles = page.locator(
       '.profile-catalog-item[data-kind="builtin"]',
     );
-    await expect(builtInProfiles).toHaveCount(20);
+    await expect(builtInProfiles).toHaveCount(18);
     const builtInProfileText = (await builtInProfiles.allTextContents()).join(
       " ",
     );
-    expect(builtInProfileText).toContain("HTML5");
     expect(builtInProfileText).toContain("YouTube");
     expect(builtInProfileText).toContain("Netflix");
     expect(builtInProfileText).not.toMatch(/Tencent|腾讯/u);
@@ -773,8 +811,8 @@ test("popup and options honor dark mode, reduced motion, and narrow widths", asy
     expect(builtInProfileText).toContain("Udemy");
     expect(builtInProfileText).toContain("Kanopy");
     expect(builtInProfileText).toContain("TVer");
-    expect(builtInProfileText).toMatch(/\bdom\b/iu);
-    await expect(page.locator("#profile-total-count")).toHaveText("20");
+    expect(builtInProfileText).not.toContain("Standard HTML5 TextTrack");
+    await expect(page.locator("#profile-total-count")).toHaveText("18");
     await page.locator("#provider-settings-tab").click();
     await expect(page.locator(".data-section")).toBeVisible();
     await page.locator("#provider-settings-tab").press("ArrowLeft");
@@ -912,7 +950,7 @@ test("options lists missing OCR runtimes without automatic downloads and preserv
     const builtInProfiles = controlPage.locator(
       '.profile-catalog-item[data-kind="builtin"]',
     );
-    await expect(builtInProfiles).toHaveCount(20);
+    await expect(builtInProfiles).toHaveCount(18);
     await expect(controlPage.locator("#profile-catalog-list")).toContainText(
       "Max / HBO Max",
     );
@@ -976,6 +1014,108 @@ test("options lists missing OCR runtimes without automatic downloads and preserv
   }
 });
 
+test("site Profile synchronizes visual and developer management", async () => {
+  await controlPage.locator("#profiles-settings-tab").click();
+  const profileItems = controlPage.locator(".profile-catalog-item");
+  await expect(profileItems.first()).toBeVisible();
+  const profileGroups = controlPage.locator(".profile-catalog-section");
+  await expect(profileGroups).toHaveCount(2);
+  await profileGroups.nth(1).locator("summary").click();
+  await expect(profileGroups.nth(1)).not.toHaveAttribute("open", "");
+  await profileItems.first().click();
+  await expect(profileGroups.nth(1)).not.toHaveAttribute("open", "");
+  await profileGroups.nth(1).locator("summary").click();
+  await expect(profileGroups.nth(1)).toHaveAttribute("open", "");
+  await expect(
+    controlPage.locator(".profile-catalog-item", {
+      hasText: "Standard HTML5 TextTrack",
+    }),
+  ).toHaveCount(0);
+  const profileLayout = await profileItems.first().evaluate((element) => {
+    const style = getComputedStyle(element);
+    const name = element.querySelector("strong");
+    const meta = element.querySelector(":scope > span");
+    return {
+      display: style.display,
+      width: element.getBoundingClientRect().width,
+      parentWidth: element.parentElement?.getBoundingClientRect().width ?? 0,
+      nameDisplay: name ? getComputedStyle(name).display : "missing",
+      metaDisplay: meta ? getComputedStyle(meta).display : "missing",
+    };
+  });
+  expect(profileLayout).toMatchObject({
+    display: "grid",
+    nameDisplay: "block",
+    metaDisplay: "block",
+  });
+  expect(profileLayout.width).toBeGreaterThan(profileLayout.parentWidth - 16);
+  const workspaceColumns = await controlPage
+    .locator(".profile-editor-workspace")
+    .evaluate((element) =>
+      getComputedStyle(element).gridTemplateColumns.trim().split(/\s+/u),
+    );
+  expect(workspaceColumns).toHaveLength(2);
+  await expect(controlPage.locator("#profile-capture-details")).toBeVisible();
+  await expect(
+    controlPage.locator("#profile-capture-parser"),
+  ).not.toBeVisible();
+  await expect(controlPage.locator("#profile-json")).not.toBeVisible();
+  await expect(controlPage.locator("#profile-file-dialog")).not.toBeVisible();
+  await controlPage.locator("#profile-file-open").click();
+  await expect(controlPage.locator("#profile-file-dialog")).toBeVisible();
+  await expect(controlPage.locator("#profile-json")).toBeVisible();
+  await expect(controlPage.locator("#profile-file-import")).toBeVisible();
+  await expect(controlPage.locator("#profile-file-export")).toBeVisible();
+  const profileText = await controlPage.locator("#profile-json").inputValue();
+  await controlPage.locator("#profile-file-input").setInputFiles({
+    name: "youtube.profile.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(profileText),
+  });
+  await expect(controlPage.locator("#profile-message")).toContainText(
+    /imported|已导入/iu,
+  );
+  const downloadPromise = controlPage.waitForEvent("download");
+  await controlPage.locator("#profile-file-export").click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe("youtube.profile.json");
+  await controlPage.locator("#profile-file-close").click();
+  await expect(controlPage.locator("#profile-file-dialog")).not.toBeVisible();
+  await expect(
+    controlPage.locator("#profile-page-auto-translate"),
+  ).toBeDisabled();
+  await controlPage.locator("#profile-page-override").check();
+  await expect(
+    controlPage.locator("#profile-page-auto-translate"),
+  ).toBeEnabled();
+  await controlPage.locator("#profile-page-auto-translate").check();
+  await controlPage.locator("#profile-page-floating-button").uncheck();
+  await expect(controlPage.locator("#profile-json")).toHaveValue(
+    /"autoTranslate": true[\s\S]*"floatingButtonEnabled": false/u,
+  );
+  await expect(
+    controlPage.locator("#profile-capture-override"),
+  ).not.toBeChecked();
+  await expect(controlPage.locator("#profile-capture-parser")).toBeDisabled();
+  await controlPage.locator("#profile-capture-override").check();
+  await expect(controlPage.locator("#profile-capture-parser")).toBeVisible();
+  await expect(controlPage.locator("#profile-capture-parser")).toBeEnabled();
+  await expect(controlPage.locator("#profile-json")).toHaveValue(
+    /"subtitleCapture": \{[\s\S]*"customized": true/u,
+  );
+  await controlPage.locator("#profile-save").click();
+  await expect(controlPage.locator("#profile-editor-kind")).toHaveAttribute(
+    "data-kind",
+    "override",
+  );
+  controlPage.once("dialog", (dialog) => dialog.accept());
+  await controlPage.locator("#profile-restore").click();
+  await expect(controlPage.locator("#profile-editor-kind")).toHaveAttribute(
+    "data-kind",
+    "builtin",
+  );
+});
+
 test("options saves a valid provider through the background settings boundary", async () => {
   await expect
     .poll(() =>
@@ -984,17 +1124,66 @@ test("options saves a valid provider through the background settings boundary", 
       ),
     )
     .toBe(false);
+  await controlPage.locator("#profiles-settings-tab").click();
+  const profileItems = controlPage.locator(".profile-catalog-item");
+  await expect(profileItems.first()).toBeVisible();
+  await expect(
+    controlPage.locator(".profile-catalog-item", {
+      hasText: "Standard HTML5 TextTrack",
+    }),
+  ).toHaveCount(0);
+  const profileLayout = await profileItems.first().evaluate((element) => {
+    const style = getComputedStyle(element);
+    const name = element.querySelector("strong");
+    const meta = element.querySelector(":scope > span");
+    return {
+      display: style.display,
+      width: element.getBoundingClientRect().width,
+      parentWidth: element.parentElement?.getBoundingClientRect().width ?? 0,
+      nameDisplay: name ? getComputedStyle(name).display : "missing",
+      metaDisplay: meta ? getComputedStyle(meta).display : "missing",
+    };
+  });
+  expect(profileLayout).toMatchObject({
+    display: "grid",
+    nameDisplay: "block",
+    metaDisplay: "block",
+  });
+  expect(profileLayout.width).toBeGreaterThan(profileLayout.parentWidth - 16);
   await controlPage.locator("#provider-settings-tab").click();
-  await controlPage.locator("#fast-provider").selectOption("openai-compatible");
+  await expect(
+    controlPage.locator('#fast-provider option[value="openai-compatible"]'),
+  ).toHaveCount(0);
+  await expect(controlPage.locator("#ai-provider option")).toHaveCount(2);
   await controlPage.locator("#base-url").fill(providerBaseUrl);
   await controlPage.locator("#api-key").fill("e2e-options-key");
   await controlPage.locator("#model").fill("e2e-options-model");
   await controlPage.locator("#timeout").fill("180");
+  const translationMethodValues = TRANSLATION_METHODS.map(
+    (method) => method.value,
+  );
+  for (const selector of [
+    "#page-mode",
+    "#selection-translation-mode",
+    "#subtitle-mode",
+  ]) {
+    await expect
+      .poll(() =>
+        controlPage
+          .locator(`${selector} option`)
+          .evaluateAll((options) =>
+            options.map((option) => (option as HTMLOptionElement).value),
+          ),
+      )
+      .toEqual(translationMethodValues);
+  }
   await controlPage.locator("#page-settings-tab").click();
   await controlPage.locator("#page-mode").selectOption("ai");
   await controlPage.locator("#page-response-mode").selectOption("batch");
   await controlPage.locator("#selection-settings-tab").click();
-  await controlPage.locator("#selection-translation-mode").selectOption("fast");
+  await controlPage
+    .locator("#selection-translation-mode")
+    .selectOption("fast:google-translate");
   await controlPage.locator("#video-settings-tab").click();
   await controlPage.locator("#subtitle-response-mode").selectOption("stream");
   await controlPage.locator("#subtitle-target-language").selectOption("ja");
@@ -1158,7 +1347,7 @@ test("required all-site permission covers configured HTTPS providers", async () 
         ...original,
         provider: {
           ...original.provider,
-          fastProvider: "openai-compatible",
+          aiProvider: "openai-compatible",
           baseUrl: "https://ungranted-provider.invalid/v1",
           apiKey: "permission-test-key",
         },
@@ -1171,7 +1360,7 @@ test("required all-site permission covers configured HTTPS providers", async () 
           request: {
             sourceLanguage: "en",
             targetLanguage: "zh-CN",
-            mode: "fast",
+            mode: "ai",
             segments: [{ id: "only", text: "Hello" }],
           },
         });
@@ -1313,9 +1502,7 @@ test("popup follows external page settings and preserves them on its next edit",
     });
 
     await expect(popup.locator("#target-language")).toHaveValue("es");
-    await expect(popup.locator("#translation-method")).toHaveValue(
-      "ai:openai-compatible",
-    );
+    await expect(popup.locator("#translation-method")).toHaveValue("ai");
     await expect(popup.locator("#response-mode")).toHaveValue("batch");
     await expect(
       popup.locator('input[name="display-mode"][value="translated"]'),
@@ -1669,8 +1856,11 @@ test("unified page and selection modes persist independently", async () => {
     if (
       !settings ||
       typeof settings !== "object" ||
+      !("provider" in settings) ||
       !("page" in settings) ||
       !("subtitles" in settings) ||
+      typeof settings.provider !== "object" ||
+      settings.provider === null ||
       typeof settings.page !== "object" ||
       settings.page === null ||
       typeof settings.subtitles !== "object" ||
@@ -1682,6 +1872,10 @@ test("unified page and selection modes persist independently", async () => {
       type: "SETTINGS_SET",
       settings: {
         ...settings,
+        provider: {
+          ...settings.provider,
+          fastProvider: "chrome-local",
+        },
         page: {
           ...settings.page,
           mode: "fast",
@@ -1707,12 +1901,12 @@ test("unified page and selection modes persist independently", async () => {
     );
     const pageMode = pagePanel
       .locator(
-        'select:has(option[value="fast:chrome-local"]):has(option[value="ai:openai-compatible"])',
+        'select:has(option[value="fast:chrome-local"]):has(option[value="ai"])',
       )
       .nth(0);
     const selectionMode = pagePanel
       .locator(
-        'select:has(option[value="fast:chrome-local"]):has(option[value="ai:openai-compatible"])',
+        'select:has(option[value="fast:chrome-local"]):has(option[value="ai"])',
       )
       .nth(1);
     const selectionEnabled = pagePanel.locator('input[type="checkbox"]').nth(1);
@@ -1722,17 +1916,17 @@ test("unified page and selection modes persist independently", async () => {
     const displayMode = pagePanel.locator(
       'select:has(option[value="translated"]):has(option[value="bilingual"])',
     );
-    await expect(pageMode).toHaveValue("fast:openai-compatible");
-    await expect(selectionMode).toHaveValue("fast:openai-compatible");
+    await expect(pageMode).toHaveValue("fast:chrome-local");
+    await expect(selectionMode).toHaveValue("fast:chrome-local");
     await expect(selectionEnabled).toBeChecked();
     await expect(responseMode).toBeDisabled();
     await sourceLanguage.selectOption("en");
     await targetLanguage.selectOption("ja");
     await displayMode.selectOption("translated");
-    await pageMode.selectOption("ai:openai-compatible");
+    await pageMode.selectOption("ai");
     await expect(responseMode).toBeEnabled();
     await responseMode.selectOption("batch");
-    await selectionMode.selectOption("ai:openai-compatible");
+    await selectionMode.selectOption("ai");
     await selectionEnabled.uncheck();
     await expect
       .poll(() =>

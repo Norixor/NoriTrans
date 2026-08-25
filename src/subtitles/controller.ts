@@ -334,12 +334,14 @@ function localProviderIdOverride(
   mode: TranslationMode,
   destination: "primary" | "fallback",
   providerSettings: ContentProviderSettings,
+  subtitleSettings: SubtitleSettings,
   ocrProvider: OcrSettings["provider"],
 ): string | undefined {
   if (mode !== "fast") return undefined;
   if (destination === "fallback") return "chrome-local";
   if (track.source === "ocr") return ocrProvider;
-  return providerSettings.fastProvider === "chrome-local"
+  return (subtitleSettings.fastProviderOverride ??
+    providerSettings.fastProvider) === "chrome-local"
     ? "chrome-local"
     : undefined;
 }
@@ -1620,6 +1622,7 @@ export class SubtitleController {
                     mode,
                     "primary",
                     this.providerSettings,
+                    this.settings,
                     this.ocrSettings.provider,
                   ),
                   this.runtimeTranslationSourceLanguage(track, [cue]),
@@ -1774,6 +1777,7 @@ export class SubtitleController {
                       mode,
                       "primary",
                       this.providerSettings,
+                      this.settings,
                       this.ocrSettings.provider,
                     ),
                     this.runtimeTranslationSourceLanguage(track, [cue]),
@@ -1980,6 +1984,16 @@ export class SubtitleController {
         ...(mediaTitle ? { mediaTitle } : {}),
         prompt: this.providerSettings.systemPrompt,
         scope: mediaScope,
+        ...(mode === "ai" && this.settings.modelOverride
+          ? { modelOverride: this.settings.modelOverride }
+          : {}),
+        ...(mode === "fast" && destination === "primary"
+          ? {
+              providerOverride:
+                this.settings.fastProviderOverride ??
+                this.providerSettings.fastProvider,
+            }
+          : {}),
         ...(mode === "fast" &&
         destination === "primary" &&
         track.source === "ocr"
@@ -2058,6 +2072,7 @@ export class SubtitleController {
                         mode,
                         destination,
                         this.providerSettings,
+                        this.settings,
                         this.ocrSettings.provider,
                       ),
                       sourceLanguage,
@@ -2093,7 +2108,8 @@ export class SubtitleController {
         (destination === "fallback" ||
           (track.source === "ocr" &&
             this.ocrSettings.provider === "chrome-local") ||
-          this.providerSettings.fastProvider === "chrome-local")
+          (this.settings.fastProviderOverride ??
+            this.providerSettings.fastProvider) === "chrome-local")
       ) {
         const controller = new AbortController();
         this.localControllers.add(controller);

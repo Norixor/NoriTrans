@@ -174,6 +174,8 @@ export type BackgroundCommand =
   | { type: "SITE_PROFILE_EDITOR_SAVE"; profile: unknown }
   | { type: "SITE_PROFILE_EDITOR_DELETE"; id: string }
   | { type: "SITE_PROFILE_OVERRIDE_RESTORE"; id: string }
+  | { type: "SITE_TRANSLATION_PROFILE_SAVE"; profile: unknown }
+  | { type: "SITE_TRANSLATION_PROFILE_DELETE"; id: string }
   | { type: "SETTINGS_GET" }
   | { type: "CONTENT_SETTINGS_GET" }
   | { type: "UPDATE_STATUS_GET" }
@@ -403,11 +405,11 @@ function isAppSettings(value: unknown): value is AppSettings {
       value.uiLanguage === "zh-CN") &&
     (provider.fastProvider === "chrome-local" ||
       provider.fastProvider === "bergamot-local" ||
-      provider.fastProvider === "openai-compatible" ||
       provider.fastProvider === "google-translate" ||
       provider.fastProvider === "microsoft-translator" ||
       provider.fastProvider === "deepl") &&
-    provider.aiProvider === "openai-compatible" &&
+    (provider.aiProvider === "openai-compatible" ||
+      provider.aiProvider === "anthropic-messages") &&
     typeof provider.baseUrl === "string" &&
     isAllowedProviderBaseUrl(provider.baseUrl) &&
     typeof provider.apiKey === "string" &&
@@ -589,8 +591,7 @@ function isTranslationRequest(value: unknown): value is TranslationRequest {
       (typeof value.modelOverride !== "string" ||
         value.modelOverride.length > 256)) ||
     (value.providerOverride !== undefined &&
-      value.providerOverride !== "chrome-local" &&
-      value.providerOverride !== "bergamot-local")
+      !isFastProviderId(value.providerOverride))
   ) {
     return false;
   }
@@ -844,8 +845,10 @@ export function isBackgroundCommand(
         typeof value.id === "string" && /^user-[a-z0-9-]{1,59}$/u.test(value.id)
       );
     case "SITE_PROFILE_EDITOR_SAVE":
+    case "SITE_TRANSLATION_PROFILE_SAVE":
       return isBoundedProfileEditorValue(value.profile);
     case "SITE_PROFILE_OVERRIDE_RESTORE":
+    case "SITE_TRANSLATION_PROFILE_DELETE":
       return (
         typeof value.id === "string" &&
         /^[a-z0-9][a-z0-9-]{0,63}$/u.test(value.id)

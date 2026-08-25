@@ -7,7 +7,11 @@ import {
   detectDominantSourceLanguage,
   dominantScriptSourceLanguageHint,
 } from "@/src/translation/language-detection";
-import { assertValidProtectedTranslation } from "@/src/translation/protected-text";
+import {
+  assertValidProtectedTranslation,
+  protectedTextParts,
+  rebuildProtectedTranslation,
+} from "@/src/translation/protected-text";
 import type {
   ProviderCapabilities,
   TranslationProvider,
@@ -60,6 +64,7 @@ export interface ChromeLocalProviderOptions {
 const TRANSLATION_CONCURRENCY = 6;
 const PACKED_MAX_SEGMENTS = 10;
 const PACKED_MAX_CHARACTERS = 1_600;
+const TRANSLATABLE_TEXT_PATTERN = /[\p{L}\p{N}]/u;
 let packedRequestSequence = 0;
 
 interface PackedTranslation {
@@ -211,6 +216,7 @@ export class ChromeLocalProvider implements TranslationProvider {
   );
   private nextTranslationLane = 0;
   private packedTranslationSupported: boolean | undefined;
+  private protectedTranslationSupported: boolean | undefined;
   constructor(private readonly options: ChromeLocalProviderOptions = {}) {}
 
   async translateBatch(
@@ -324,11 +330,84 @@ export class ChromeLocalProvider implements TranslationProvider {
     segment: TranslationRequest["segments"][number],
     signal: AbortSignal,
   ): Promise<TranslationResult> {
+    if (
+      segment.format === "protected-text-v1" &&
+      this.protectedTranslationSupported === false
+    ) {
+      return {
+        id: segment.id,
+        translatedText: await this.translateProtectedParts(
+          translator,
+          segment.text,
+          signal,
+        ),
+      };
+    }
     const translatedText = await this.withTranslationPermit(signal, () =>
       translator.translate(segment.text, { signal }),
     );
-    assertValidProtectedTranslation(segment, translatedText);
+    try {
+      assertValidProtectedTranslation(segment, translatedText);
+      if (segment.format === "protected-text-v1") {
+        this.protectedTranslationSupported = true;
+      }
+    } catch (error) {
+      if (
+        segment.format !== "protected-text-v1" ||
+        !(error instanceof NorixorTransError)
+      ) {
+        throw error;
+      }
+      this.protectedTranslationSupported = false;
+      const parts = protectedTextParts(segment.text);
+      translationDiagnostic(
+        "ChromeTranslator",
+        "protected-marker-fallback",
+        {
+          parts: parts.length,
+          characters: parts.reduce((total, part) => total + part.length, 0),
+          reason: error.details?.slice(0, 240) ?? error.code,
+        },
+        "warn",
+      );
+      return {
+        id: segment.id,
+        translatedText: await this.translateProtectedParts(
+          translator,
+          segment.text,
+          signal,
+        ),
+      };
+    }
     return { id: segment.id, translatedText };
+  }
+
+  private async translateProtectedParts(
+    translator: ChromeTranslatorInstance,
+    sourceText: string,
+    signal: AbortSignal,
+  ): Promise<string> {
+    const sourceParts = protectedTextParts(sourceText);
+    const translatedParts = await Promise.all(
+      sourceParts.map(async (part) => {
+        if (!TRANSLATABLE_TEXT_PATTERN.test(part.normalize("NFKC"))) {
+          return part;
+        }
+        const translated = await this.withTranslationPermit(signal, () =>
+          translator.translate(part, { signal }),
+        );
+        if (!translated.trim()) {
+          throw new NorixorTransError(
+            "Chrome 本地翻译返回了空的页面片段。",
+            "invalid_response",
+            true,
+            "Chrome protected-part fallback returned an empty translation.",
+          );
+        }
+        return translated;
+      }),
+    );
+    return rebuildProtectedTranslation(sourceText, translatedParts);
   }
 
   async dispose(): Promise<void> {
