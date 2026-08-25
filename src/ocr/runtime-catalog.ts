@@ -17,6 +17,9 @@ export type { OcrRuntimeLanguageCode };
 export type OcrRuntimePack = "zh" | "latin" | "korean";
 export type OcrRuntimeArtifactKind = "detection" | "recognition" | "dictionary";
 
+export type OcrRuntimePackLabelKey =
+  "ocrRuntimeGroupEastAsian" | "ocrRuntimeGroupLatin" | "ocrRuntimeGroupKorean";
+
 export interface OcrRuntimeArtifact {
   id: string;
   kind: OcrRuntimeArtifactKind;
@@ -45,6 +48,13 @@ export interface OcrRuntimeLanguage {
   artifacts: readonly OcrRuntimeArtifact[];
   source: { name: string; url: string };
   license: { spdx: "Apache-2.0"; url: string };
+}
+
+export interface OcrRuntimePackage {
+  pack: OcrRuntimePack;
+  labelKey: OcrRuntimePackLabelKey;
+  languages: readonly OcrRuntimeLanguageCode[];
+  artifacts: readonly OcrRuntimeArtifact[];
 }
 
 const MEDIA_BASE = `https://media.githubusercontent.com/media/PT-Perkasa-Pilar-Utama/ppu-paddle-ocr-models/${OCR_RUNTIME_MODEL_COMMIT}`;
@@ -185,6 +195,30 @@ export const OCR_RUNTIME_CATALOG: readonly OcrRuntimeLanguage[] = Object.freeze(
   ],
 );
 
+export const OCR_RUNTIME_PACK_CATALOG: readonly OcrRuntimePackage[] =
+  Object.freeze(
+    [
+      { pack: "zh", labelKey: "ocrRuntimeGroupEastAsian" },
+      { pack: "latin", labelKey: "ocrRuntimeGroupLatin" },
+      { pack: "korean", labelKey: "ocrRuntimeGroupKorean" },
+    ].map(({ pack, labelKey }) =>
+      Object.freeze({
+        pack: pack as OcrRuntimePack,
+        labelKey: labelKey as OcrRuntimePackLabelKey,
+        languages: Object.freeze(
+          OCR_RUNTIME_CATALOG.filter((item) => item.pack === pack).map(
+            (item) => item.code,
+          ),
+        ),
+        artifacts: getOcrRuntimePack(pack as OcrRuntimePack),
+      }),
+    ),
+  );
+
+const PACK_CATALOG_BY_ID = new Map(
+  OCR_RUNTIME_PACK_CATALOG.map((item) => [item.pack, item]),
+);
+
 const CATALOG_BY_CODE = new Map(
   OCR_RUNTIME_CATALOG.map((item) => [item.code, item]),
 );
@@ -207,6 +241,16 @@ export function getOcrRuntimePack(
   pack: OcrRuntimePack,
 ): readonly OcrRuntimeArtifact[] {
   return Object.freeze([OCR_DETECTION_ARTIFACT, ...PACK_ARTIFACTS[pack]]);
+}
+
+export function isOcrRuntimePack(value: unknown): value is OcrRuntimePack {
+  return typeof value === "string" && PACK_CATALOG_BY_ID.has(value as never);
+}
+
+export function getOcrRuntimePackage(pack: OcrRuntimePack): OcrRuntimePackage {
+  const runtimePackage = PACK_CATALOG_BY_ID.get(pack);
+  if (!runtimePackage) throw new RangeError(`Unsupported OCR pack: ${pack}`);
+  return runtimePackage;
 }
 
 export function ocrRuntimeCodesForPack(

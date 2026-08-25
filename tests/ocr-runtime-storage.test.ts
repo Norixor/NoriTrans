@@ -171,7 +171,7 @@ describe("OCR runtime catalog", () => {
 });
 
 describe("OcrRuntimeStorage", () => {
-  it("installs only the explicitly requested logical language", async () => {
+  it("installs one physical pack for every logical language it supports", async () => {
     const progress: OcrRuntimeInstallProgress[] = [];
     const deps = dependencies();
     const storage = new OcrRuntimeStorage(deps);
@@ -192,11 +192,12 @@ describe("OcrRuntimeStorage", () => {
       receivedBytes: metadata.bytes,
       totalBytes: metadata.bytes,
     });
-    expect(await storage.installedLanguages()).toEqual(["spa"]);
-    expect(await storage.isInstalled("fra")).toBe(false);
+    expect(await storage.installedLanguages()).toEqual(["spa", "fra", "deu"]);
+    expect(await storage.isInstalled("fra")).toBe(true);
     expect(await storage.list()).toContainEqual({
-      language: "spa",
-      labelKey: "ocrRuntimeLanguageSpanish",
+      pack: "latin",
+      labelKey: "ocrRuntimeGroupLatin",
+      languages: ["spa", "fra", "deu"],
       state: "installed",
       bytes: metadata.bytes,
     });
@@ -220,7 +221,12 @@ describe("OcrRuntimeStorage", () => {
     expect(deps.fetch).toHaveBeenCalledTimes(3);
     expect(firstProgress.at(-1)?.phase).toBe("complete");
     expect(secondProgress.at(-1)?.phase).toBe("complete");
-    expect(await storage.installedLanguages()).toEqual(["chi_sim", "jpn"]);
+    expect(await storage.installedLanguages()).toEqual([
+      "eng",
+      "chi_sim",
+      "chi_tra",
+      "jpn",
+    ]);
   });
 
   it("deduplicates the shared detection artifact across concurrent packs", async () => {
@@ -230,7 +236,15 @@ describe("OcrRuntimeStorage", () => {
     await Promise.all([storage.install("chi_sim"), storage.install("spa")]);
 
     expect(deps.fetch).toHaveBeenCalledTimes(5);
-    expect(await storage.installedLanguages()).toEqual(["chi_sim", "spa"]);
+    expect(await storage.installedLanguages()).toEqual([
+      "eng",
+      "chi_sim",
+      "chi_tra",
+      "jpn",
+      "spa",
+      "fra",
+      "deu",
+    ]);
   });
 
   it("does not redownload an already installed sibling language", async () => {
@@ -239,7 +253,7 @@ describe("OcrRuntimeStorage", () => {
     await storage.install("spa");
     await storage.install("deu");
     expect(deps.fetch).toHaveBeenCalledTimes(3);
-    expect(await storage.installedLanguages()).toEqual(["spa", "deu"]);
+    expect(await storage.installedLanguages()).toEqual(["spa", "fra", "deu"]);
   });
 
   it("reuses cached artifacts while replacing ambiguous legacy markers", async () => {
@@ -278,7 +292,32 @@ describe("OcrRuntimeStorage", () => {
     await storage.install("eng");
 
     expect(deps.fetch).not.toHaveBeenCalled();
-    expect(await storage.installedLanguages()).toEqual(["eng"]);
+    expect(await storage.installedLanguages()).toEqual([
+      "eng",
+      "chi_sim",
+      "chi_tra",
+      "jpn",
+    ]);
+  });
+
+  it("migrates an existing per-language marker to its shared package", async () => {
+    const deps = dependencies();
+    const initialStorage = new OcrRuntimeStorage(deps);
+    await initialStorage.install("chi_sim");
+    deps.store.values.delete("metadata:eng");
+    deps.store.values.delete("metadata:chi_tra");
+    deps.store.values.delete("metadata:jpn");
+
+    const migratedStorage = new OcrRuntimeStorage(deps);
+
+    expect(await migratedStorage.isInstalled("jpn")).toBe(true);
+    expect(await migratedStorage.installedLanguages()).toEqual([
+      "eng",
+      "chi_sim",
+      "chi_tra",
+      "jpn",
+    ]);
+    expect(deps.fetch).toHaveBeenCalledTimes(3);
   });
 
   it("loads extension-local model buffers without any network request", async () => {
@@ -358,8 +397,9 @@ describe("OcrRuntimeStorage", () => {
 
     expect(await storage.isInstalled("eng")).toBe(false);
     expect(await storage.list()).toContainEqual({
-      language: "eng",
-      labelKey: "ocrRuntimeLanguageEnglish",
+      pack: "zh",
+      labelKey: "ocrRuntimeGroupEastAsian",
+      languages: ["eng", "chi_sim", "chi_tra", "jpn"],
       state: "missing",
     });
   });
@@ -397,8 +437,9 @@ describe("OcrRuntimeStorage", () => {
 
     await expect(storage.install("chi_sim")).rejects.toThrow(/integrity/u);
     expect(await storage.list()).toContainEqual({
-      language: "chi_sim",
-      labelKey: "ocrRuntimeLanguageChineseSimplified",
+      pack: "zh",
+      labelKey: "ocrRuntimeGroupEastAsian",
+      languages: ["eng", "chi_sim", "chi_tra", "jpn"],
       state: "error",
       message: "OCR runtime download failed its integrity check.",
     });
@@ -414,8 +455,9 @@ describe("OcrRuntimeStorage", () => {
 
     await expect(storage.install("chi_tra")).rejects.toThrow("secret");
     expect(await storage.list()).toContainEqual({
-      language: "chi_tra",
-      labelKey: "ocrRuntimeLanguageChineseTraditional",
+      pack: "zh",
+      labelKey: "ocrRuntimeGroupEastAsian",
+      languages: ["eng", "chi_sim", "chi_tra", "jpn"],
       state: "error",
       message: "OCR runtime installation failed.",
     });
@@ -448,8 +490,9 @@ describe("OcrRuntimeStorage", () => {
       await vi.advanceTimersByTimeAsync(30_001);
       await firstFailure;
       expect(await storage.list()).toContainEqual({
-        language: "eng",
-        labelKey: "ocrRuntimeLanguageEnglish",
+        pack: "zh",
+        labelKey: "ocrRuntimeGroupEastAsian",
+        languages: ["eng", "chi_sim", "chi_tra", "jpn"],
         state: "error",
         message: "OCR runtime download timed out.",
       });
@@ -489,7 +532,7 @@ describe("OcrRuntimeStorage", () => {
     }
   });
 
-  it("deleting one logical language preserves unrelated installed packs", async () => {
+  it("deleting a logical language deletes its shared pack and preserves unrelated packs", async () => {
     const deps = dependencies();
     const storage = new OcrRuntimeStorage(deps);
     await storage.install("spa");
@@ -508,7 +551,7 @@ describe("OcrRuntimeStorage", () => {
     ).toBe(false);
   });
 
-  it("keeps shared artifacts while another explicitly installed language uses them", async () => {
+  it("deletes every logical marker and shared artifact for one physical pack", async () => {
     const deps = dependencies();
     const storage = new OcrRuntimeStorage(deps);
     await storage.install("spa");
@@ -517,13 +560,14 @@ describe("OcrRuntimeStorage", () => {
     const result = await storage.delete("spa");
 
     expect(await storage.isInstalled("spa")).toBe(false);
-    expect(await storage.isInstalled("fra")).toBe(true);
-    expect(result).toEqual({ pack: "latin", physicalPackDeleted: false });
+    expect(await storage.isInstalled("fra")).toBe(false);
+    expect(await storage.isInstalled("deu")).toBe(false);
+    expect(result).toEqual({ pack: "latin", physicalPackDeleted: true });
     expect(
       deps.store.values.has(
         ocrRuntimeArtifactKey(getOcrRuntimeLanguage("fra").artifacts[1]!),
       ),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("clears an installation error when deleting the pack", async () => {
@@ -536,8 +580,9 @@ describe("OcrRuntimeStorage", () => {
     await storage.delete("jpn");
 
     expect(await storage.list()).toContainEqual({
-      language: "jpn",
-      labelKey: "ocrRuntimeLanguageJapanese",
+      pack: "zh",
+      labelKey: "ocrRuntimeGroupEastAsian",
+      languages: ["eng", "chi_sim", "chi_tra", "jpn"],
       state: "missing",
     });
   });

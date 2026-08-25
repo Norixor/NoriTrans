@@ -1,8 +1,9 @@
 import {
   getOcrRuntimeLanguage,
+  getOcrRuntimePackage,
   getOcrRuntimePack,
   OCR_DETECTION_ARTIFACT,
-  OCR_RUNTIME_CATALOG,
+  OCR_RUNTIME_PACK_CATALOG,
   OCR_RUNTIME_PACKAGE_VERSION,
   type OcrRuntimeArtifact,
   type OcrRuntimeLanguageCode,
@@ -59,7 +60,6 @@ export interface OcrRuntimeStorageDependencies {
 interface PackInstallJob {
   promise: Promise<void>;
   listeners: Set<(progress: OcrRuntimeInstallProgress) => void>;
-  requestedCodes: Set<OcrRuntimeLanguageCode>;
   latestProgress?: OcrRuntimeInstallProgress;
 }
 
@@ -332,7 +332,7 @@ export class OcrRuntimeStorage {
     string,
     Promise<Uint8Array>
   >();
-  private readonly installErrors = new Map<OcrRuntimeLanguageCode, string>();
+  private readonly installErrors = new Map<OcrRuntimePack, string>();
 
   constructor(
     dependencies: OcrRuntimeStorageDependencies = defaultDependencies(),
@@ -343,52 +343,57 @@ export class OcrRuntimeStorage {
   async list(): Promise<OcrRuntimeInfo[]> {
     const artifactVerifications: ArtifactVerificationCache = new Map();
     return Promise.all(
-      OCR_RUNTIME_CATALOG.map(async (language): Promise<OcrRuntimeInfo> => {
-        const activeJob = this.installJobs.get(language.pack);
-        if (activeJob?.requestedCodes.has(language.code)) {
-          const progress = activeJob.latestProgress;
+      OCR_RUNTIME_PACK_CATALOG.map(
+        async (runtimePackage): Promise<OcrRuntimeInfo> => {
+          const activeJob = this.installJobs.get(runtimePackage.pack);
+          if (activeJob) {
+            const progress = activeJob.latestProgress;
+            return {
+              pack: runtimePackage.pack,
+              labelKey: runtimePackage.labelKey,
+              languages: runtimePackage.languages,
+              state: "downloading",
+              ...(progress ? { bytes: progress.receivedBytes } : {}),
+              ...(progress && progress.totalBytes > 0
+                ? { progress: progress.receivedBytes / progress.totalBytes }
+                : {}),
+            };
+          }
+          const metadata = await this.ensurePackMetadata(
+            runtimePackage.pack,
+            artifactVerifications,
+          );
+          const installError = this.installErrors.get(runtimePackage.pack);
+          if (!metadata && installError) {
+            return {
+              pack: runtimePackage.pack,
+              labelKey: runtimePackage.labelKey,
+              languages: runtimePackage.languages,
+              state: "error",
+              message: installError,
+            };
+          }
           return {
-            language: language.code,
-            labelKey: language.labelKey,
-            state: "downloading",
-            ...(progress ? { bytes: progress.receivedBytes } : {}),
-            ...(progress && progress.totalBytes > 0
-              ? { progress: progress.receivedBytes / progress.totalBytes }
-              : {}),
+            pack: runtimePackage.pack,
+            labelKey: runtimePackage.labelKey,
+            languages: runtimePackage.languages,
+            state: metadata ? "installed" : "missing",
+            ...(metadata ? { bytes: metadata.bytes } : {}),
           };
-        }
-        const metadata = await this.installedMetadata(
-          language.code,
-          artifactVerifications,
-        );
-        const installError = this.installErrors.get(language.code);
-        if (!metadata && installError) {
-          return {
-            language: language.code,
-            labelKey: language.labelKey,
-            state: "error",
-            message: installError,
-          };
-        }
-        return {
-          language: language.code,
-          labelKey: language.labelKey,
-          state: metadata ? "installed" : "missing",
-          ...(metadata ? { bytes: metadata.bytes } : {}),
-        };
-      }),
+        },
+      ),
     );
   }
 
   async installedLanguages(): Promise<OcrRuntimeLanguageCode[]> {
-    return (await this.list())
-      .filter((runtime) => runtime.state === "installed")
-      .map((runtime) => runtime.language);
+    return (await this.list()).flatMap((runtime) =>
+      runtime.state === "installed" ? runtime.languages : [],
+    );
   }
 
   async isInstalled(code: OcrRuntimeLanguageCode): Promise<boolean> {
-    getOcrRuntimeLanguage(code);
-    return Boolean(await this.installedMetadata(code));
+    const language = getOcrRuntimeLanguage(code);
+    return Boolean(await this.ensurePackMetadata(language.pack));
   }
 
   async install(
@@ -398,28 +403,34 @@ export class OcrRuntimeStorage {
     const language = getOcrRuntimeLanguage(code);
     const existingMetadata = await this.installedMetadata(code);
     if (existingMetadata) return existingMetadata;
+    const sharedMetadata = await this.ensurePackMetadata(language.pack);
+    if (sharedMetadata) {
+      return (
+        (await this.installedMetadata(code)) ??
+        (await this.persistMetadata(code, sharedMetadata.installedAt))
+      );
+    }
     // Another logical language mapped to this physical model pack may have
     // started while the asynchronous metadata check was running.
     const existing = this.installJobs.get(language.pack);
     if (existing) {
-      existing.requestedCodes.add(code);
       if (options.onProgress) existing.listeners.add(options.onProgress);
       if (options.onProgress && existing.latestProgress) {
         options.onProgress(existing.latestProgress);
       }
       try {
         await existing.promise;
-        return await this.persistMetadata(code);
+        return (await this.persistPackMetadata(language.pack)).get(code)!;
       } catch (error) {
-        this.installErrors.set(code, safeInstallErrorMessage(error));
-        await this.dependencies.store.delete(runtimeMetadataKey(code));
+        this.installErrors.set(language.pack, safeInstallErrorMessage(error));
+        await this.deletePackMetadata(language.pack);
         throw error;
       }
     }
 
     const listeners = new Set<(progress: OcrRuntimeInstallProgress) => void>();
     if (options.onProgress) listeners.add(options.onProgress);
-    this.installErrors.delete(code);
+    this.installErrors.delete(language.pack);
     const emit = (progress: OcrRuntimeInstallProgress): void => {
       const job = this.installJobs.get(language.pack);
       if (job) job.latestProgress = progress;
@@ -431,19 +442,18 @@ export class OcrRuntimeStorage {
         }
       }
     };
-    const promise = this.installPack(language.pack, emit);
+    const promise = this.downloadPackArtifacts(language.pack, emit);
     const job: PackInstallJob = {
       promise,
       listeners,
-      requestedCodes: new Set([code]),
     };
     this.installJobs.set(language.pack, job);
     try {
       await promise;
-      return await this.persistMetadata(code);
+      return (await this.persistPackMetadata(language.pack)).get(code)!;
     } catch (error) {
-      this.installErrors.set(code, safeInstallErrorMessage(error));
-      await this.dependencies.store.delete(runtimeMetadataKey(code));
+      this.installErrors.set(language.pack, safeInstallErrorMessage(error));
+      await this.deletePackMetadata(language.pack);
       throw error;
     } finally {
       if (this.installJobs.get(language.pack) === job) {
@@ -453,30 +463,33 @@ export class OcrRuntimeStorage {
   }
 
   async delete(code: OcrRuntimeLanguageCode): Promise<OcrRuntimeDeleteResult> {
-    const language = getOcrRuntimeLanguage(code);
-    await this.installJobs.get(language.pack)?.promise.catch(() => undefined);
-    this.installErrors.delete(code);
-    await this.dependencies.store.delete(runtimeMetadataKey(code));
-    const siblings = OCR_RUNTIME_CATALOG.filter(
-      (candidate) =>
-        candidate.pack === language.pack && candidate.code !== code,
+    return this.deletePack(getOcrRuntimeLanguage(code).pack);
+  }
+
+  async installRuntimePack(
+    pack: OcrRuntimePack,
+    options: OcrRuntimeInstallOptions = {},
+  ): Promise<void> {
+    const firstLanguage = getOcrRuntimePackage(pack).languages[0];
+    if (!firstLanguage) throw new RangeError(`Unsupported OCR pack: ${pack}`);
+    await this.install(firstLanguage, options);
+  }
+
+  async deletePack(pack: OcrRuntimePack): Promise<OcrRuntimeDeleteResult> {
+    getOcrRuntimePackage(pack);
+    await this.installJobs.get(pack)?.promise.catch(() => undefined);
+    this.installErrors.delete(pack);
+    await this.deletePackMetadata(pack);
+    await Promise.all(
+      getOcrRuntimePack(pack)
+        .filter((artifact) => artifact.kind !== "detection")
+        .map((artifact) =>
+          this.dependencies.store.delete(ocrRuntimeArtifactKey(artifact)),
+        ),
     );
-    const siblingMetadata = await Promise.all(
-      siblings.map((candidate) => this.installedMetadata(candidate.code)),
-    );
-    const physicalPackDeleted = !siblingMetadata.some(Boolean);
-    if (physicalPackDeleted) {
-      await Promise.all(
-        getOcrRuntimePack(language.pack)
-          .filter((artifact) => artifact.kind !== "detection")
-          .map((artifact) =>
-            this.dependencies.store.delete(ocrRuntimeArtifactKey(artifact)),
-          ),
-      );
-    }
     const anyInstalled = await Promise.all(
-      OCR_RUNTIME_CATALOG.map((candidate) =>
-        this.installedMetadata(candidate.code),
+      OCR_RUNTIME_PACK_CATALOG.map((candidate) =>
+        this.ensurePackMetadata(candidate.pack),
       ),
     );
     if (!anyInstalled.some(Boolean)) {
@@ -484,17 +497,25 @@ export class OcrRuntimeStorage {
         ocrRuntimeArtifactKey(OCR_DETECTION_ARTIFACT),
       );
     }
-    return { pack: language.pack, physicalPackDeleted };
+    return { pack, physicalPackDeleted: true };
   }
 
   async load(code: OcrRuntimeLanguageCode): Promise<LoadedOcrRuntimePack> {
     const language = getOcrRuntimeLanguage(code);
-    const artifactVerifications: ArtifactVerificationCache = new Map();
-    const metadata = await this.installedMetadata(
+    let artifactVerifications: ArtifactVerificationCache = new Map();
+    let metadata = await this.installedMetadata(
       code,
       artifactVerifications,
       true,
     );
+    if (!metadata && (await this.ensurePackMetadata(language.pack))) {
+      artifactVerifications = new Map();
+      metadata = await this.installedMetadata(
+        code,
+        artifactVerifications,
+        true,
+      );
+    }
     if (!metadata) throw new Error(`ocr_runtime_missing:${code}`);
     const entries = await Promise.all(
       language.artifacts.map(async (artifact) => ({
@@ -524,7 +545,7 @@ export class OcrRuntimeStorage {
     };
   }
 
-  private async installPack(
+  private async downloadPackArtifacts(
     pack: OcrRuntimePack,
     emit: (progress: OcrRuntimeInstallProgress) => void,
   ): Promise<void> {
@@ -591,6 +612,7 @@ export class OcrRuntimeStorage {
 
   private async persistMetadata(
     code: OcrRuntimeLanguageCode,
+    installedAt = this.dependencies.now(),
   ): Promise<OcrRuntimeMetadata> {
     const language = getOcrRuntimeLanguage(code);
     const metadata: OcrRuntimeMetadata = {
@@ -604,14 +626,60 @@ export class OcrRuntimeStorage {
       artifacts: Object.fromEntries(
         language.artifacts.map((artifact) => [artifact.id, artifact.sha256]),
       ),
-      installedAt: this.dependencies.now(),
+      installedAt,
     };
     await this.dependencies.store.set(
       runtimeMetadataKey(code),
       serializeMetadata(metadata),
     );
-    this.installErrors.delete(code);
+    this.installErrors.delete(language.pack);
     return metadata;
+  }
+
+  private async persistPackMetadata(
+    pack: OcrRuntimePack,
+    installedAt = this.dependencies.now(),
+  ): Promise<Map<OcrRuntimeLanguageCode, OcrRuntimeMetadata>> {
+    const entries = await Promise.all(
+      getOcrRuntimePackage(pack).languages.map(
+        async (code) =>
+          [code, await this.persistMetadata(code, installedAt)] as const,
+      ),
+    );
+    return new Map(entries);
+  }
+
+  private async deletePackMetadata(pack: OcrRuntimePack): Promise<void> {
+    await Promise.all(
+      getOcrRuntimePackage(pack).languages.map((code) =>
+        this.dependencies.store.delete(runtimeMetadataKey(code)),
+      ),
+    );
+  }
+
+  /** Upgrades old per-language markers to the package-level contract. */
+  private async ensurePackMetadata(
+    pack: OcrRuntimePack,
+    artifactVerifications: ArtifactVerificationCache = new Map(),
+  ): Promise<OcrRuntimeMetadata | undefined> {
+    const runtimePackage = getOcrRuntimePackage(pack);
+    const metadata = await Promise.all(
+      runtimePackage.languages.map((code) =>
+        this.installedMetadata(code, artifactVerifications),
+      ),
+    );
+    const installed = metadata.find(
+      (candidate): candidate is OcrRuntimeMetadata => Boolean(candidate),
+    );
+    if (!installed) return undefined;
+    await Promise.all(
+      runtimePackage.languages.map((code, index) =>
+        metadata[index]
+          ? Promise.resolve(metadata[index])
+          : this.persistMetadata(code, installed.installedAt),
+      ),
+    );
+    return installed;
   }
 
   private async installedMetadata(
@@ -670,6 +738,19 @@ export function deleteRuntime(
   code: OcrRuntimeLanguageCode,
 ): Promise<OcrRuntimeDeleteResult> {
   return getDefaultStorage().delete(code);
+}
+
+export function installRuntimePack(
+  pack: OcrRuntimePack,
+  options?: OcrRuntimeInstallOptions,
+): Promise<void> {
+  return getDefaultStorage().installRuntimePack(pack, options);
+}
+
+export function deleteRuntimePack(
+  pack: OcrRuntimePack,
+): Promise<OcrRuntimeDeleteResult> {
+  return getDefaultStorage().deletePack(pack);
 }
 
 export function isInstalled(code: OcrRuntimeLanguageCode): Promise<boolean> {

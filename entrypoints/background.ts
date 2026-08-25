@@ -91,12 +91,15 @@ import {
   OCR_CAPTURE_MAX_DATA_URL_LENGTH,
 } from "@/src/ocr/capture-policy";
 import {
-  deleteRuntime as deleteOcrRuntime,
-  install as installOcrRuntime,
+  deleteRuntimePack as deleteOcrRuntimePack,
+  installRuntimePack as installOcrRuntimePack,
   installedLanguages as installedOcrRuntimeLanguages,
   list as listOcrRuntimes,
 } from "@/src/ocr/runtime-storage";
-import type { OcrRuntimeLanguageCode } from "@/src/ocr/runtime-catalog";
+import {
+  getOcrRuntimePackage,
+  type OcrRuntimePack,
+} from "@/src/ocr/runtime-catalog";
 import { selectInstalledOcrRuntime } from "@/src/ocr/languages";
 import {
   deleteRuntime as deleteLocalTranslationRuntime,
@@ -413,14 +416,14 @@ async function assertOcrPrepareRuntimesInstalled(
   throw new Error(`ocr_runtime_missing:${sourceLanguage || "auto"}`);
 }
 
-async function invalidateLoadedOcrRuntime(
-  language: OcrRuntimeLanguageCode,
-): Promise<void> {
+async function invalidateLoadedOcrRuntime(pack: OcrRuntimePack): Promise<void> {
   const contexts = await chrome.runtime.getContexts({
     contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT],
     documentUrls: [OCR_OFFSCREEN_URL],
   });
   if (contexts.length === 0) return;
+  const language = getOcrRuntimePackage(pack).languages[0];
+  if (!language) return;
   const response = await forwardOcrOffscreenRequest({
     target: OCR_BACKGROUND_TARGET,
     type: "OCR_OFFSCREEN_RUNTIME_INVALIDATE",
@@ -465,7 +468,7 @@ async function installAllMissingOcrRuntimes(): Promise<void> {
       cursor += 1;
       if (!runtime) continue;
       try {
-        await installOcrRuntime(runtime.language);
+        await installOcrRuntimePack(runtime.pack);
       } catch (error) {
         failures.push(error);
       }
@@ -1622,15 +1625,15 @@ async function handleBackgroundCommand(
       return { ok: true, runtimes: await listOcrRuntimes() };
     case "OCR_RUNTIME_DOWNLOAD":
       await assertOcrRuntimeDownloadPermission();
-      await installOcrRuntime(message.language);
+      await installOcrRuntimePack(message.pack);
       return { ok: true };
     case "OCR_RUNTIME_DOWNLOAD_ALL":
       await assertOcrRuntimeDownloadPermission();
       await installAllMissingOcrRuntimes();
       return { ok: true };
     case "OCR_RUNTIME_DELETE":
-      if ((await deleteOcrRuntime(message.language)).physicalPackDeleted) {
-        await invalidateLoadedOcrRuntime(message.language);
+      if ((await deleteOcrRuntimePack(message.pack)).physicalPackDeleted) {
+        await invalidateLoadedOcrRuntime(message.pack);
       }
       return { ok: true };
     case "LOCAL_TRANSLATION_RUNTIME_LIST":

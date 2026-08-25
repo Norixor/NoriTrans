@@ -264,7 +264,7 @@
   "ocrRuntimeLanguageFrench": { "message": "French" },
   "ocrRuntimeLanguageGerman": { "message": "German" },
   "ocrRuntimeGroupEastAsian": {
-    "message": "Shared English and CJK language pack"
+    "message": "Shared English, Chinese, and Japanese pack"
   },
   "ocrRuntimeGroupLatin": { "message": "Shared Latin language pack" },
   "ocrRuntimeGroupKorean": { "message": "Korean language pack" },
@@ -274,6 +274,10 @@
       "count": { "content": "$1" },
       "size": { "content": "$2" }
     }
+  },
+  "ocrRuntimeSupportedLanguages": {
+    "message": "Supports: $LANGUAGES$",
+    "placeholders": { "languages": { "content": "$1" } }
   },
   "ocrRuntimeStatus": { "message": "Status" },
   "ocrRuntimeAction": { "message": "Action" },
@@ -310,16 +314,16 @@
   "ocrRuntimeDownloading": { "message": "Downloading" },
   "ocrRuntimeDownloadAll": { "message": "Download all" },
   "ocrRuntimeDownloadLabel": {
-    "message": "Download $LANGUAGE$ OCR pack",
+    "message": "Download $LANGUAGE$",
     "placeholders": { "language": { "content": "$1" } }
   },
   "ocrRuntimeDelete": { "message": "Delete" },
   "ocrRuntimeDeleteLabel": {
-    "message": "Delete $LANGUAGE$ OCR pack",
+    "message": "Delete $LANGUAGE$",
     "placeholders": { "language": { "content": "$1" } }
   },
   "ocrRuntimeDeleteConfirm": {
-    "message": "Delete the $LANGUAGE$ OCR pack from this device?",
+    "message": "Delete $LANGUAGE$ from this device?",
     "placeholders": { "language": { "content": "$1" } }
   },
   "ocrRuntimePermissionDenied": {

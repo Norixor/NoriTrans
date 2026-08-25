@@ -239,7 +239,7 @@
   "ocrRuntimeLanguageSpanish": { "message": "西班牙语" },
   "ocrRuntimeLanguageFrench": { "message": "法语" },
   "ocrRuntimeLanguageGerman": { "message": "德语" },
-  "ocrRuntimeGroupEastAsian": { "message": "英语与中日韩共享语言包" },
+  "ocrRuntimeGroupEastAsian": { "message": "英语、中文与日语共享语言包" },
   "ocrRuntimeGroupLatin": { "message": "拉丁语系共享语言包" },
   "ocrRuntimeGroupKorean": { "message": "韩语语言包" },
   "ocrRuntimeGroupSummary": {
@@ -248,6 +248,10 @@
       "count": { "content": "$1" },
       "size": { "content": "$2" }
     }
+  },
+  "ocrRuntimeSupportedLanguages": {
+    "message": "支持：$LANGUAGES$",
+    "placeholders": { "languages": { "content": "$1" } }
   },
   "ocrRuntimeStatus": { "message": "状态" },
   "ocrRuntimeAction": { "message": "操作" },
@@ -284,16 +288,16 @@
   "ocrRuntimeDownloading": { "message": "下载中" },
   "ocrRuntimeDownloadAll": { "message": "全部下载" },
   "ocrRuntimeDownloadLabel": {
-    "message": "下载$LANGUAGE$ OCR 语言包",
+    "message": "下载$LANGUAGE$",
     "placeholders": { "language": { "content": "$1" } }
   },
   "ocrRuntimeDelete": { "message": "删除" },
   "ocrRuntimeDeleteLabel": {
-    "message": "删除$LANGUAGE$ OCR 语言包",
+    "message": "删除$LANGUAGE$",
     "placeholders": { "language": { "content": "$1" } }
   },
   "ocrRuntimeDeleteConfirm": {
-    "message": "从此设备删除$LANGUAGE$ OCR 语言包？",
+    "message": "从此设备删除$LANGUAGE$？",
     "placeholders": { "language": { "content": "$1" } }
   },
   "ocrRuntimePermissionDenied": {

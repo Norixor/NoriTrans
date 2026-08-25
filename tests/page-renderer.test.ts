@@ -126,6 +126,53 @@ describe("PageRenderer", () => {
     expect(style).not.toContain("font-style: normal");
   });
 
+  it("counter-flips an external companion beside reflected search-result text", () => {
+    document.body.innerHTML = `
+      <section style="transform: matrix(1, 0, 0, -1, 0, 0)">
+        <h3 style="transform: matrix(1, 0, 0, -1, 0, 0); transform-origin: 20px 10px">
+          Search result
+        </h3>
+      </section>
+    `;
+    const heading = document.querySelector("h3");
+    const node = heading?.firstChild;
+    if (!heading || !(node instanceof Text)) {
+      throw new Error("invalid reflected search result fixture");
+    }
+    const renderer = new PageRenderer();
+
+    renderer.apply(
+      segment(heading, node),
+      "搜索结果译文",
+      "bilingual",
+      "zh-CN",
+    );
+
+    const companion = heading.nextElementSibling as HTMLElement | null;
+    expect(companion?.tagName).toBe("NORIXOR-TRANSLATION");
+    expect(companion?.style.transform).toBe("matrix(1, 0, 0, -1, 0, 0)");
+    expect(companion?.style.transformOrigin).toBe("20px 10px");
+  });
+
+  it("does not double-flip a companion placed inside a reflected anchor", () => {
+    document.body.innerHTML = `
+      <a href="#" style="transform: matrix(1, 0, 0, -1, 0, 0)">Result link</a>
+    `;
+    const link = document.querySelector("a");
+    const node = link?.firstChild;
+    if (!link || !(node instanceof Text)) {
+      throw new Error("invalid reflected link fixture");
+    }
+    const renderer = new PageRenderer();
+
+    renderer.apply(segment(link, node), "结果链接", "bilingual", "zh-CN");
+
+    const companion = link.querySelector<HTMLElement>(
+      ":scope > norixor-translation",
+    );
+    expect(companion?.style.transform).toBe("");
+  });
+
   it("keeps list translations inside the original list item", () => {
     document.body.innerHTML = "<ol><li>First item</li></ol>";
     const item = document.querySelector("li");

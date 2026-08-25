@@ -119,20 +119,20 @@ describe("runtime message validation", () => {
     expect(
       isBackgroundCommand({
         type: "OCR_RUNTIME_DOWNLOAD",
-        language: "jpn",
+        pack: "zh",
       }),
     ).toBe(true);
     expect(
       isBackgroundCommand({
         type: "OCR_RUNTIME_DOWNLOAD",
-        language: "rus",
+        pack: "rus",
       }),
     ).toBe(false);
     expect(isBackgroundCommand({ type: "OCR_RUNTIME_DOWNLOAD_ALL" })).toBe(
       true,
     );
     expect(
-      isBackgroundCommand({ type: "OCR_RUNTIME_DELETE", language: "eng" }),
+      isBackgroundCommand({ type: "OCR_RUNTIME_DELETE", pack: "zh" }),
     ).toBe(true);
     expect(
       isBackgroundCommand({

@@ -284,6 +284,36 @@ function bilingualPlacement(segment: PageSegment): BilingualPlacement {
   return { placement: "after-anchor" };
 }
 
+function reflectedTransform(style: CSSStyleDeclaration): string | undefined {
+  const transform = style.transform.trim();
+  const match = /^matrix\(([^)]+)\)$/u.exec(transform);
+  if (!match) return undefined;
+  const values =
+    match[1]?.split(",").map((value) => Number(value.trim())) ?? [];
+  if (values.length !== 6 || values.some((value) => !Number.isFinite(value))) {
+    return undefined;
+  }
+  const [a = 1, b = 0, c = 0, d = 1] = values;
+  return a * d - b * c < 0 ? transform : undefined;
+}
+
+function syncExternalBilingualOrientation(
+  host: HTMLElement,
+  anchor: Element,
+  placement: AppliedBilingual["placement"],
+): void {
+  host.style.removeProperty("transform");
+  host.style.removeProperty("transform-origin");
+  if (placement !== "after-anchor" && placement !== "assigned-slot") return;
+  const sourceStyle = getComputedStyle(anchor);
+  const transform = reflectedTransform(sourceStyle);
+  if (!transform) return;
+  // Some result pages flip a container and counter-flip each source child.
+  // A sibling translation must copy that counter-transform to stay upright.
+  host.style.transform = transform;
+  host.style.transformOrigin = sourceStyle.transformOrigin;
+}
+
 function placeBilingualHost(
   host: HTMLElement,
   segment: PageSegment,
@@ -299,6 +329,7 @@ function placeBilingualHost(
   } else if (next.presentation === "inline") {
     host.dataset.inline = "";
   }
+  syncExternalBilingualOrientation(host, segment.anchor, next.placement);
   if (next.placement === "assigned-slot") {
     return insertIntoAssignedSlot(host, segment);
   }

@@ -33,7 +33,7 @@ test("recognizes explicitly supplied real subtitle crops locally", async () => {
     const installed: unknown = await page.evaluate(() =>
       chrome.runtime.sendMessage({
         type: "OCR_RUNTIME_DOWNLOAD",
-        language: "chi_sim",
+        pack: "zh",
       }),
     );
     expect(installed).toEqual({ ok: true });

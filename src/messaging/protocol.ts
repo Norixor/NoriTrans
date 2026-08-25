@@ -15,10 +15,11 @@ import type { SubtitleSiteProfile } from "@/src/subtitles/profiles/types";
 import { isPersistedFullTrack } from "@/src/subtitles/persisted-track";
 import type { SubtitleTrack } from "@/src/subtitles/types";
 import type { OcrCaptureResponse, OcrStatus } from "@/src/ocr/types";
+import type { OcrRuntimeLanguage } from "@/src/ocr/languages";
 import {
-  OCR_RUNTIME_LANGUAGES,
-  type OcrRuntimeLanguage,
-} from "@/src/ocr/languages";
+  isOcrRuntimePack,
+  type OcrRuntimePack,
+} from "@/src/ocr/runtime-catalog";
 import {
   BERGAMOT_LANGUAGE_PACK_IDS,
   type BergamotLanguagePackId,
@@ -156,9 +157,9 @@ export type BackgroundCommand =
   | { type: "OCR_PERMISSION_REQUEST" }
   | { type: "OCR_PERMISSION_COMPLETE" }
   | { type: "OCR_RUNTIME_LIST" }
-  | { type: "OCR_RUNTIME_DOWNLOAD"; language: OcrRuntimeLanguage }
+  | { type: "OCR_RUNTIME_DOWNLOAD"; pack: OcrRuntimePack }
   | { type: "OCR_RUNTIME_DOWNLOAD_ALL" }
-  | { type: "OCR_RUNTIME_DELETE"; language: OcrRuntimeLanguage }
+  | { type: "OCR_RUNTIME_DELETE"; pack: OcrRuntimePack }
   | { type: "LOCAL_TRANSLATION_RUNTIME_LIST" }
   | {
       type: "LOCAL_TRANSLATION_RUNTIME_DOWNLOAD";
@@ -240,8 +241,9 @@ export type { OcrCaptureResponse, OcrStatus };
 export type OcrRuntimeState = "missing" | "downloading" | "installed" | "error";
 
 export interface OcrRuntimeInfo {
-  language: OcrRuntimeLanguage;
+  pack: OcrRuntimePack;
   labelKey: string;
+  languages: readonly OcrRuntimeLanguage[];
   state: OcrRuntimeState;
   progress?: number;
   bytes?: number;
@@ -277,13 +279,6 @@ function isBoundedProfileEditorValue(value: unknown): boolean {
 
 function isCacheEpoch(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
-}
-
-function isOcrRuntimeLanguage(value: unknown): value is OcrRuntimeLanguage {
-  return (
-    typeof value === "string" &&
-    (OCR_RUNTIME_LANGUAGES as readonly string[]).includes(value)
-  );
 }
 
 function isBergamotLanguagePackId(
@@ -833,7 +828,7 @@ export function isBackgroundCommand(
       return true;
     case "OCR_RUNTIME_DOWNLOAD":
     case "OCR_RUNTIME_DELETE":
-      return isOcrRuntimeLanguage(value.language);
+      return isOcrRuntimePack(value.pack);
     case "LOCAL_TRANSLATION_RUNTIME_DOWNLOAD":
     case "LOCAL_TRANSLATION_RUNTIME_DELETE":
       return isBergamotLanguagePackId(value.packId);

@@ -942,7 +942,7 @@ test("options lists missing OCR runtimes without automatic downloads and preserv
     );
     await expect(
       controlPage.locator("#ocr-runtime-list .runtime-item"),
-    ).toHaveCount(8);
+    ).toHaveCount(3);
     await expect(
       controlPage.locator("#ocr-runtime-list .runtime-group"),
     ).toHaveCount(3);
@@ -967,7 +967,7 @@ test("options lists missing OCR runtimes without automatic downloads and preserv
       controlPage.locator(
         '#ocr-runtime-list .runtime-status-badge[data-state="missing"]',
       ),
-    ).toHaveCount(8);
+    ).toHaveCount(3);
     await expect(
       controlPage.locator("#ocr-runtime-download-all"),
     ).toBeEnabled();
@@ -1166,6 +1166,7 @@ test("options saves a valid provider through the background settings boundary", 
     "#page-mode",
     "#selection-translation-mode",
     "#subtitle-mode",
+    "#image-mode",
   ]) {
     await expect
       .poll(() =>
@@ -5127,15 +5128,15 @@ test("recognizes burned-in subtitles inside a canvas-player iframe", async () =>
         (runtime: unknown) =>
           typeof runtime === "object" &&
           runtime !== null &&
-          "language" in runtime &&
-          runtime.language === "eng" &&
+          "pack" in runtime &&
+          runtime.pack === "zh" &&
           "state" in runtime &&
           runtime.state === "installed",
       );
     if (alreadyInstalled) return true;
     const installed: unknown = await chrome.runtime.sendMessage({
       type: "OCR_RUNTIME_DOWNLOAD",
-      language: "eng",
+      pack: "zh",
     });
     return Boolean(
       installed &&

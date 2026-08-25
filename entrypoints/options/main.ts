@@ -47,11 +47,14 @@ import {
   type SiteProfileValidationReason,
 } from "@/src/subtitles/profiles/registry";
 import { createLocalOcrEngine, ocrRecognitionText } from "@/src/ocr/engine";
-import { isOcrSourceLanguageSupported } from "@/src/ocr/languages";
+import {
+  isOcrSourceLanguageSupported,
+  type OcrRuntimeLanguage,
+} from "@/src/ocr/languages";
 import {
   getOcrRuntimeLanguage,
-  OCR_RUNTIME_CATALOG,
-  type OcrRuntimePack,
+  getOcrRuntimePack,
+  isOcrRuntimeLanguageCode,
 } from "@/src/ocr/runtime-catalog";
 import type {
   LocalTranslationRuntimeInfo,
@@ -238,21 +241,16 @@ function isFloatingRestoreResponse(
 
 type OcrRuntimeStatus = OcrRuntimeInfo;
 
-const OCR_RUNTIME_GROUPS: readonly {
-  pack: OcrRuntimePack;
-  labelKey: string;
-}[] = [
-  { pack: "zh", labelKey: "ocrRuntimeGroupEastAsian" },
-  { pack: "latin", labelKey: "ocrRuntimeGroupLatin" },
-  { pack: "korean", labelKey: "ocrRuntimeGroupKorean" },
-];
-
 function isOcrRuntimeStatus(value: unknown): value is OcrRuntimeStatus {
   if (typeof value !== "object" || value === null) return false;
   const runtime = value as Record<string, unknown>;
   return (
-    typeof runtime.language === "string" &&
+    (runtime.pack === "zh" ||
+      runtime.pack === "latin" ||
+      runtime.pack === "korean") &&
     typeof runtime.labelKey === "string" &&
+    Array.isArray(runtime.languages) &&
+    runtime.languages.every(isOcrRuntimeLanguageCode) &&
     (runtime.state === "missing" ||
       runtime.state === "downloading" ||
       runtime.state === "installed" ||
@@ -723,7 +721,7 @@ async function initialize(): Promise<void> {
   let ocrRuntimePollTimer: number | undefined;
   let ocrRuntimeListRequest: Promise<void> | undefined;
   let ocrRuntimeFocus:
-    { language: string | undefined; action: string | undefined } | undefined;
+    { pack: string | undefined; action: string | undefined } | undefined;
   let localTranslationRuntimes: LocalTranslationRuntimeInfo[] = [];
   let localTranslationRuntimeCommandPending = false;
   let localTranslationRuntimeLoaded = false;
@@ -769,6 +767,7 @@ async function initialize(): Promise<void> {
     pageMode,
     selectionTranslationMode,
     subtitleMode,
+    imageMode,
     profilePageMethod,
     profileSelectionMethod,
     profileSubtitleMethod,
@@ -902,13 +901,12 @@ async function initialize(): Promise<void> {
         translationMethodCapabilitiesReady(provider),
       );
     }
-    const fast = selectedProviderValue();
-    const ready = translationMethodCapabilitiesReady(fast);
+    const imageProvider = translationMethodProvider(imageMode);
     syncPair(
       imageSourceLanguage,
       imageTargetLanguage,
-      imageMode.value === "ai" ? settings.provider.aiProvider : fast,
-      imageMode.value === "ai" || ready,
+      imageProvider,
+      translationMethodCapabilitiesReady(imageProvider),
     );
     const ocrReady =
       ocrProvider.value === "chrome-local"
@@ -1214,7 +1212,10 @@ async function initialize(): Promise<void> {
     imageTranslationEnabled.checked = settings.imageTranslation.enabled;
     imageSourceLanguage.value = settings.imageTranslation.sourceLanguage;
     imageTargetLanguage.value = settings.imageTranslation.targetLanguage;
-    imageMode.value = settings.imageTranslation.mode;
+    imageMode.value = translationMethodValue(
+      settings.imageTranslation.mode,
+      settings.provider.fastProvider,
+    );
     imageDisplayMode.value = settings.imageTranslation.displayMode;
     imageModelOverride.value = settings.imageTranslation.modelOverride;
     imageModelOverride.disabled = settings.imageTranslation.mode !== "ai";
@@ -1253,10 +1254,12 @@ async function initialize(): Promise<void> {
       parseTranslationMethod(selectionTranslationMode.value)?.mode === "ai";
     const subtitleAi =
       parseTranslationMethod(subtitleMode.value)?.mode === "ai";
+    const imageAi = parseTranslationMethod(imageMode.value)?.mode === "ai";
     pageResponseMode.disabled = !pageAi;
     selectionTranslationResponseMode.disabled = !selectionAi;
     selectionTranslationModelOverride.disabled = !selectionAi;
     subtitleResponseMode.disabled = !subtitleAi;
+    imageModelOverride.disabled = !imageAi;
   };
 
   const selectedTranslationMode = (
@@ -1362,7 +1365,7 @@ async function initialize(): Promise<void> {
       enabled: imageTranslationEnabled.checked,
       sourceLanguage: imageSourceLanguage.value,
       targetLanguage: imageTargetLanguage.value,
-      mode: imageMode.value === "ai" ? "ai" : "fast",
+      mode: selectedTranslationMode(imageMode, settings.imageTranslation.mode),
       modelOverride: imageModelOverride.value.trim(),
       displayMode:
         imageDisplayMode.value === "bilingual" ? "bilingual" : "translated",
@@ -1399,9 +1402,12 @@ async function initialize(): Promise<void> {
     target.textContent = message(key);
   };
 
-  const runtimeLanguageLabel = (runtime: OcrRuntimeStatus): string => {
+  const runtimePackageLabel = (runtime: OcrRuntimeStatus): string => {
     const localizedLabel = message(runtime.labelKey);
-    if (localizedLabel) return localizedLabel;
+    return localizedLabel || runtime.pack;
+  };
+
+  const runtimeLanguageLabel = (language: OcrRuntimeLanguage): string => {
     const languageCodes: Record<string, string> = {
       eng: "en",
       chi_sim: "zh-CN",
@@ -1412,10 +1418,21 @@ async function initialize(): Promise<void> {
       fra: "fr",
       deu: "de",
     };
-    const languageCode = languageCodes[runtime.language];
+    const runtimeLanguage = getOcrRuntimeLanguage(language);
+    const localizedLabel = message(runtimeLanguage.labelKey);
+    if (localizedLabel) return localizedLabel;
+    const languageCode = languageCodes[language];
     return languageCode
       ? displayLanguageName(languageCode, currentUiLocale())
-      : runtime.language;
+      : language;
+  };
+
+  const runtimeLanguagesLabel = (runtime: OcrRuntimeStatus): string => {
+    const languages = runtime.languages.map(runtimeLanguageLabel);
+    return new Intl.ListFormat(currentUiLocale(), {
+      style: "long",
+      type: "conjunction",
+    }).format(languages);
   };
 
   const runtimeProgress = (runtime: OcrRuntimeStatus): number => {
@@ -1478,15 +1495,13 @@ async function initialize(): Promise<void> {
     const focusedRuntimeControl =
       document.activeElement instanceof HTMLElement &&
       ocrRuntimeList.contains(document.activeElement) &&
-      (document.activeElement.matches("button[data-runtime-language]") ||
-        document.activeElement.matches(
-          ".runtime-action[data-runtime-language]",
-        ))
+      (document.activeElement.matches("button[data-runtime-pack]") ||
+        document.activeElement.matches(".runtime-action[data-runtime-pack]"))
         ? document.activeElement
         : undefined;
     if (focusedRuntimeControl) {
       ocrRuntimeFocus = {
-        language: focusedRuntimeControl.dataset.runtimeLanguage,
+        pack: focusedRuntimeControl.dataset.runtimePack,
         action: focusedRuntimeControl.dataset.runtimeAction,
       };
     } else if (
@@ -1508,178 +1523,159 @@ async function initialize(): Promise<void> {
         (runtime) => runtime.state === "missing" || runtime.state === "error",
       );
 
-    for (const group of OCR_RUNTIME_GROUPS) {
-      const groupRuntimes = ocrRuntimes.filter(
-        (runtime) =>
-          getOcrRuntimeLanguage(runtime.language).pack === group.pack,
+    for (const runtime of ocrRuntimes) {
+      const packBytes = getOcrRuntimePack(runtime.pack).reduce(
+        (sum, artifact) => sum + artifact.bytes,
+        0,
       );
-      if (groupRuntimes.length === 0) continue;
-      const groupHasInstalled = groupRuntimes.some(
-        (runtime) => runtime.state === "installed",
-      );
-      const language = OCR_RUNTIME_CATALOG.find(
-        (candidate) => candidate.pack === group.pack,
-      );
-      const packBytes =
-        language?.artifacts.reduce(
-          (sum, artifact) => sum + artifact.bytes,
-          0,
-        ) ?? 0;
-
       const groupItem = document.createElement("li");
       groupItem.className = "runtime-group";
       const groupHeading = document.createElement("div");
       groupHeading.className = "runtime-group-heading";
       const groupName = document.createElement("strong");
-      groupName.textContent = message(group.labelKey);
+      groupName.textContent = runtimePackageLabel(runtime);
       const groupSummary = document.createElement("span");
       groupSummary.textContent = message("ocrRuntimeGroupSummary", [
-        String(groupRuntimes.length),
+        String(runtime.languages.length),
         formatRuntimeSize(packBytes),
       ]);
       groupHeading.append(groupName, groupSummary);
 
       const groupList = document.createElement("ul");
       groupList.className = "runtime-group-list";
-      for (const runtime of groupRuntimes) {
-        const item = document.createElement("li");
-        item.className = "runtime-item";
+      const item = document.createElement("li");
+      item.className = "runtime-item";
 
-        const identity = document.createElement("div");
-        identity.className = "runtime-identity";
-        const name = document.createElement("strong");
-        name.textContent = runtimeLanguageLabel(runtime);
-        identity.append(name);
+      const identity = document.createElement("div");
+      identity.className = "runtime-identity";
+      const name = document.createElement("strong");
+      name.textContent = message(
+        "ocrRuntimeSupportedLanguages",
+        runtimeLanguagesLabel(runtime),
+      );
+      identity.append(name);
 
-        const status = document.createElement("div");
-        status.className = "runtime-status";
-        const badge = document.createElement("span");
-        badge.className = "runtime-status-badge";
-        badge.dataset.state = runtime.state;
-        if (runtime.state === "downloading") {
-          const percent = runtimeProgress(runtime);
-          badge.textContent = message(
-            "ocrRuntimeStateDownloading",
-            String(percent),
-          );
-          const progress = document.createElement("progress");
-          progress.max = 100;
-          progress.value = percent;
-          progress.setAttribute(
-            "aria-label",
-            message("ocrRuntimeProgressLabel", [
-              runtimeLanguageLabel(runtime),
-              String(percent),
-            ]),
-          );
-          status.append(badge, progress);
-        } else if (runtime.state === "installed") {
-          badge.textContent = message("ocrRuntimeStateEnabled");
-          status.append(badge);
-        } else if (runtime.state === "error") {
-          badge.textContent = message("ocrRuntimeStateError");
-          const detailText = runtime.message
-            ? message(
-                runtime.message === "OCR runtime download timed out."
-                  ? "ocrRuntimeDownloadTimedOut"
-                  : "ocrRuntimeDownloadFailed",
-              )
-            : "";
-          if (detailText) {
-            const detail = document.createElement("small");
-            detail.textContent = detailText;
-            status.append(badge, detail);
-          } else {
-            status.append(badge);
-          }
-        } else {
-          badge.textContent = message(
-            groupHasInstalled
-              ? "ocrRuntimeStateNotEnabled"
-              : "ocrRuntimeStateMissing",
-          );
-          status.append(badge);
-        }
-
-        const action = document.createElement("div");
-        action.className = "runtime-action";
-        action.tabIndex = -1;
-        const button = document.createElement("button");
-        button.type = "button";
-        button.dataset.runtimeLanguage = runtime.language;
-        button.disabled =
-          ocrRuntimeCommandPending || runtime.state === "downloading";
-        if (runtime.state === "installed") {
-          button.dataset.runtimeAction = "delete";
-          button.className = "button button-danger-quiet";
-          button.textContent = message("ocrRuntimeDelete");
-          button.setAttribute(
-            "aria-label",
-            message("ocrRuntimeDeleteLabel", runtimeLanguageLabel(runtime)),
-          );
-          button.addEventListener("click", () => deleteOcrRuntime(runtime));
-        } else {
-          button.dataset.runtimeAction = "download";
-          button.className = "button button-secondary";
-          button.textContent =
-            runtime.state === "downloading"
-              ? message("ocrRuntimeDownloading")
-              : message(
-                  groupHasInstalled ? "ocrRuntimeEnable" : "ocrRuntimeDownload",
-                );
-          button.setAttribute(
-            "aria-label",
-            message("ocrRuntimeDownloadLabel", runtimeLanguageLabel(runtime)),
-          );
-          button.addEventListener("click", () => {
-            void downloadOcrRuntime(runtime);
-          });
-        }
-        action.dataset.runtimeLanguage = runtime.language;
-        action.dataset.runtimeAction = button.dataset.runtimeAction;
-        action.setAttribute("role", "group");
-        action.setAttribute(
-          "aria-label",
-          button.getAttribute("aria-label") ?? button.textContent ?? "",
+      const status = document.createElement("div");
+      status.className = "runtime-status";
+      const badge = document.createElement("span");
+      badge.className = "runtime-status-badge";
+      badge.dataset.state = runtime.state;
+      if (runtime.state === "downloading") {
+        const percent = runtimeProgress(runtime);
+        badge.textContent = message(
+          "ocrRuntimeStateDownloading",
+          String(percent),
         );
-        action.append(button);
-        item.append(identity, status, action);
-        groupList.append(item);
+        const progress = document.createElement("progress");
+        progress.max = 100;
+        progress.value = percent;
+        progress.setAttribute(
+          "aria-label",
+          message("ocrRuntimeProgressLabel", [
+            runtimePackageLabel(runtime),
+            String(percent),
+          ]),
+        );
+        status.append(badge, progress);
+      } else if (runtime.state === "installed") {
+        badge.textContent = message("ocrRuntimeStateEnabled");
+        status.append(badge);
+      } else if (runtime.state === "error") {
+        badge.textContent = message("ocrRuntimeStateError");
+        const detailText = runtime.message
+          ? message(
+              runtime.message === "OCR runtime download timed out."
+                ? "ocrRuntimeDownloadTimedOut"
+                : "ocrRuntimeDownloadFailed",
+            )
+          : "";
+        if (detailText) {
+          const detail = document.createElement("small");
+          detail.textContent = detailText;
+          status.append(badge, detail);
+        } else {
+          status.append(badge);
+        }
+      } else {
+        badge.textContent = message("ocrRuntimeStateMissing");
+        status.append(badge);
       }
+
+      const action = document.createElement("div");
+      action.className = "runtime-action";
+      action.tabIndex = -1;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.runtimePack = runtime.pack;
+      button.disabled =
+        ocrRuntimeCommandPending || runtime.state === "downloading";
+      if (runtime.state === "installed") {
+        button.dataset.runtimeAction = "delete";
+        button.className = "button button-danger-quiet";
+        button.textContent = message("ocrRuntimeDelete");
+        button.setAttribute(
+          "aria-label",
+          message("ocrRuntimeDeleteLabel", runtimePackageLabel(runtime)),
+        );
+        button.addEventListener("click", () => deleteOcrRuntime(runtime));
+      } else {
+        button.dataset.runtimeAction = "download";
+        button.className = "button button-secondary";
+        button.textContent =
+          runtime.state === "downloading"
+            ? message("ocrRuntimeDownloading")
+            : message("ocrRuntimeDownload");
+        button.setAttribute(
+          "aria-label",
+          message("ocrRuntimeDownloadLabel", runtimePackageLabel(runtime)),
+        );
+        button.addEventListener("click", () => {
+          void downloadOcrRuntime(runtime);
+        });
+      }
+      action.dataset.runtimePack = runtime.pack;
+      action.dataset.runtimeAction = button.dataset.runtimeAction;
+      action.setAttribute("role", "group");
+      action.setAttribute(
+        "aria-label",
+        button.getAttribute("aria-label") ?? button.textContent ?? "",
+      );
+      action.append(button);
+      item.append(identity, status, action);
+      groupList.append(item);
       groupItem.append(groupHeading, groupList);
       ocrRuntimeList.append(groupItem);
     }
-    if (activeRuntimeAction?.language) {
+    if (activeRuntimeAction?.pack) {
       const runtimeButtons = Array.from(
         ocrRuntimeList.querySelectorAll<HTMLButtonElement>(
-          "button[data-runtime-language]",
+          "button[data-runtime-pack]",
         ),
       );
       const runtimeActions = Array.from(
         ocrRuntimeList.querySelectorAll<HTMLElement>(
-          ".runtime-action[data-runtime-language]",
+          ".runtime-action[data-runtime-pack]",
         ),
       );
       const focusTarget =
         runtimeButtons.find(
           (button) =>
             !button.disabled &&
-            button.dataset.runtimeLanguage === activeRuntimeAction.language &&
+            button.dataset.runtimePack === activeRuntimeAction.pack &&
             button.dataset.runtimeAction === activeRuntimeAction.action,
         ) ??
         runtimeActions.find(
           (action) =>
-            action.dataset.runtimeLanguage === activeRuntimeAction.language &&
+            action.dataset.runtimePack === activeRuntimeAction.pack &&
             action.dataset.runtimeAction === activeRuntimeAction.action,
         ) ??
         runtimeButtons.find(
           (button) =>
             !button.disabled &&
-            button.dataset.runtimeLanguage === activeRuntimeAction.language,
+            button.dataset.runtimePack === activeRuntimeAction.pack,
         ) ??
         runtimeActions.find(
-          (action) =>
-            action.dataset.runtimeLanguage === activeRuntimeAction.language,
+          (action) => action.dataset.runtimePack === activeRuntimeAction.pack,
         );
       focusTarget?.focus({ preventScroll: true });
     }
@@ -1733,7 +1729,7 @@ async function initialize(): Promise<void> {
       return;
     }
     ocrRuntimes = ocrRuntimes.map((candidate) =>
-      candidate.language === runtime.language
+      candidate.pack === runtime.pack
         ? { ...candidate, state: "downloading", progress: 0 }
         : candidate,
     );
@@ -1742,7 +1738,7 @@ async function initialize(): Promise<void> {
     try {
       const response: unknown = await browser.runtime.sendMessage({
         type: "OCR_RUNTIME_DOWNLOAD",
-        language: runtime.language,
+        pack: runtime.pack,
       });
       if (!isSuccessfulResponse(response)) {
         throw new Error("ocr-runtime-download-failed");
@@ -1795,9 +1791,7 @@ async function initialize(): Promise<void> {
   function deleteOcrRuntime(runtime: OcrRuntimeStatus): void {
     if (
       ocrRuntimeCommandPending ||
-      !confirm(
-        message("ocrRuntimeDeleteConfirm", runtimeLanguageLabel(runtime)),
-      )
+      !confirm(message("ocrRuntimeDeleteConfirm", runtimePackageLabel(runtime)))
     ) {
       return;
     }
@@ -1807,7 +1801,7 @@ async function initialize(): Promise<void> {
       try {
         const response: unknown = await browser.runtime.sendMessage({
           type: "OCR_RUNTIME_DELETE",
-          language: runtime.language,
+          pack: runtime.pack,
         });
         if (!isSuccessfulResponse(response)) {
           throw new Error("ocr-runtime-delete-failed");
@@ -3530,8 +3524,7 @@ async function initialize(): Promise<void> {
     handleTranslationMethodChange(subtitleMode);
   });
   imageMode.addEventListener("change", () => {
-    imageModelOverride.disabled = imageMode.value !== "ai";
-    syncLanguageRestrictions();
+    handleTranslationMethodChange(imageMode);
   });
   for (const control of [
     pageSourceLanguage,
