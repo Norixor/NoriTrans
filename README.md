@@ -155,3 +155,13 @@ NorixorTrans is built with [WXT](https://github.com/wxt-dev/wxt), `idb`, ONNX Ru
 Unless otherwise noted, source code and documentation are licensed under the [Apache License 2.0](./LICENSE). Copyright 2026 Norixor.
 
 The NorixorTrans name, logo, product identity, and files under `assets/branding/` are not licensed under Apache-2.0. See [`TRADEMARKS.md`](./TRADEMARKS.md) for the brand-use policy.
+
+<p align="center">
+  <a href="https://www.star-history.com/Norixor/NorixorTrans">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Norixor/NorixorTrans&amp;type=Date&amp;theme=dark" />
+      <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Norixor/NorixorTrans&amp;type=Date" />
+      <img alt="NorixorTrans Star History Chart" src="https://api.star-history.com/svg?repos=Norixor/NorixorTrans&amp;type=Date" />
+    </picture>
+  </a>
+</p>
