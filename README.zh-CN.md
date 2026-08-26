@@ -154,9 +154,3 @@ NorixorTrans 基于 [WXT](https://github.com/wxt-dev/wxt)、`idb`、ONNX Runtime
 除另有说明外，源代码和文档采用 [Apache License 2.0](./LICENSE) 授权。Copyright 2026 Norixor。
 
 NorixorTrans 名称、Logo、产品标识和 `assets/branding/` 下的文件不属于 Apache-2.0 授权范围，品牌使用规则见 [`TRADEMARKS.md`](./TRADEMARKS.md)。
-
-<p align="center">
-  <a href="https://github.com/Norixor/NorixorTrans">
-    <img src="https://img.shields.io/github/stars/Norixor/NorixorTrans?style=for-the-badge&amp;logo=github&amp;label=Star" alt="在 GitHub 上为 NorixorTrans 点 Star" />
-  </a>
-</p>

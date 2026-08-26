@@ -155,9 +155,3 @@ NorixorTrans is built with [WXT](https://github.com/wxt-dev/wxt), `idb`, ONNX Ru
 Unless otherwise noted, source code and documentation are licensed under the [Apache License 2.0](./LICENSE). Copyright 2026 Norixor.
 
 The NorixorTrans name, logo, product identity, and files under `assets/branding/` are not licensed under Apache-2.0. See [`TRADEMARKS.md`](./TRADEMARKS.md) for the brand-use policy.
-
-<p align="center">
-  <a href="https://github.com/Norixor/NorixorTrans">
-    <img src="https://img.shields.io/github/stars/Norixor/NorixorTrans?style=for-the-badge&amp;logo=github&amp;label=Star" alt="Star NorixorTrans on GitHub" />
-  </a>
-</p>
