@@ -156,7 +156,7 @@ nTrans 基于 [WXT](https://github.com/wxt-dev/wxt)、`idb`、ONNX Runtime Web�
 nTrans 名称、Logo、产品标识和 `assets/branding/` 下的文件不属于 Apache-2.0 授权范围，品牌使用规则见 [`TRADEMARKS.md`](./TRADEMARKS.md)。
 
 <p align="center">
-  <a href="https://www.star-history.com/Norixor/nTrans">
+  <a href="https://www.star-history.com/?type=date&amp;repos=Norixor%2FnTrans">
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Norixor/nTrans&amp;type=Date&amp;theme=dark" />
       <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Norixor/nTrans&amp;type=Date" />

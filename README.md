@@ -157,7 +157,7 @@ Unless otherwise noted, source code and documentation are licensed under the [Ap
 The nTrans name, logo, product identity, and files under `assets/branding/` are not licensed under Apache-2.0. See [`TRADEMARKS.md`](./TRADEMARKS.md) for the brand-use policy.
 
 <p align="center">
-  <a href="https://www.star-history.com/Norixor/nTrans">
+  <a href="https://www.star-history.com/?type=date&amp;repos=Norixor%2FnTrans">
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Norixor/nTrans&amp;type=Date&amp;theme=dark" />
       <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Norixor/nTrans&amp;type=Date" />
