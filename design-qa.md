@@ -1,4 +1,4 @@
-# NorixorTrans 0.1.120 Design QA
+# nTrans 0.1.120 Design QA
 
 ## Source targets
 
@@ -19,7 +19,7 @@
 ## Local checks
 
 - `pnpm build`: passed for Chrome MV3, version 0.1.120.
-- `pnpm zip`: passed for `.output/norixortrans-0.1.120-chrome.zip`.
+- `pnpm zip`: passed for the version 0.1.120 Chrome ZIP produced before the nTrans rename.
 - Automated behavior tests were not run, following the current project acceptance instruction.
 
 ## Browser comparison status
