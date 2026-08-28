@@ -34,7 +34,7 @@ import {
   autoTranslateSitePatternForHostname,
   updateSiteAutoTranslateRules,
 } from "@/src/shared/auto-translate-sites";
-import { NorixorTransError, errorMessage } from "@/src/shared/errors";
+import { NTransError, errorMessage } from "@/src/shared/errors";
 import {
   runtimeErrorToken,
   safeRuntimeErrorToken,
@@ -517,7 +517,7 @@ async function assertProviderPermission(
   const origin = providerOriginForMode(settings, mode, providerOverride);
   if (!origin) return;
   if (await browser.permissions.contains({ origins: [origin] })) return;
-  throw new NorixorTransError(
+  throw new NTransError(
     "尚未授权访问当前翻译服务，请在设置中重新保存 Provider。",
     "permission_required",
   );
@@ -659,7 +659,7 @@ async function prepareCommandBroadcastFrames(
 }
 
 function translationError(error: unknown): TranslationResponse {
-  if (error instanceof NorixorTransError) {
+  if (error instanceof NTransError) {
     const allowedCodes = new Set([
       "provider_unavailable",
       "permission_required",
@@ -699,7 +699,7 @@ function translationError(error: unknown): TranslationResponse {
 
 function safeConnectionDiagnostic(error: unknown): string {
   const values =
-    error instanceof NorixorTransError
+    error instanceof NTransError
       ? [error.message, error.details]
       : [errorMessage(error)];
   return values

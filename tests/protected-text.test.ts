@@ -1,4 +1,4 @@
-import { NorixorTransError } from "@/src/shared/errors";
+import { NTransError } from "@/src/shared/errors";
 import {
   assertValidProtectedTranslation,
   createProtectedText,
@@ -87,7 +87,7 @@ describe("protected-text-v1", () => {
     const invalid = mutate(source);
 
     expect(() => validateProtectedTranslation(source, invalid)).toThrow(
-      NorixorTransError,
+      NTransError,
     );
     expect(parseProtectedText(source, invalid)).toBeUndefined();
     expect(() =>
@@ -95,7 +95,7 @@ describe("protected-text-v1", () => {
         { text: source, format: "protected-text-v1" },
         invalid,
       ),
-    ).toThrow(NorixorTransError);
+    ).toThrow(NTransError);
   });
 
   it("leaves plain text segments outside the protected protocol", () => {

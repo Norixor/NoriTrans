@@ -4,7 +4,7 @@ import {
   scheduleTranslation,
 } from "@/src/translation/scheduler";
 import type { TranslationProvider } from "@/src/translation/types";
-import { NorixorTransError } from "@/src/shared/errors";
+import { NTransError } from "@/src/shared/errors";
 import { createProtectedText } from "@/src/translation/protected-text";
 
 describe("scheduleTranslation", () => {
@@ -321,8 +321,8 @@ describe("scheduleTranslation", () => {
       },
       new AbortController().signal,
     ).catch((reason: unknown) => reason);
-    expect(error).toBeInstanceOf(NorixorTransError);
-    if (!(error instanceof NorixorTransError)) return;
+    expect(error).toBeInstanceOf(NTransError);
+    if (!(error instanceof NTransError)) return;
     expect(error.code).toBe("invalid_response");
     expect(error.details).toContain("Missing result IDs: 1");
   });

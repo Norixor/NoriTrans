@@ -1,4 +1,4 @@
-import { NorixorTransError } from "@/src/shared/errors";
+import { NTransError } from "@/src/shared/errors";
 import {
   translationDiagnostic,
   translationRuntimeDiagnosticContext,
@@ -276,7 +276,7 @@ export class ChromeLocalProvider implements TranslationProvider {
       return request.segments.map((segment) => {
         const result = output.get(segment.id);
         if (!result) {
-          throw new NorixorTransError(
+          throw new NTransError(
             "Chrome 本地翻译没有返回全部段落。",
             "invalid_response",
           );
@@ -304,7 +304,7 @@ export class ChromeLocalProvider implements TranslationProvider {
           for (const [index, result] of parsed.entries()) {
             const segment = segments[index];
             if (!segment || segment.id !== result.id) {
-              throw new NorixorTransError(
+              throw new NTransError(
                 "Chrome 本地翻译返回了未知的段落。",
                 "invalid_response",
               );
@@ -314,7 +314,7 @@ export class ChromeLocalProvider implements TranslationProvider {
           this.packedTranslationSupported = true;
           return parsed;
         } catch (error) {
-          if (!(error instanceof NorixorTransError)) throw error;
+          if (!(error instanceof NTransError)) throw error;
           // Retry the same protected source one segment at a time. Some local
           // models preserve the outer packed boundary but alter inner markers.
           this.packedTranslationSupported = false;
@@ -359,7 +359,7 @@ export class ChromeLocalProvider implements TranslationProvider {
     } catch (error) {
       if (
         segment.format !== "protected-text-v1" ||
-        !(error instanceof NorixorTransError)
+        !(error instanceof NTransError)
       ) {
         throw error;
       }
@@ -402,7 +402,7 @@ export class ChromeLocalProvider implements TranslationProvider {
           translator.translate(part, { signal }),
         );
         if (!translated.trim()) {
-          throw new NorixorTransError(
+          throw new NTransError(
             "Chrome 本地翻译返回了空的页面片段。",
             "invalid_response",
             true,
@@ -626,7 +626,7 @@ export class ChromeLocalProvider implements TranslationProvider {
       throw new DOMException("Translation cancelled", "AbortError");
     }
     if (detectedLanguage) return detectedLanguage;
-    throw new NorixorTransError(
+    throw new NTransError(
       "无法检测网页语言，请手动选择源语言。",
       "provider_unavailable",
       false,
@@ -642,7 +642,7 @@ export class ChromeLocalProvider implements TranslationProvider {
   ): Promise<ChromeTranslatorInstance> {
     const factory = translatorAvailabilityFactory();
     if (!factory) {
-      throw new NorixorTransError(
+      throw new NTransError(
         "当前 Chrome 不支持本地 Translator API。",
         "provider_unavailable",
       );
@@ -762,7 +762,7 @@ export class ChromeLocalProvider implements TranslationProvider {
       `secureContext=${String(runtimeContext.secureContext)}`,
       `translatorPolicy=${String(runtimeContext.translatorPolicy)}`,
     ].join(", ");
-    throw new NorixorTransError(
+    throw new NTransError(
       "Chrome 本地翻译不支持当前语言对。",
       "provider_unavailable",
       false,

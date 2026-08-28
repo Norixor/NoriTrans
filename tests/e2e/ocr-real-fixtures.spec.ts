@@ -9,7 +9,7 @@ interface RealOcrFixture {
 const extensionPath = new URL("../../.output/chrome-mv3", import.meta.url)
   .pathname;
 const fixtures: RealOcrFixture[] = JSON.parse(
-  process.env.NORIXORTRANS_OCR_REAL_FIXTURES ?? "[]",
+  process.env.NTRANS_OCR_REAL_FIXTURES ?? "[]",
 ) as RealOcrFixture[];
 
 test("recognizes explicitly supplied real subtitle crops locally", async () => {

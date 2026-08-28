@@ -1,9 +1,9 @@
 {
-  "extensionName": { "message": "NorixorTrans" },
+  "extensionName": { "message": "nTrans" },
   "documentLanguage": { "message": "en" },
   "uiLanguage": { "message": "Interface language" },
   "uiLanguageDescription": {
-    "message": "Use the browser language by default, or choose one language for every NorixorTrans interface."
+    "message": "Use the browser language by default, or choose one language for every nTrans interface."
   },
   "uiLanguageAuto": { "message": "Follow browser" },
   "uiLanguageEnglish": { "message": "English" },
@@ -793,7 +793,7 @@
   "profileWizard": { "message": "Subtitle capture wizard" },
   "profileWizardSampling": { "message": "Sampling subtitle changes…" },
   "profileWizardPlayHint": {
-    "message": "Turn on website subtitles and play the video while NorixorTrans samples this page."
+    "message": "Turn on website subtitles and play the video while nTrans samples this page."
   },
   "profileWizardCandidate": { "message": "Subtitle candidate" },
   "profileWizardNoCandidates": {
@@ -825,7 +825,7 @@
       "total": { "content": "$2" }
     }
   },
-  "floatingControl": { "message": "NorixorTrans quick controls" },
+  "floatingControl": { "message": "nTrans quick controls" },
   "floatingControlEnabled": { "message": "Show the floating control" },
   "floatingControlDescription": {
     "message": "One movable control for page translation, video subtitles, and site capture."
@@ -908,11 +908,11 @@
     "message": "OCR is paused and will resume when you return to this tab."
   },
   "ocrCapturePermissionRequired": {
-    "message": "Approve the optional screenshot permission in the NorixorTrans window that just opened."
+    "message": "Approve the optional screenshot permission in the nTrans window that just opened."
   },
   "ocrPermissionTitle": { "message": "Enable local image OCR" },
   "ocrPermissionDescription": {
-    "message": "NorixorTrans needs Chrome's optional all-sites capture permission to read only the subtitle area you select in the active tab."
+    "message": "nTrans needs Chrome's optional all-sites capture permission to read only the subtitle area you select in the active tab."
   },
   "ocrPermissionInstruction": {
     "message": "Click the blue button below. Chrome will then show its own permission confirmation."
@@ -968,7 +968,7 @@
     "message": "The selected translation provider is unavailable. Check the source language or choose another provider."
   },
   "runtimeErrorPermissionRequired": {
-    "message": "NorixorTrans does not have permission to access the selected translation provider."
+    "message": "nTrans does not have permission to access the selected translation provider."
   },
   "runtimeErrorInvalidConfiguration": {
     "message": "Configure the provider Base URL, API key, and model before translating."
@@ -1064,7 +1064,7 @@
     "message": "The image translation request failed. Check the provider settings and retry."
   },
   "updateAvailableTitle": {
-    "message": "NorixorTrans $VERSION$ is available",
+    "message": "nTrans $VERSION$ is available",
     "placeholders": { "version": { "content": "$1" } }
   },
   "updateAvailableDescription": {
@@ -1086,7 +1086,7 @@
   "updateCheckNow": { "message": "Check now" },
   "updateChecking": { "message": "Checking for updates…" },
   "updateCurrent": {
-    "message": "NorixorTrans $VERSION$ is up to date.",
+    "message": "nTrans $VERSION$ is up to date.",
     "placeholders": { "version": { "content": "$1" } }
   },
   "updateIgnored": {

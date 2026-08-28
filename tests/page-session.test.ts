@@ -1,5 +1,5 @@
 import { PageTranslationSession } from "@/src/page/session";
-import { NorixorTransError } from "@/src/shared/errors";
+import { NTransError } from "@/src/shared/errors";
 import { DEFAULT_SETTINGS } from "@/src/shared/settings";
 import {
   createProtectedText,
@@ -909,7 +909,7 @@ describe("PageTranslationSession", () => {
   it("skips an unresolved automatic Chrome source without reporting an error", async () => {
     document.body.innerHTML = "<main><p>AI</p></main>";
     localRuntime.translateBatch.mockRejectedValueOnce(
-      new NorixorTransError(
+      new NTransError(
         "无法检测网页语言，请手动选择源语言。",
         "provider_unavailable",
         false,
@@ -938,7 +938,7 @@ describe("PageTranslationSession", () => {
   it("skips an unavailable automatic Chrome pair without reporting a partial failure", async () => {
     document.body.innerHTML = "<main><p>한국어 검색 결과</p></main>";
     localRuntime.translateBatch.mockRejectedValueOnce(
-      new NorixorTransError(
+      new NTransError(
         "Chrome 本地翻译不支持当前语言对。",
         "provider_unavailable",
         false,
@@ -967,7 +967,7 @@ describe("PageTranslationSession", () => {
   it("still reports an unavailable Chrome pair for an explicit source language", async () => {
     document.body.innerHTML = "<main><p>한국어 검색 결과</p></main>";
     localRuntime.translateBatch.mockRejectedValueOnce(
-      new NorixorTransError(
+      new NTransError(
         "Chrome 本地翻译不支持当前语言对。",
         "provider_unavailable",
         false,

@@ -1,4 +1,4 @@
-NorixorTrans third-party notices
+nTrans third-party notices
 ================================
 
 PP-OCRv5 mobile detection, recognition models and dictionaries

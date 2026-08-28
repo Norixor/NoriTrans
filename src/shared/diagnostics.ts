@@ -1,11 +1,11 @@
 declare global {
   interface ImportMetaEnv {
-    readonly WXT_NORIXORTRANS_SITE_DIAGNOSTICS?: string;
+    readonly WXT_NTRANS_SITE_DIAGNOSTICS?: string;
   }
 }
 
 export function siteDiagnosticsEnabled(): boolean {
-  return import.meta.env.WXT_NORIXORTRANS_SITE_DIAGNOSTICS === "1";
+  return import.meta.env.WXT_NTRANS_SITE_DIAGNOSTICS === "1";
 }
 
 /** Emits bounded site diagnostics only for explicitly opted-in development builds. */
@@ -15,7 +15,7 @@ export function siteDiagnostic(
   detail: Readonly<Record<string, unknown>>,
 ): void {
   if (!siteDiagnosticsEnabled()) return;
-  console.info(`[NorixorTrans][${site}] ${event}`, detail);
+  console.info(`[nTrans][${site}] ${event}`, detail);
 }
 
 export type TranslationDiagnosticScope = "ChromeTranslator" | "PageTranslation";
@@ -78,5 +78,5 @@ export function translationDiagnostic(
   detail: Readonly<Record<string, unknown>>,
   level: "info" | "warn" = "info",
 ): void {
-  console[level](`[NorixorTrans][${scope}] ${event} ${JSON.stringify(detail)}`);
+  console[level](`[nTrans][${scope}] ${event} ${JSON.stringify(detail)}`);
 }

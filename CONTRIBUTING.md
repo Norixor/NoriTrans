@@ -1,6 +1,6 @@
-# Contributing to NorixorTrans
+# Contributing to nTrans
 
-Thank you for helping improve NorixorTrans. Before contributing, please read
+Thank you for helping improve nTrans. Before contributing, please read
 this guide, the [Code of Conduct](./CODE_OF_CONDUCT.md), and the
 [Security Policy](./SECURITY.md).
 
@@ -78,7 +78,7 @@ bounded screenshot permissions. Run the dedicated OCR suite only when the
 repository-pinned runtime files are available:
 
 ```bash
-NORIXORTRANS_OCR_RUNTIME_DIR=/absolute/path/to/runtime pnpm test:e2e:ocr
+NTRANS_OCR_RUNTIME_DIR=/absolute/path/to/runtime pnpm test:e2e:ocr
 ```
 
 Without that runtime, the command reports a skip. A skipped run does not
@@ -87,7 +87,7 @@ test fixtures.
 
 Site-adapter diagnostics are disabled in normal builds. For local debugging
 only, create an uncommitted `.env.local` from `.env.example` and set
-`WXT_NORIXORTRANS_SITE_DIAGNOSTICS=1`. Diagnostics may include truncated media
+`WXT_NTRANS_SITE_DIAGNOSTICS=1`. Diagnostics may include truncated media
 paths and language identifiers. Do not enable them in sensitive accounts, and
 do not submit or paste complete Console output without reviewing it first.
 

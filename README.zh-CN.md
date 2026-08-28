@@ -1,16 +1,16 @@
 <div align="center">
-  <img src="./assets/branding/norixortrans.svg" width="112" alt="NorixorTrans 标志" />
-  <h1>NorixorTrans</h1>
+  <img src="./assets/branding/ntrans.svg" width="112" alt="nTrans 标志" />
+  <h1>nTrans</h1>
   <p>注重隐私的 Chrome 网页与已有视频字幕翻译扩展。</p>
   <p><a href="./README.md">English</a> · <strong>简体中文</strong></p>
 </div>
 
 > [!IMPORTANT]
-> NorixorTrans 是仍在积极开发的 `0.x` 项目。目前正式面向桌面 Chrome 138+ 和 Manifest V3。流媒体网站修改播放器或私有接口后，站点专用字幕适配可能需要同步维护。
+> nTrans 是仍在积极开发的 `0.x` 项目。目前正式面向桌面 Chrome 138+ 和 Manifest V3。流媒体网站修改播放器或私有接口后，站点专用字幕适配可能需要同步维护。
 
-## 为什么做 NorixorTrans？
+## 为什么做 nTrans？
 
-NorixorTrans 把网页翻译、视频字幕翻译和可选的本地 OCR 放在一个扩展中，但不会把三种问题混成同一条不透明流程。
+nTrans 把网页翻译、视频字幕翻译和可选的本地 OCR 放在一个扩展中，但不会把三种问题混成同一条不透明流程。
 
 - **网页翻译：** 基于语义文本节点工作，不替换整个页面的 HTML；支持动态内容、SPA 导航和安全恢复原文。
 - **视频字幕：** 能取得完整字幕轨道时进行整轨预翻译；只能看到当前字幕时，明确回退到低延迟流式快速翻译。
@@ -32,7 +32,7 @@ NorixorTrans 把网页翻译、视频字幕翻译和可选的本地 OCR 放在�
 
 ## 字幕支持
 
-NorixorTrans 会优先使用完整来源，再逐级回退到当前字幕采集：
+nTrans 会优先使用完整来源，再逐级回退到当前字幕采集：
 
 1. HTML5 `TextTrack`；
 2. WebVTT、TTML、timed-text 或有限字幕 manifest；
@@ -46,7 +46,7 @@ NorixorTrans 会优先使用完整来源，再逐级回退到当前字幕采集�
 
 ## 推荐安装方式
 
-1. 从 [GitHub Releases](https://github.com/Norixor/NorixorTrans/releases) 下载最新版本的 ZIP 安装包；
+1. 从 [GitHub Releases](https://github.com/Norixor/nTrans/releases) 下载最新版本的 ZIP 安装包；
 2. 打开 `chrome://extensions`，启用右上角的**开发者模式**；
 3. 将下载的 ZIP 安装包直接拖入扩展列表。
 
@@ -95,7 +95,7 @@ pnpm build
 
 ## 权限说明
 
-NorixorTrans 声明 `https://*/*`，因为统一浮窗以及网页、视频翻译需要在用户未先点击工具栏图标时也能在 HTTPS 页面工作。项目不申请 Cookie、浏览历史或音频捕获权限。
+nTrans 声明 `https://*/*`，因为统一浮窗以及网页、视频翻译需要在用户未先点击工具栏图标时也能在 HTTPS 页面工作。项目不申请 Cookie、浏览历史或音频捕获权限。
 
 以下可选主机权限只会在对应操作中请求：
 
@@ -119,14 +119,14 @@ pnpm zip             # 生成版本化扩展压缩包
 完整 OCR 截图链路还需要固定版本的本地运行时文件：
 
 ```bash
-NORIXORTRANS_OCR_RUNTIME_DIR=/absolute/path/to/runtime pnpm test:e2e:ocr
+NTRANS_OCR_RUNTIME_DIR=/absolute/path/to/runtime pnpm test:e2e:ocr
 ```
 
 没有提供运行时时，命令会明确报告跳过；跳过不等于 OCR 验收成功。
 
 ## 架构
 
-NorixorTrans 使用 WXT、TypeScript strict mode、原生 HTML/CSS、Chrome Manifest V3、Vitest 和 Playwright。项目不使用 UI 框架，也不允许远程加载可执行代码。
+nTrans 使用 WXT、TypeScript strict mode、原生 HTML/CSS、Chrome Manifest V3、Vitest 和 Playwright。项目不使用 UI 框架，也不允许远程加载可执行代码。
 
 ```text
 entrypoints/     扩展页面、Content Script 和 Background Worker
@@ -147,20 +147,20 @@ src/shared/      设置、错误、诊断和共享控制器
 
 ## 致谢
 
-NorixorTrans 基于 [WXT](https://github.com/wxt-dev/wxt)、`idb`、ONNX Runtime Web、Bergamot 和兼容 PaddleOCR 的本地运行时构建。OCR 与本地翻译运行时的第三方说明随对应打包资源保存。
+nTrans 基于 [WXT](https://github.com/wxt-dev/wxt)、`idb`、ONNX Runtime Web、Bergamot 和兼容 PaddleOCR 的本地运行时构建。OCR 与本地翻译运行时的第三方说明随对应打包资源保存。
 
 ## 许可证
 
 除另有说明外，源代码和文档采用 [Apache License 2.0](./LICENSE) 授权。Copyright 2026 Norixor。
 
-NorixorTrans 名称、Logo、产品标识和 `assets/branding/` 下的文件不属于 Apache-2.0 授权范围，品牌使用规则见 [`TRADEMARKS.md`](./TRADEMARKS.md)。
+nTrans 名称、Logo、产品标识和 `assets/branding/` 下的文件不属于 Apache-2.0 授权范围，品牌使用规则见 [`TRADEMARKS.md`](./TRADEMARKS.md)。
 
 <p align="center">
-  <a href="https://www.star-history.com/Norixor/NorixorTrans">
+  <a href="https://www.star-history.com/Norixor/nTrans">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Norixor/NorixorTrans&amp;type=Date&amp;theme=dark" />
-      <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Norixor/NorixorTrans&amp;type=Date" />
-      <img alt="NorixorTrans Star History 趋势图" src="https://api.star-history.com/svg?repos=Norixor/NorixorTrans&amp;type=Date" />
+      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Norixor/nTrans&amp;type=Date&amp;theme=dark" />
+      <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Norixor/nTrans&amp;type=Date" />
+      <img alt="nTrans Star History 趋势图" src="https://api.star-history.com/svg?repos=Norixor/nTrans&amp;type=Date" />
     </picture>
   </a>
 </p>

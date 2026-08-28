@@ -1,16 +1,16 @@
 <div align="center">
-  <img src="./assets/branding/norixortrans.svg" width="112" alt="NorixorTrans logo" />
-  <h1>NorixorTrans</h1>
+  <img src="./assets/branding/ntrans.svg" width="112" alt="nTrans logo" />
+  <h1>nTrans</h1>
   <p>A privacy-conscious Chrome extension for translating webpages and existing video subtitles.</p>
   <p><strong>English</strong> · <a href="./README.zh-CN.md">简体中文</a></p>
 </div>
 
 > [!IMPORTANT]
-> NorixorTrans is a `0.x` project under active development. It currently targets desktop Chrome 138+ and Manifest V3. Site-specific subtitle integrations may require maintenance when streaming platforms change their players or private interfaces.
+> nTrans is a `0.x` project under active development. It currently targets desktop Chrome 138+ and Manifest V3. Site-specific subtitle integrations may require maintenance when streaming platforms change their players or private interfaces.
 
-## Why NorixorTrans?
+## Why nTrans?
 
-NorixorTrans keeps webpage translation, video subtitle translation, and optional local OCR in one extension without treating them as the same problem.
+nTrans keeps webpage translation, video subtitle translation, and optional local OCR in one extension without treating them as the same problem.
 
 - **Webpages:** translate semantic text nodes without replacing a page's entire HTML, follow dynamic content and SPA navigation, and safely restore the original text.
 - **Video subtitles:** use complete subtitle tracks when available and fall back explicitly to low-latency stream translation when only the current caption can be observed.
@@ -32,7 +32,7 @@ Subtitle sources are classified as either:
 
 ## Subtitle support
 
-NorixorTrans prefers complete sources before falling back to current-caption collection:
+nTrans prefers complete sources before falling back to current-caption collection:
 
 1. HTML5 `TextTrack`;
 2. WebVTT, TTML, timed-text, or a finite subtitle manifest;
@@ -46,7 +46,7 @@ A bundled site profile describes a supported subtitle acquisition strategy; it d
 
 ## Recommended installation
 
-1. Download the latest ZIP package from [GitHub Releases](https://github.com/Norixor/NorixorTrans/releases).
+1. Download the latest ZIP package from [GitHub Releases](https://github.com/Norixor/nTrans/releases).
 2. Open `chrome://extensions` and enable **Developer mode** in the upper-right corner.
 3. Drag the downloaded ZIP package directly into the extensions list.
 
@@ -96,7 +96,7 @@ Additional guarantees:
 
 ## Permissions
 
-NorixorTrans declares `https://*/*` because the floating control and webpage/video translation must work on HTTPS pages without requiring a toolbar click first. It does not request cookie, browsing-history, or audio-capture permissions.
+nTrans declares `https://*/*` because the floating control and webpage/video translation must work on HTTPS pages without requiring a toolbar click first. It does not request cookie, browsing-history, or audio-capture permissions.
 
 Optional host permissions are requested only for the related action:
 
@@ -120,14 +120,14 @@ The standard E2E suite uses synthetic pages and short subtitle fixtures. It does
 The complete OCR capture test additionally requires the pinned local runtime files:
 
 ```bash
-NORIXORTRANS_OCR_RUNTIME_DIR=/absolute/path/to/runtime pnpm test:e2e:ocr
+NTRANS_OCR_RUNTIME_DIR=/absolute/path/to/runtime pnpm test:e2e:ocr
 ```
 
 Without that runtime, the command reports a skip; a skipped OCR test is not a successful OCR acceptance result.
 
 ## Architecture
 
-NorixorTrans uses WXT, strict TypeScript, native HTML/CSS, Chrome Manifest V3, Vitest, and Playwright. It intentionally does not use a UI framework or remotely hosted executable code.
+nTrans uses WXT, strict TypeScript, native HTML/CSS, Chrome Manifest V3, Vitest, and Playwright. It intentionally does not use a UI framework or remotely hosted executable code.
 
 ```text
 entrypoints/     Extension pages, content scripts, and the background worker
@@ -148,20 +148,20 @@ Read [`CONTRIBUTING.md`](./CONTRIBUTING.md) before opening a pull request and fo
 
 ## Acknowledgements
 
-NorixorTrans is built with [WXT](https://github.com/wxt-dev/wxt), `idb`, ONNX Runtime Web, Bergamot, and a packaged PaddleOCR-compatible runtime. OCR and local translation runtime notices are stored alongside their packaged assets.
+nTrans is built with [WXT](https://github.com/wxt-dev/wxt), `idb`, ONNX Runtime Web, Bergamot, and a packaged PaddleOCR-compatible runtime. OCR and local translation runtime notices are stored alongside their packaged assets.
 
 ## License
 
 Unless otherwise noted, source code and documentation are licensed under the [Apache License 2.0](./LICENSE). Copyright 2026 Norixor.
 
-The NorixorTrans name, logo, product identity, and files under `assets/branding/` are not licensed under Apache-2.0. See [`TRADEMARKS.md`](./TRADEMARKS.md) for the brand-use policy.
+The nTrans name, logo, product identity, and files under `assets/branding/` are not licensed under Apache-2.0. See [`TRADEMARKS.md`](./TRADEMARKS.md) for the brand-use policy.
 
 <p align="center">
-  <a href="https://www.star-history.com/Norixor/NorixorTrans">
+  <a href="https://www.star-history.com/Norixor/nTrans">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Norixor/NorixorTrans&amp;type=Date&amp;theme=dark" />
-      <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Norixor/NorixorTrans&amp;type=Date" />
-      <img alt="NorixorTrans Star History Chart" src="https://api.star-history.com/svg?repos=Norixor/NorixorTrans&amp;type=Date" />
+      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Norixor/nTrans&amp;type=Date&amp;theme=dark" />
+      <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Norixor/nTrans&amp;type=Date" />
+      <img alt="nTrans Star History Chart" src="https://api.star-history.com/svg?repos=Norixor/nTrans&amp;type=Date" />
     </picture>
   </a>
 </p>

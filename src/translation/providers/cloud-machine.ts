@@ -1,4 +1,4 @@
-import { NorixorTransError } from "@/src/shared/errors";
+import { NTransError } from "@/src/shared/errors";
 import { runtimeErrorToken } from "@/src/shared/runtime-errors";
 import type { DeepLPlan, FastProviderId } from "@/src/shared/settings";
 import {
@@ -112,7 +112,7 @@ export abstract class CloudMachineTranslationProvider implements TranslationProv
   ): Promise<TranslationResult[]> {
     const apiKey = this.config.apiKey.trim();
     if (!apiKey) {
-      throw new NorixorTransError(
+      throw new NTransError(
         runtimeErrorToken("invalid_configuration"),
         "invalid_configuration",
         false,
@@ -182,7 +182,7 @@ export abstract class CloudMachineTranslationProvider implements TranslationProv
           response.status === 408 ||
           response.status === 429 ||
           response.status >= 500;
-        throw new NorixorTransError(
+        throw new NTransError(
           runtimeErrorToken(
             response.status === 401 || response.status === 403
               ? "invalid_configuration"
@@ -201,9 +201,9 @@ export abstract class CloudMachineTranslationProvider implements TranslationProv
         throw this.structuralError(1, 0);
       }
     } catch (error) {
-      if (error instanceof NorixorTransError) throw error;
+      if (error instanceof NTransError) throw error;
       if (parentSignal.aborted) throw new DOMException("Aborted", "AbortError");
-      throw new NorixorTransError(
+      throw new NTransError(
         runtimeErrorToken("provider_unavailable"),
         "provider_unavailable",
         true,
@@ -214,11 +214,8 @@ export abstract class CloudMachineTranslationProvider implements TranslationProv
     }
   }
 
-  protected structuralError(
-    expected: number,
-    received: number,
-  ): NorixorTransError {
-    return new NorixorTransError(
+  protected structuralError(expected: number, received: number): NTransError {
+    return new NTransError(
       runtimeErrorToken("invalid_response"),
       "invalid_response",
       true,

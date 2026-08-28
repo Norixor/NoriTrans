@@ -38,7 +38,7 @@ const packageVersion = (
   ) as { version: string }
 ).version;
 const providerBaseUrl = "https://provider.youtube.com/v1";
-const ocrRuntimeDirectory = process.env.NORIXORTRANS_OCR_RUNTIME_DIR?.trim();
+const ocrRuntimeDirectory = process.env.NTRANS_OCR_RUNTIME_DIR?.trim();
 const ocrRuntimeArtifacts = getOcrRuntimeLanguage("eng").artifacts;
 const localOcrRuntimeFiles = ocrRuntimeDirectory
   ? ocrRuntimeArtifacts.map((artifact) => ({
@@ -50,7 +50,7 @@ const hasLocalOcrRuntime =
   localOcrRuntimeFiles.length === ocrRuntimeArtifacts.length &&
   localOcrRuntimeFiles.every(({ path }) => existsSync(path));
 const runHeadedOcrCapture =
-  process.env.NORIXORTRANS_OCR_CAPTURE_E2E === "1" && hasLocalOcrRuntime;
+  process.env.NTRANS_OCR_CAPTURE_E2E === "1" && hasLocalOcrRuntime;
 let context: BrowserContext;
 let controlPage: Page;
 const partialJsonRequestSegmentCounts: number[] = [];

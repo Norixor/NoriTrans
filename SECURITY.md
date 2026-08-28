@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-NorixorTrans is still in the `0.x` development phase. Security fixes target the
+nTrans is still in the `0.x` development phase. Security fixes target the
 latest code on the default branch; older development builds and historical
 archives are generally not maintained separately. Please confirm the issue on
 the latest version first, but do not expand data access, bypass site
