@@ -149,12 +149,10 @@ function hideSubtitleOverlay(host: HTMLElement): () => void {
 /** Temporarily excludes non-subtitle extension controls from captureVisibleTab. */
 function hideInjectedUiForCapture(): () => void {
   const restorations: Array<() => void> = [];
-  const hosts = document.querySelectorAll<HTMLElement>(
-    "[data-norixortrans-ui]",
-  );
+  const hosts = document.querySelectorAll<HTMLElement>("[data-noritrans-ui]");
   for (const host of hosts) {
     if (host instanceof HTMLStyleElement) continue;
-    const surface = host.dataset.norixortransUi;
+    const surface = host.dataset.noritransUi;
     if (
       surface === "subtitle-overlay" ||
       surface === "subtitle-fullscreen-portal" ||

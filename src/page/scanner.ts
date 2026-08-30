@@ -233,10 +233,9 @@ function isLikelyCaptionElement(element: Element): boolean {
 function shouldSkipElement(element: Element): boolean {
   return (
     SKIP_TAGS.has(element.tagName) ||
-    element.tagName.startsWith("NORIXOR-") ||
-    element.hasAttribute("data-norixortrans-ui") ||
-    element.hasAttribute("data-norixor-ui") ||
-    element.hasAttribute("data-norixor-translated") ||
+    element.tagName.startsWith("NORITRANS-") ||
+    element.hasAttribute("data-noritrans-ui") ||
+    element.hasAttribute("data-noritrans-translated") ||
     isLikelyCaptionElement(element) ||
     element.getAttribute("translate")?.toLowerCase() === "no" ||
     element.classList.contains("notranslate") ||

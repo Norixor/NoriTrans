@@ -423,7 +423,7 @@ describe("SubtitleController", () => {
       ).toHaveLength(1);
       expect(
         document.querySelector<HTMLElement>(
-          '[data-norixortrans-ui="subtitle-overlay"]',
+          '[data-noritrans-ui="subtitle-overlay"]',
         )?.shadowRoot?.textContent,
       ).toContain("第一条");
     });
@@ -1632,7 +1632,7 @@ describe("SubtitleController", () => {
     });
     const translated = () =>
       document
-        .querySelector<HTMLElement>('[data-norixortrans-ui="subtitle-overlay"]')
+        .querySelector<HTMLElement>('[data-noritrans-ui="subtitle-overlay"]')
         ?.shadowRoot?.querySelector<HTMLElement>(".translated")?.textContent;
     await vi.waitFor(() => expect(translated()).toBe("First live text"));
 
@@ -1775,7 +1775,7 @@ describe("SubtitleController", () => {
       }),
     );
     const overlay = document.querySelector<HTMLElement>(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     );
     expect(overlay?.shadowRoot?.textContent).toContain(
       "Canvas player subtitle",
@@ -1789,7 +1789,7 @@ describe("SubtitleController", () => {
           message.type === "TRANSLATE",
       ),
     ).toHaveLength(0);
-    expect(overlay?.style.getPropertyValue("--norixortrans-anchor-x")).toBe(
+    expect(overlay?.style.getPropertyValue("--noritrans-anchor-x")).toBe(
       "450px",
     );
     controller.stop();
@@ -1848,7 +1848,7 @@ describe("SubtitleController", () => {
       }),
     );
     const overlayRoot = document.querySelector<HTMLElement>(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     )?.shadowRoot;
     expect(overlayRoot?.querySelector(".original")?.textContent).toBe(
       "Recognized locally",
@@ -1990,7 +1990,7 @@ describe("SubtitleController", () => {
 
     const translated = () =>
       document
-        .querySelector<HTMLElement>('[data-norixortrans-ui="subtitle-overlay"]')
+        .querySelector<HTMLElement>('[data-noritrans-ui="subtitle-overlay"]')
         ?.shadowRoot?.querySelector<HTMLElement>(".translated")?.textContent;
     expect(translated()).not.toBe("OLD TRANSLATION");
     expect(controller.getStatus()).toMatchObject({
@@ -2061,7 +2061,7 @@ describe("SubtitleController", () => {
       }),
     );
     const overlayRoot = document.querySelector<HTMLElement>(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     )?.shadowRoot;
     const original = overlayRoot?.querySelector<HTMLElement>(".original");
     expect(original?.textContent).toBe("Recognized locally");
@@ -2139,7 +2139,7 @@ describe("SubtitleController", () => {
       failed: 1,
     });
     const overlayRoot = document.querySelector<HTMLElement>(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     )?.shadowRoot;
     expect(overlayRoot?.querySelector(".original")?.textContent).toBe(
       "Recognized before timeout",
@@ -2434,7 +2434,7 @@ describe("SubtitleController", () => {
     await vi.waitFor(() =>
       expect(
         document.querySelector<HTMLElement>(
-          '[data-norixortrans-ui="subtitle-overlay"]',
+          '[data-noritrans-ui="subtitle-overlay"]',
         )?.shadowRoot?.textContent,
       ).toContain("Iframe timeline subtitle"),
     );
@@ -2480,13 +2480,13 @@ describe("SubtitleController", () => {
     await vi.waitFor(() =>
       expect(
         document.querySelector<HTMLElement>(
-          '[data-norixortrans-ui="subtitle-overlay"]',
+          '[data-noritrans-ui="subtitle-overlay"]',
         )?.shadowRoot?.textContent,
       ).toContain("Second video OCR subtitle"),
     );
     expect(
       document.querySelector<HTMLElement>(
-        '[data-norixortrans-ui="subtitle-overlay"]',
+        '[data-noritrans-ui="subtitle-overlay"]',
       )?.shadowRoot?.textContent,
     ).not.toContain("Wrong main video subtitle");
     controller.stop();
@@ -2548,7 +2548,7 @@ describe("SubtitleController", () => {
     });
 
     const translated = document
-      .querySelector<HTMLElement>('[data-norixortrans-ui="subtitle-overlay"]')
+      .querySelector<HTMLElement>('[data-noritrans-ui="subtitle-overlay"]')
       ?.shadowRoot?.querySelector<HTMLElement>(".translated");
     await vi.advanceTimersByTimeAsync(199);
     expect(translated?.textContent).toBe("");
@@ -2687,7 +2687,7 @@ describe("SubtitleController", () => {
     video.currentTime = 2.2;
     video.dispatchEvent(new Event("timeupdate"));
     const translated = document
-      .querySelector<HTMLElement>('[data-norixortrans-ui="subtitle-overlay"]')
+      .querySelector<HTMLElement>('[data-noritrans-ui="subtitle-overlay"]')
       ?.shadowRoot?.querySelector<HTMLElement>(".translated");
     await vi.waitFor(() =>
       expect(translated?.textContent).toBe("FAST:Second failed subtitle."),
@@ -3020,7 +3020,7 @@ describe("SubtitleController", () => {
 
     controller.cancelTranslationTask();
     const overlayRoot = document.querySelector<HTMLElement>(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     )?.shadowRoot;
     expect(overlayRoot?.querySelector<HTMLElement>(".cue-card")?.hidden).toBe(
       true,
@@ -3296,7 +3296,7 @@ describe("SubtitleController", () => {
       }),
     );
     const root = document.querySelector<HTMLElement>(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     )?.shadowRoot;
     expect(root?.querySelector<HTMLElement>(".cue-card")?.hidden).toBe(true);
     controller.stop();
@@ -3472,7 +3472,7 @@ describe("SubtitleController", () => {
     expect(cancelled.completed + cancelled.failed).toBe(12);
     expect(cancelled.failed).toBeGreaterThan(0);
     const overlayStatus = document
-      .querySelector<HTMLElement>('[data-norixortrans-ui="subtitle-overlay"]')
+      .querySelector<HTMLElement>('[data-noritrans-ui="subtitle-overlay"]')
       ?.shadowRoot?.querySelector<HTMLElement>(".status");
     expect(overlayStatus?.dataset.state).toBe("cancelled");
     expect(overlayStatus?.textContent).toBe("subtitleStatusCancelled 0/12");
@@ -3516,7 +3516,7 @@ describe("SubtitleController", () => {
     const startPromise = controller.start();
     await vi.waitFor(() => expect(resolvePending).toBeTypeOf("function"));
     const root = document.querySelector<HTMLElement>(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     )?.shadowRoot;
     const cueCard = root?.querySelector<HTMLElement>(".cue-card");
     if (!cueCard) throw new Error("missing subtitle cue card");
@@ -3555,7 +3555,7 @@ describe("SubtitleController", () => {
       ],
     });
     const host = document.querySelector<HTMLElement>(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     );
     const root = host?.shadowRoot;
     await vi.waitFor(() =>
@@ -3607,9 +3607,9 @@ describe("SubtitleController", () => {
     });
     await controller.start();
     const overlay = document.querySelector<HTMLElement>(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     );
-    expect(overlay?.style.getPropertyValue("--norixortrans-anchor-x")).toBe(
+    expect(overlay?.style.getPropertyValue("--noritrans-anchor-x")).toBe(
       "200px",
     );
 
@@ -3621,7 +3621,7 @@ describe("SubtitleController", () => {
     second.dispatchEvent(new Event("play"));
 
     await vi.waitFor(() =>
-      expect(overlay?.style.getPropertyValue("--norixortrans-anchor-x")).toBe(
+      expect(overlay?.style.getPropertyValue("--noritrans-anchor-x")).toBe(
         "600px",
       ),
     );
@@ -4215,7 +4215,7 @@ describe("SubtitleController", () => {
     ).toHaveLength(0);
     expect(
       document
-        .querySelector<HTMLElement>('[data-norixortrans-ui="subtitle-overlay"]')
+        .querySelector<HTMLElement>('[data-noritrans-ui="subtitle-overlay"]')
         ?.shadowRoot?.querySelector(".translated")?.textContent,
     ).toBe("AI cached Hello.");
     resumedController.stop();
@@ -4892,7 +4892,7 @@ describe("SubtitleController", () => {
     ]);
     expect([...stored.keys()][0]).not.toBe([...stored.keys()][1]);
     const overlayText = document
-      .querySelector<HTMLElement>('[data-norixortrans-ui="subtitle-overlay"]')
+      .querySelector<HTMLElement>('[data-noritrans-ui="subtitle-overlay"]')
       ?.shadowRoot?.querySelector<HTMLElement>(".translated")?.textContent;
     expect(overlayText).toBe("Episode two");
     controller.stop();
@@ -4995,9 +4995,7 @@ describe("SubtitleController", () => {
       expect(resolveDistantCache).toBeTypeOf("function");
       expect(
         document
-          .querySelector<HTMLElement>(
-            '[data-norixortrans-ui="subtitle-overlay"]',
-          )
+          .querySelector<HTMLElement>('[data-noritrans-ui="subtitle-overlay"]')
           ?.shadowRoot?.querySelector<HTMLElement>(".translated")?.textContent,
       ).toBe("T:Current cue.");
       expect(providerRequests).toHaveLength(1);

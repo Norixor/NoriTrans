@@ -821,13 +821,13 @@ describe("video subtitle adapters", () => {
   it("keeps collecting a cue hidden only by NoriTrans", () => {
     const style = document.createElement("style");
     style.textContent = `
-      :root[data-norixortrans-hide-native-subtitles] .ytp-caption-segment {
+      :root[data-noritrans-hide-native-subtitles] .ytp-caption-segment {
         visibility: hidden !important;
       }
     `;
     document.head.append(style);
     document.documentElement.setAttribute(
-      "data-norixortrans-hide-native-subtitles",
+      "data-noritrans-hide-native-subtitles",
       "",
     );
     document.body.innerHTML =
@@ -849,7 +849,7 @@ describe("video subtitle adapters", () => {
     } finally {
       unsubscribe();
       document.documentElement.removeAttribute(
-        "data-norixortrans-hide-native-subtitles",
+        "data-noritrans-hide-native-subtitles",
       );
       style.remove();
       document.body.replaceChildren();

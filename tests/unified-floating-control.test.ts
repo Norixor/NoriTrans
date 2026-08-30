@@ -54,7 +54,7 @@ function createControl(overrides: Partial<UnifiedFloatingControlOptions> = {}) {
     ...overrides,
   });
   const host = document.querySelector<HTMLElement>(
-    '[data-norixortrans-ui="unified-floating-control"]',
+    '[data-noritrans-ui="unified-floating-control"]',
   );
   const root = host?.shadowRoot;
   if (!host || !root) throw new Error("missing unified floating control");
@@ -132,14 +132,12 @@ describe("unified floating control", () => {
     const launcher = root.querySelector<HTMLButtonElement>(".launcher");
     const panel = root.querySelector<HTMLElement>(".panel");
     const tabs = root.querySelectorAll<HTMLButtonElement>('[role="tab"]');
-    const pagePanel = root.querySelector<HTMLElement>(
-      "#norixortrans-page-panel",
-    );
+    const pagePanel = root.querySelector<HTMLElement>("#noritrans-page-panel");
     const videoPanel = root.querySelector<HTMLElement>(
-      "#norixortrans-video-panel",
+      "#noritrans-video-panel",
     );
     const imagePanel = root.querySelector<HTMLElement>(
-      "#norixortrans-image-panel",
+      "#noritrans-image-panel",
     );
     if (
       !launcher ||
@@ -339,9 +337,7 @@ describe("unified floating control", () => {
   it("reverts page mode and shows an error when saving fails", async () => {
     const { control, root, onPageModeChange } = createControl();
     onPageModeChange.mockRejectedValueOnce(new Error("save failed"));
-    const pagePanel = root.querySelector<HTMLElement>(
-      "#norixortrans-page-panel",
-    );
+    const pagePanel = root.querySelector<HTMLElement>("#noritrans-page-panel");
     const pageMode =
       pagePanel?.querySelectorAll<HTMLSelectElement>("select")[2];
     const statusRow = pagePanel?.querySelector<HTMLElement>(".status-row");
@@ -366,9 +362,7 @@ describe("unified floating control", () => {
   it("reverts page and selection quick settings when saving fails", async () => {
     const { control, root, onPageSettingsChange } = createControl();
     onPageSettingsChange.mockRejectedValueOnce(new Error("save failed"));
-    const pagePanel = root.querySelector<HTMLElement>(
-      "#norixortrans-page-panel",
-    );
+    const pagePanel = root.querySelector<HTMLElement>("#noritrans-page-panel");
     const selects = pagePanel?.querySelectorAll<HTMLSelectElement>("select");
     const sourceLanguage = selects?.[0];
     const targetLanguage = selects?.[1];
@@ -425,7 +419,7 @@ describe("unified floating control", () => {
     const tabs = root.querySelectorAll<HTMLButtonElement>('[role="tab"]');
     tabs[1]?.click();
     const videoPanel = root.querySelector<HTMLElement>(
-      "#norixortrans-video-panel",
+      "#noritrans-video-panel",
     );
     const selects = videoPanel?.querySelectorAll<HTMLSelectElement>("select");
     const hideNative = videoPanel?.querySelector<HTMLInputElement>(
@@ -470,9 +464,7 @@ describe("unified floating control", () => {
   it("reverts auto translation and exposes a semantic error when saving fails", async () => {
     const { control, root, onAutoTranslateChange } = createControl();
     onAutoTranslateChange.mockRejectedValueOnce(new Error("save failed"));
-    const pagePanel = root.querySelector<HTMLElement>(
-      "#norixortrans-page-panel",
-    );
+    const pagePanel = root.querySelector<HTMLElement>("#noritrans-page-panel");
     const autoTranslate = pagePanel?.querySelector<HTMLInputElement>(
       'input[type="checkbox"]',
     );
@@ -503,9 +495,7 @@ describe("unified floating control", () => {
         }),
     );
     const { control, root } = createControl({ onPageModeChange });
-    const pagePanel = root.querySelector<HTMLElement>(
-      "#norixortrans-page-panel",
-    );
+    const pagePanel = root.querySelector<HTMLElement>("#noritrans-page-panel");
     const selects = pagePanel?.querySelectorAll<HTMLSelectElement>("select");
     const targetLanguage = selects?.[1];
     const pageMode = selects?.[2];
@@ -553,7 +543,7 @@ describe("unified floating control", () => {
     );
     const { control, root } = createControl({ onSubtitleSettingsChange });
     const videoPanel = root.querySelector<HTMLElement>(
-      "#norixortrans-video-panel",
+      "#noritrans-video-panel",
     );
     const selects = videoPanel?.querySelectorAll<HTMLSelectElement>("select");
     const sourceLanguage = selects?.[0];
@@ -666,7 +656,7 @@ describe("unified floating control", () => {
     if (!start || !cancel) throw new Error("missing subtitle task actions");
     expect(document.querySelector(".stop-button")).toBeNull();
     const videoPanel = root.querySelector<HTMLElement>(
-      "#norixortrans-video-panel",
+      "#noritrans-video-panel",
     );
     expect(videoPanel?.children[1]).toBe(start.parentElement);
 
@@ -730,7 +720,7 @@ describe("unified floating control", () => {
     expect(start.disabled).toBe(true);
     expect(cancel.disabled).toBe(false);
     expect(
-      root.querySelector<HTMLElement>("#norixortrans-video-panel .status")
+      root.querySelector<HTMLElement>("#noritrans-video-panel .status")
         ?.textContent,
     ).toBe("subtitleStatusReady · subtitleTrackFull");
 
@@ -743,7 +733,7 @@ describe("unified floating control", () => {
       failed: 0,
     });
     expect(
-      root.querySelector<HTMLElement>("#norixortrans-video-panel .status")
+      root.querySelector<HTMLElement>("#noritrans-video-panel .status")
         ?.textContent,
     ).toBe("subtitleStatusReady · subtitleTrackStream");
     control.destroy();
@@ -806,10 +796,10 @@ describe("unified floating control", () => {
   it("reveals bounded provider diagnostics only when an error has details", () => {
     const { control, root } = createControl();
     const pageDiagnostic = root.querySelector<HTMLDetailsElement>(
-      "#norixortrans-page-panel .diagnostic",
+      "#noritrans-page-panel .diagnostic",
     );
     const subtitleDiagnostic = root.querySelector<HTMLDetailsElement>(
-      "#norixortrans-video-panel .diagnostic",
+      "#noritrans-video-panel .diagnostic",
     );
     if (!pageDiagnostic || !subtitleDiagnostic) {
       throw new Error("missing provider diagnostics");
@@ -862,7 +852,7 @@ describe("unified floating control", () => {
     const launcher = root.querySelector<HTMLButtonElement>(".launcher");
     const panel = root.querySelector<HTMLElement>(".panel");
     const diagnostic = root.querySelector<HTMLDetailsElement>(
-      "#norixortrans-page-panel .diagnostic",
+      "#noritrans-page-panel .diagnostic",
     );
     const summary = diagnostic?.querySelector<HTMLElement>("summary");
     if (!launcher || !panel || !diagnostic || !summary) {
@@ -946,14 +936,14 @@ describe("unified floating control", () => {
     expect(style).toContain("border-radius: 50%");
     expect(style).toContain(".launcher::after");
     expect(style).toContain("border: 2px solid transparent");
-    expect(style).toContain("@keyframes norixor-launcher-spin");
+    expect(style).toContain("@keyframes noritrans-launcher-spin");
     control.destroy();
   });
 
   it("does not show a no-track warning while OCR owns the video status", () => {
     const { control, root } = createControl();
     const subtitleStatus = root.querySelector<HTMLElement>(
-      "#norixortrans-video-panel > .status-row",
+      "#noritrans-video-panel > .status-row",
     );
     if (!subtitleStatus) throw new Error("missing subtitle status row");
 
@@ -991,9 +981,7 @@ describe("unified floating control", () => {
 
   it("allows an in-progress page translation to be cancelled", async () => {
     const { control, root, onPageRestore } = createControl();
-    const pagePanel = root.querySelector<HTMLElement>(
-      "#norixortrans-page-panel",
-    );
+    const pagePanel = root.querySelector<HTMLElement>("#noritrans-page-panel");
     const buttons = pagePanel?.querySelectorAll<HTMLButtonElement>("button");
     const restoreButton = buttons?.[1];
     if (!restoreButton) throw new Error("missing page restore button");
@@ -1060,10 +1048,10 @@ describe("unified floating control", () => {
   it("uses a dense two-column layout without dropping any quick setting", () => {
     const { control, root } = createControl();
     const pageGrid = root.querySelector<HTMLElement>(
-      "#norixortrans-page-panel .settings-grid",
+      "#noritrans-page-panel .settings-grid",
     );
     const videoGrid = root.querySelector<HTMLElement>(
-      "#norixortrans-video-panel .settings-grid",
+      "#noritrans-video-panel .settings-grid",
     );
     const style = root.querySelector("style")?.textContent ?? "";
 
@@ -1171,7 +1159,7 @@ describe("unified floating control", () => {
     expect(panel.hidden).toBe(false);
     expect(host.dataset.edgeHidden).toBe("false");
 
-    const key = `norixortrans:unified-control:${location.origin}${location.pathname}`;
+    const key = `noritrans:unified-control:${location.origin}${location.pathname}`;
     expect(JSON.parse(sessionStorage.getItem(key) ?? "{}")).toEqual({
       left: 10,
       top: 10,
@@ -1739,10 +1727,10 @@ describe("unified floating control", () => {
     if (!menu) throw new Error("missing panel menu");
     menu.open = true;
     expect(root.activeElement).toBe(
-      root.querySelector("#norixortrans-page-panel-tab"),
+      root.querySelector("#noritrans-page-panel-tab"),
     );
     root
-      .querySelector<HTMLElement>("#norixortrans-page-panel")
+      .querySelector<HTMLElement>("#noritrans-page-panel")
       ?.dispatchEvent(
         new MouseEvent("pointerdown", { bubbles: true, composed: true }),
       );
@@ -1765,7 +1753,9 @@ describe("unified floating control", () => {
     expect(root.activeElement).toBe(launcher);
 
     launcher.click();
-    const subtitleOverlay = document.createElement("norixor-subtitle-overlay");
+    const subtitleOverlay = document.createElement(
+      "noritrans-subtitle-overlay",
+    );
     document.body.append(subtitleOverlay);
     Object.defineProperty(document, "fullscreenElement", {
       configurable: true,
@@ -1962,7 +1952,7 @@ describe("unified floating control", () => {
     const launcher = root.querySelector<HTMLButtonElement>(".launcher");
     const panel = root.querySelector<HTMLElement>(".panel");
     const status = root.querySelector<HTMLElement>(
-      "#norixortrans-page-panel .status",
+      "#noritrans-page-panel .status",
     );
     const hideButton = root.querySelector<HTMLButtonElement>(
       ".panel-menu-popover button",
@@ -1996,11 +1986,11 @@ describe("unified floating control", () => {
       const fixture = createControl();
       const { control, root } = fixture;
       const buttons = root.querySelectorAll<HTMLButtonElement>(
-        "#norixortrans-page-panel .actions button",
+        "#noritrans-page-panel .actions button",
       );
       const button = buttons[action === "translate" ? 0 : 1];
       const statusRow = root.querySelector<HTMLElement>(
-        "#norixortrans-page-panel .status-row",
+        "#noritrans-page-panel .status-row",
       );
       const status = statusRow?.querySelector<HTMLElement>(".status");
       if (!button || !statusRow || !status) {

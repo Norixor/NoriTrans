@@ -625,10 +625,9 @@ function isExtensionUiNode(node: Node): boolean {
     node instanceof Element ? node : node.parentElement;
   while (element) {
     if (
-      element.tagName.startsWith("NORIXOR-") ||
-      element.hasAttribute("data-norixortrans-ui") ||
-      element.hasAttribute("data-norixor-ui") ||
-      element.hasAttribute("data-norixor-translated")
+      element.tagName.startsWith("NORITRANS-") ||
+      element.hasAttribute("data-noritrans-ui") ||
+      element.hasAttribute("data-noritrans-translated")
     ) {
       return true;
     }

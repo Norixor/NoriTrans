@@ -1,7 +1,6 @@
 const BLOCKED_REGION_SELECTOR = [
-  "[data-norixortrans-ui]",
-  "[data-norixor-ui]",
-  "norixor-translation",
+  "[data-noritrans-ui]",
+  "noritrans-translation",
   "nav",
   "aside",
   "form",

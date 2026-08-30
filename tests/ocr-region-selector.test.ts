@@ -32,7 +32,7 @@ describe("OcrRegionSelector", () => {
     try {
       const selection = selector.select(video, controller.signal);
       const host = document.querySelector<HTMLElement>(
-        "norixor-ocr-region-selector",
+        "noritrans-ocr-region-selector",
       );
       expect(host?.dataset.ready).toBe("false");
       expect(frames).toHaveLength(1);
@@ -121,7 +121,7 @@ describe("OcrRegionSelector", () => {
     try {
       const selection = selector.select(video, new AbortController().signal);
       const host = document.querySelector<HTMLElement>(
-        "norixor-ocr-region-selector",
+        "noritrans-ocr-region-selector",
       );
       const rejection = selection.catch((error: unknown) => error);
       expect(host?.dataset.ready).toBe("false");
@@ -148,7 +148,7 @@ describe("OcrRegionSelector", () => {
 
     const selection = selector.select(iframe, new AbortController().signal);
     const host = document.querySelector<HTMLElement>(
-      "norixor-ocr-region-selector",
+      "noritrans-ocr-region-selector",
     );
     expect(host?.style.position).toBe("fixed");
     expect(host?.style.inset).toBe("0px");
@@ -186,7 +186,7 @@ describe("OcrRegionSelector", () => {
       width: 580 / window.innerWidth,
       height: 144 / window.innerHeight,
     });
-    expect(document.querySelector("norixor-ocr-region-selector")).toBeNull();
+    expect(document.querySelector("noritrans-ocr-region-selector")).toBeNull();
   });
 
   it("deduplicates compatibility mouse events after pointer input", async () => {
@@ -249,7 +249,7 @@ describe("OcrRegionSelector", () => {
     document.body.append(video);
     const selector = new OcrRegionSelector();
     const selection = selector.select(video, new AbortController().signal);
-    const host = document.querySelector("norixor-ocr-region-selector");
+    const host = document.querySelector("noritrans-ocr-region-selector");
     const root = host?.shadowRoot;
     const suggested = root?.querySelector<HTMLButtonElement>("button");
     const feedback = root?.querySelector<HTMLElement>(".feedback");
@@ -328,7 +328,7 @@ describe("OcrRegionSelector", () => {
     video.dispatchEvent(pointerCancel);
 
     await expect(selection).rejects.toMatchObject({ name: "AbortError" });
-    expect(document.querySelector("norixor-ocr-region-selector")).toBeNull();
+    expect(document.querySelector("noritrans-ocr-region-selector")).toBeNull();
 
     const strayEscape = new KeyboardEvent("keydown", {
       key: "Escape",
@@ -358,7 +358,7 @@ describe("OcrRegionSelector", () => {
     document.body.append(video);
     const selector = new OcrRegionSelector();
     const selection = selector.select(video, new AbortController().signal);
-    const host = document.querySelector("norixor-ocr-region-selector");
+    const host = document.querySelector("noritrans-ocr-region-selector");
     const root = host?.shadowRoot;
     const buttons = root?.querySelectorAll<HTMLButtonElement>("button");
     const suggested = buttons?.[0];
@@ -407,7 +407,7 @@ describe("OcrRegionSelector", () => {
     document.dispatchEvent(new Event("fullscreenchange"));
 
     await expect(selection).rejects.toThrow("ocr_selection_viewport_changed");
-    expect(document.querySelector("norixor-ocr-region-selector")).toBeNull();
+    expect(document.querySelector("noritrans-ocr-region-selector")).toBeNull();
   });
 
   it("cancels selection when the page scrolls so coordinates cannot go stale", async () => {
@@ -420,11 +420,11 @@ describe("OcrRegionSelector", () => {
     window.dispatchEvent(new Event("scroll"));
 
     await expect(selection).rejects.toThrow("ocr_selection_viewport_changed");
-    expect(document.querySelector("norixor-ocr-region-selector")).toBeNull();
+    expect(document.querySelector("noritrans-ocr-region-selector")).toBeNull();
 
     const strayScroll = new Event("scroll");
     window.dispatchEvent(strayScroll);
-    expect(document.querySelector("norixor-ocr-region-selector")).toBeNull();
+    expect(document.querySelector("noritrans-ocr-region-selector")).toBeNull();
   });
 
   it("cancels selection with Escape", async () => {
@@ -443,7 +443,7 @@ describe("OcrRegionSelector", () => {
     );
 
     await expect(selection).rejects.toMatchObject({ name: "AbortError" });
-    expect(document.querySelector("norixor-ocr-region-selector")).toBeNull();
+    expect(document.querySelector("noritrans-ocr-region-selector")).toBeNull();
   });
 
   it("uses a top-layer portal over a fullscreen canvas player", async () => {
@@ -471,8 +471,8 @@ describe("OcrRegionSelector", () => {
 
     try {
       const selection = selector.select(canvas, new AbortController().signal);
-      const host = document.querySelector("norixor-ocr-region-selector");
-      expect(host?.parentElement?.dataset.norixortransUi).toBe(
+      const host = document.querySelector("noritrans-ocr-region-selector");
+      expect(host?.parentElement?.dataset.noritransUi).toBe(
         "ocr-fullscreen-portal",
       );
       expect(showPopover).toHaveBeenCalledOnce();

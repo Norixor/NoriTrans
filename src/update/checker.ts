@@ -1,17 +1,11 @@
 import { browser } from "wxt/browser";
 
-const RELEASES_LATEST_URLS = [
-  "https://api.github.com/repos/Norixor/NoriTrans/releases/latest",
-  "https://api.github.com/repos/Norixor/nTrans/releases/latest",
-  "https://api.github.com/repos/Norixor/NorixorTrans/releases/latest",
-] as const;
-const RELEASE_PAGE_PREFIXES = [
-  "https://github.com/Norixor/NoriTrans/releases/tag/",
-  "https://github.com/Norixor/nTrans/releases/tag/",
-  "https://github.com/Norixor/NorixorTrans/releases/tag/",
-] as const;
-const UPDATE_STATE_KEY = "norixortrans:update-state-v1";
-const UPDATE_PREFERENCES_KEY = "norixortrans:update-preferences-v1";
+const RELEASES_LATEST_URL =
+  "https://api.github.com/repos/Norixor/NoriTrans/releases/latest";
+const RELEASE_PAGE_PREFIX =
+  "https://github.com/Norixor/NoriTrans/releases/tag/";
+const UPDATE_STATE_KEY = "noritrans:update-state-v1";
+const UPDATE_PREFERENCES_KEY = "noritrans:update-preferences-v1";
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1_000;
 const REQUEST_TIMEOUT_MS = 8_000;
 
@@ -78,10 +72,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isReleasePageUrl(value: string): boolean {
-  return (
-    value.length <= 512 &&
-    RELEASE_PAGE_PREFIXES.some((prefix) => value.startsWith(prefix))
-  );
+  return value.length <= 512 && value.startsWith(RELEASE_PAGE_PREFIX);
 }
 
 function readStoredState(value: unknown): StoredUpdateState {
@@ -217,35 +208,20 @@ async function requestLatestRelease(): Promise<{
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
-    let lastError: Error | undefined;
-    for (const url of RELEASES_LATEST_URLS) {
-      try {
-        const response = await fetch(url, {
-          method: "GET",
-          credentials: "omit",
-          cache: "no-store",
-          headers: {
-            Accept: "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-          },
-          signal: controller.signal,
-        });
-        if (!response.ok) {
-          lastError = new Error("request_failed");
-          continue;
-        }
-        const parsed = parseLatestRelease(await response.json());
-        if (!parsed) throw new Error("invalid_response");
-        return parsed;
-      } catch (error) {
-        if (error instanceof Error && error.message === "invalid_response") {
-          throw error;
-        }
-        lastError =
-          error instanceof Error ? error : new Error("request_failed");
-      }
-    }
-    throw lastError ?? new Error("request_failed");
+    const response = await fetch(RELEASES_LATEST_URL, {
+      method: "GET",
+      credentials: "omit",
+      cache: "no-store",
+      headers: {
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error("request_failed");
+    const parsed = parseLatestRelease(await response.json());
+    if (!parsed) throw new Error("invalid_response");
+    return parsed;
   } finally {
     clearTimeout(timeout);
   }

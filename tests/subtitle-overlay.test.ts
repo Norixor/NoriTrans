@@ -41,7 +41,7 @@ describe("subtitle overlay display modes", () => {
     });
     overlay.showCue("Original", "译：Translated subtitle");
     const translated = document
-      .querySelector<HTMLElement>('[data-norixortrans-ui="subtitle-overlay"]')
+      .querySelector<HTMLElement>('[data-noritrans-ui="subtitle-overlay"]')
       ?.shadowRoot?.querySelector<HTMLElement>(".cue.translated");
 
     expect(translated?.textContent).toBe("Translated subtitle");
@@ -65,7 +65,7 @@ describe("subtitle overlay display modes", () => {
       displayMode: "translated",
     });
     const root = document.querySelector<HTMLElement>(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     )?.shadowRoot;
     const original = root?.querySelector<HTMLElement>(".cue.original");
     const translated = root?.querySelector<HTMLElement>(".cue.translated");
@@ -95,7 +95,7 @@ describe("subtitle overlay display modes", () => {
       displayMode: "translated",
     });
     const root = document.querySelector<HTMLElement>(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     )?.shadowRoot;
     const cueCard = root?.querySelector<HTMLElement>(".cue-card");
     if (!cueCard) throw new Error("missing subtitle cue card");
@@ -111,7 +111,7 @@ describe("subtitle overlay display modes", () => {
   it("keeps progress text off the video and hides the layer without a cue", () => {
     const overlay = new SubtitleOverlay(DEFAULT_SETTINGS.subtitles);
     const host = document.querySelector<HTMLElement>(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     );
     const container = host?.shadowRoot?.querySelector<HTMLElement>(".overlay");
     const status = host?.shadowRoot?.querySelector<HTMLElement>(".status");
@@ -131,7 +131,7 @@ describe("subtitle overlay display modes", () => {
   it("keeps a cancelled task distinct from a partial failure", () => {
     const overlay = new SubtitleOverlay(DEFAULT_SETTINGS.subtitles);
     const host = document.querySelector<HTMLElement>(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     );
     const status = host?.shadowRoot?.querySelector<HTMLElement>(".status");
     if (!status) throw new Error("missing subtitle overlay status");
@@ -149,7 +149,7 @@ describe("subtitle overlay display modes", () => {
       position: "top",
     });
     const host = document.querySelector<HTMLElement>(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     );
     expect(host?.dataset.position).toBe("top");
 
@@ -169,18 +169,12 @@ describe("subtitle overlay display modes", () => {
     const overlay = new SubtitleOverlay(DEFAULT_SETTINGS.subtitles);
     overlay.setVideo(video);
     const host = document.querySelector<HTMLElement>(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     );
 
-    expect(host?.style.getPropertyValue("--norixortrans-anchor-x")).toBe(
-      "500px",
-    );
-    expect(host?.style.getPropertyValue("--norixortrans-anchor-y")).toBe(
-      "464px",
-    );
-    expect(host?.style.getPropertyValue("--norixortrans-max-width")).toBe(
-      "640px",
-    );
+    expect(host?.style.getPropertyValue("--noritrans-anchor-x")).toBe("500px");
+    expect(host?.style.getPropertyValue("--noritrans-anchor-y")).toBe("464px");
+    expect(host?.style.getPropertyValue("--noritrans-max-width")).toBe("640px");
     overlay.destroy();
   });
 
@@ -197,7 +191,7 @@ describe("subtitle overlay display modes", () => {
     overlay.setVideo(video);
     overlay.showCue("Original", "Translated");
     const container = document
-      .querySelector<HTMLElement>('[data-norixortrans-ui="subtitle-overlay"]')
+      .querySelector<HTMLElement>('[data-noritrans-ui="subtitle-overlay"]')
       ?.shadowRoot?.querySelector<HTMLElement>(".overlay");
     expect(container?.hidden).toBe(false);
 
@@ -231,18 +225,14 @@ describe("subtitle overlay display modes", () => {
     const overlay = new SubtitleOverlay(DEFAULT_SETTINGS.subtitles);
     overlay.setVideo(video);
     const host = document.querySelector<HTMLElement>(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     );
 
     bounds = DOMRect.fromRect({ x: 220, y: 140, width: 800, height: 450 });
     await vi.advanceTimersByTimeAsync(250);
 
-    expect(host?.style.getPropertyValue("--norixortrans-anchor-x")).toBe(
-      "620px",
-    );
-    expect(host?.style.getPropertyValue("--norixortrans-anchor-y")).toBe(
-      "554px",
-    );
+    expect(host?.style.getPropertyValue("--noritrans-anchor-x")).toBe("620px");
+    expect(host?.style.getPropertyValue("--noritrans-anchor-y")).toBe("554px");
     overlay.destroy();
     vi.useRealTimers();
   });
@@ -255,11 +245,9 @@ describe("subtitle overlay display modes", () => {
     const overlay = new SubtitleOverlay(DEFAULT_SETTINGS.subtitles);
     overlay.setVideo(video);
     const host = document.querySelector<HTMLElement>(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     );
-    expect(host?.style.getPropertyValue("--norixortrans-max-width")).toBe(
-      "80px",
-    );
+    expect(host?.style.getPropertyValue("--noritrans-max-width")).toBe("80px");
     overlay.destroy();
   });
 
@@ -267,7 +255,7 @@ describe("subtitle overlay display modes", () => {
     const overlay = new SubtitleOverlay(DEFAULT_SETTINGS.subtitles);
     overlay.showCue("x".repeat(5_000), "y".repeat(5_000));
     const host = document.querySelector<HTMLElement>(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     );
     const root = host?.shadowRoot;
     const container = root?.querySelector<HTMLElement>(".overlay");
@@ -292,7 +280,7 @@ describe("subtitle overlay display modes", () => {
     overlay.showNotice("Protected video cannot be captured.");
     overlay.hide();
     const host = document.querySelector<HTMLElement>(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     );
     const root = host?.shadowRoot;
 
@@ -325,11 +313,11 @@ describe("subtitle overlay display modes", () => {
     if (!initialRegion) throw new Error("missing initial OCR projection");
     overlay.setOcrCaptureRegion(initialRegion);
     const host = document.querySelector<HTMLElement>(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     );
 
     expect(host?.dataset.ocrSafeSide).toBe("above");
-    expect(host?.style.getPropertyValue("--norixortrans-anchor-y")).toBe(
+    expect(host?.style.getPropertyValue("--noritrans-anchor-y")).toBe(
       `${initialRegion.y * window.innerHeight - 8}px`,
     );
     expect(host?.shadowRoot?.querySelector("style")?.textContent).toContain(
@@ -351,7 +339,7 @@ describe("subtitle overlay display modes", () => {
     if (!fullscreenRegion) throw new Error("missing fullscreen OCR projection");
     overlay.setOcrCaptureRegion(fullscreenRegion);
     document.dispatchEvent(new Event("fullscreenchange"));
-    expect(host?.style.getPropertyValue("--norixortrans-anchor-y")).toBe(
+    expect(host?.style.getPropertyValue("--noritrans-anchor-y")).toBe(
       `${fullscreenRegion.y * window.innerHeight - 8}px`,
     );
 
@@ -366,18 +354,18 @@ describe("subtitle overlay display modes", () => {
     overlay.setOcrCaptureRegion(resizedRegion);
     window.dispatchEvent(new Event("resize"));
     const resizedRegionTop = resizedRegion.y * window.innerHeight;
-    expect(host?.style.getPropertyValue("--norixortrans-anchor-y")).toBe(
+    expect(host?.style.getPropertyValue("--noritrans-anchor-y")).toBe(
       `${resizedRegionTop - 8}px`,
     );
     expect(
       Number.parseFloat(
-        host?.style.getPropertyValue("--norixortrans-anchor-y") ?? "NaN",
+        host?.style.getPropertyValue("--noritrans-anchor-y") ?? "NaN",
       ),
     ).toBeLessThan(resizedRegionTop);
 
     overlay.setOcrCaptureRegion(null);
     expect(host?.dataset.ocrSafeSide).toBeUndefined();
-    expect(host?.style.getPropertyValue("--norixortrans-anchor-y")).toBe(
+    expect(host?.style.getPropertyValue("--noritrans-anchor-y")).toBe(
       `${bounds.top + bounds.height * 0.92}px`,
     );
     overlay.destroy();
@@ -403,7 +391,7 @@ describe("subtitle overlay display modes", () => {
     const overlay = new SubtitleOverlay(DEFAULT_SETTINGS.subtitles);
     overlay.showCue("OCR original", "OCR translation");
     const host = document.querySelector<HTMLElement>(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     );
     const container = host?.shadowRoot?.querySelector<HTMLElement>(".overlay");
     if (!container) throw new Error("missing OCR overlay");
@@ -415,10 +403,10 @@ describe("subtitle overlay display modes", () => {
     overlay.setOcrCaptureRegion(region);
 
     const anchorX = Number.parseFloat(
-      host?.style.getPropertyValue("--norixortrans-anchor-x") ?? "NaN",
+      host?.style.getPropertyValue("--noritrans-anchor-x") ?? "NaN",
     );
     const anchorY = Number.parseFloat(
-      host?.style.getPropertyValue("--norixortrans-anchor-y") ?? "NaN",
+      host?.style.getPropertyValue("--noritrans-anchor-y") ?? "NaN",
     );
     const top = expectedSide === "above" ? anchorY - overlayHeight : anchorY;
     const bottom = expectedSide === "above" ? anchorY : anchorY + overlayHeight;
@@ -437,7 +425,7 @@ describe("subtitle overlay display modes", () => {
     const overlay = new SubtitleOverlay(DEFAULT_SETTINGS.subtitles);
     overlay.showNotice("Protected video cannot be captured.");
     const root = document.querySelector<HTMLElement>(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     )?.shadowRoot;
     const notice = root?.querySelector<HTMLElement>(".notice");
 
@@ -458,7 +446,7 @@ describe("subtitle overlay display modes", () => {
     overlay.setOcrCaptureRegion({ x: 0.2, y: 0.2, width: 0.6, height: 0.5 });
     overlay.showCue("原字幕", "Translated subtitle");
     const cueCard = document
-      .querySelector<HTMLElement>('[data-norixortrans-ui="subtitle-overlay"]')
+      .querySelector<HTMLElement>('[data-noritrans-ui="subtitle-overlay"]')
       ?.shadowRoot?.querySelector<HTMLElement>(".cue-card");
     if (!cueCard) throw new Error("missing OCR cue card");
     cueCard.getBoundingClientRect = () => new DOMRect(300, 220, 260, 72);
@@ -492,7 +480,7 @@ describe("subtitle overlay display modes", () => {
     });
     overlay.showCue("OCR original", "OCR translation");
     const host = document.querySelector<HTMLElement>(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     );
     const container = host?.shadowRoot?.querySelector<HTMLElement>(".overlay");
     const handle = host?.shadowRoot?.querySelector<HTMLElement>(".cue-card");
@@ -523,8 +511,8 @@ describe("subtitle overlay display modes", () => {
 
     expect(host?.dataset.position).toBe("custom");
     expect(host?.dataset.ocrSafeSide).toBeUndefined();
-    const draggedX = host?.style.getPropertyValue("--norixortrans-anchor-x");
-    const draggedY = host?.style.getPropertyValue("--norixortrans-anchor-y");
+    const draggedX = host?.style.getPropertyValue("--noritrans-anchor-x");
+    const draggedY = host?.style.getPropertyValue("--noritrans-anchor-y");
     expect(draggedX).toBe("600px");
     expect(draggedY).toBe("220px");
 
@@ -544,19 +532,15 @@ describe("subtitle overlay display modes", () => {
       height: 0.2,
     });
     window.dispatchEvent(new Event("resize"));
-    expect(host?.style.getPropertyValue("--norixortrans-anchor-x")).toBe(
-      draggedX,
-    );
+    expect(host?.style.getPropertyValue("--noritrans-anchor-x")).toBe(draggedX);
     expect(host?.dataset.ocrSafeSide).toBe("above");
-    expect(host?.style.getPropertyValue("--norixortrans-anchor-y")).toBe(
+    expect(host?.style.getPropertyValue("--noritrans-anchor-y")).toBe(
       `${window.innerHeight * 0.2 - 8}px`,
     );
 
     overlay.setOcrCaptureRegion(null);
     expect(host?.dataset.ocrSafeSide).toBeUndefined();
-    expect(host?.style.getPropertyValue("--norixortrans-anchor-y")).toBe(
-      draggedY,
-    );
+    expect(host?.style.getPropertyValue("--noritrans-anchor-y")).toBe(draggedY);
 
     overlay.destroy();
   });
@@ -581,10 +565,10 @@ describe("subtitle overlay display modes", () => {
     });
 
     const host = document.querySelector<HTMLElement>(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     );
     expect(host?.dataset.ocrSafeSide).toBe("above");
-    expect(host?.style.getPropertyValue("--norixortrans-anchor-y")).toBe(
+    expect(host?.style.getPropertyValue("--noritrans-anchor-y")).toBe(
       `${window.innerHeight * 0.2 - 8}px`,
     );
 
@@ -616,9 +600,9 @@ describe("subtitle overlay display modes", () => {
     try {
       const overlay = new SubtitleOverlay(DEFAULT_SETTINGS.subtitles);
       const host = document.querySelector<HTMLElement>(
-        '[data-norixortrans-ui="subtitle-overlay"]',
+        '[data-noritrans-ui="subtitle-overlay"]',
       );
-      expect(host?.parentElement?.dataset.norixortransUi).toBe(
+      expect(host?.parentElement?.dataset.noritransUi).toBe(
         "subtitle-fullscreen-portal",
       );
       expect(showPopover).toHaveBeenCalledOnce();
@@ -650,7 +634,7 @@ describe("subtitle overlay display modes", () => {
     );
     overlay.showCue("Original", "Translated");
     const host = document.querySelector<HTMLElement>(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     );
     const container = host?.shadowRoot?.querySelector<HTMLElement>(".overlay");
     const handle = host?.shadowRoot?.querySelector<HTMLElement>(".cue-card");
@@ -687,7 +671,7 @@ describe("subtitle overlay display modes", () => {
     );
     overlay.showCue("Original", "Translated");
     const host = document.querySelector<HTMLElement>(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     );
     const root = host?.shadowRoot;
     const handle = root?.querySelector<HTMLElement>(".cue-card");
@@ -735,7 +719,7 @@ describe("subtitle overlay display modes", () => {
     );
     overlay.showCue("Original", "Translated");
     const host = document.querySelector<HTMLElement>(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     );
     const container = host?.shadowRoot?.querySelector<HTMLElement>(".overlay");
     const handle = host?.shadowRoot?.querySelector<HTMLElement>(".cue-card");
@@ -785,7 +769,7 @@ describe("subtitle overlay display modes", () => {
     );
     overlay.showCue("Original", "Translated");
     const host = document.querySelector<HTMLElement>(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     );
     const container = host?.shadowRoot?.querySelector<HTMLElement>(".overlay");
     const handle = host?.shadowRoot?.querySelector<HTMLElement>(".cue-card");
@@ -834,7 +818,7 @@ describe("subtitle overlay display modes", () => {
     );
     overlay.showCue("Original", "Translated");
     const host = document.querySelector<HTMLElement>(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     );
     const container = host?.shadowRoot?.querySelector<HTMLElement>(".overlay");
     const handle = host?.shadowRoot?.querySelector<HTMLElement>(".cue-card");
@@ -884,7 +868,7 @@ describe("subtitle overlay display modes", () => {
     );
     overlay.showCue("Original", "Translated");
     const host = document.querySelector<HTMLElement>(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     );
     const root = host?.shadowRoot;
     const container = root?.querySelector<HTMLElement>(".overlay");

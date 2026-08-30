@@ -22,7 +22,7 @@ type RuntimeErrorMessageKey =
   | "runtimeErrorProfileSaveFailed"
   | "runtimeErrorPageContentChanged";
 
-const ERROR_PREFIX = "norixortrans-error:";
+const ERROR_PREFIX = "noritrans-error:";
 
 const MESSAGE_KEYS: Record<RuntimeErrorCode, RuntimeErrorMessageKey> = {
   provider_unavailable: "runtimeErrorProviderUnavailable",

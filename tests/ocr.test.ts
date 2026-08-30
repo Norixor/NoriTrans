@@ -1164,7 +1164,7 @@ describe("experimental image subtitle OCR", () => {
     document.body.append(video);
 
     const overlayHost = document.createElement("div");
-    overlayHost.dataset.norixortransUi = "subtitle-overlay";
+    overlayHost.dataset.noritransUi = "subtitle-overlay";
     overlayHost.style.visibility = "visible";
     const root = overlayHost.attachShadow({ mode: "open" });
     const cueCard = document.createElement("div");
@@ -1172,8 +1172,10 @@ describe("experimental image subtitle OCR", () => {
     cueCard.getBoundingClientRect = () => new DOMRect(80, 280, 480, 50);
     root.append(cueCard);
     document.body.append(overlayHost);
-    const floatingControl = document.createElement("norixor-floating-control");
-    floatingControl.dataset.norixortransUi = "unified-floating-control";
+    const floatingControl = document.createElement(
+      "noritrans-floating-control",
+    );
+    floatingControl.dataset.noritransUi = "unified-floating-control";
     floatingControl.style.visibility = "visible";
     document.body.append(floatingControl);
 
@@ -1230,7 +1232,7 @@ describe("experimental image subtitle OCR", () => {
     document.body.append(video);
 
     const overlayHost = document.createElement("div");
-    overlayHost.dataset.norixortransUi = "subtitle-overlay";
+    overlayHost.dataset.noritransUi = "subtitle-overlay";
     overlayHost.style.visibility = "visible";
     const root = overlayHost.attachShadow({ mode: "open" });
     const cueCard = document.createElement("div");
@@ -1286,7 +1288,7 @@ describe("experimental image subtitle OCR", () => {
     document.body.append(video);
 
     const overlayHost = document.createElement("div");
-    overlayHost.dataset.norixortransUi = "subtitle-overlay";
+    overlayHost.dataset.noritransUi = "subtitle-overlay";
     overlayHost.style.visibility = "visible";
     const root = overlayHost.attachShadow({ mode: "open" });
     const cueCard = document.createElement("div");

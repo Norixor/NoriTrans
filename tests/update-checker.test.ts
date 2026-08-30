@@ -38,24 +38,12 @@ vi.mock("wxt/browser", () => ({
 
 const canonicalApiUrl =
   "https://api.github.com/repos/Norixor/NoriTrans/releases/latest";
-const previousApiUrl =
-  "https://api.github.com/repos/Norixor/nTrans/releases/latest";
-const originalApiUrl =
-  "https://api.github.com/repos/Norixor/NorixorTrans/releases/latest";
 
-function releaseResponse(
-  repository: "canonical" | "previous" | "original",
-): Response {
-  const name =
-    repository === "canonical"
-      ? "NoriTrans"
-      : repository === "previous"
-        ? "nTrans"
-        : "NorixorTrans";
+function releaseResponse(): Response {
   return new Response(
     JSON.stringify({
       tag_name: "v0.1.132",
-      html_url: `https://github.com/Norixor/${name}/releases/tag/v0.1.132`,
+      html_url: "https://github.com/Norixor/NoriTrans/releases/tag/v0.1.132",
       draft: false,
       prerelease: false,
     }),
@@ -63,7 +51,7 @@ function releaseResponse(
   );
 }
 
-describe("update checker repository rename compatibility", () => {
+describe("update checker", () => {
   beforeEach(() => {
     browserState.stored = {};
     browserState.badgeText.mockClear();
@@ -71,10 +59,10 @@ describe("update checker repository rename compatibility", () => {
     vi.restoreAllMocks();
   });
 
-  it("uses the renamed canonical repository", async () => {
+  it("uses the NoriTrans repository", async () => {
     const request = vi
       .spyOn(globalThis, "fetch")
-      .mockResolvedValue(releaseResponse("canonical"));
+      .mockResolvedValue(releaseResponse());
 
     await expect(checkForUpdates(true)).resolves.toMatchObject({
       state: "current",
@@ -85,47 +73,10 @@ describe("update checker repository rename compatibility", () => {
     expect(request.mock.calls[0]?.[0]).toBe(canonicalApiUrl);
   });
 
-  it("falls back to the previous repository name", async () => {
-    const request = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(new Response(null, { status: 404 }))
-      .mockResolvedValueOnce(releaseResponse("previous"));
-
-    await expect(checkForUpdates(true)).resolves.toMatchObject({
-      state: "current",
-      latestVersion: "0.1.132",
-      releaseUrl: "https://github.com/Norixor/nTrans/releases/tag/v0.1.132",
-    });
-    expect(request.mock.calls.map(([url]) => url)).toEqual([
-      canonicalApiUrl,
-      previousApiUrl,
-    ]);
-  });
-
-  it("falls back to the original repository name", async () => {
-    const request = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(new Response(null, { status: 404 }))
-      .mockResolvedValueOnce(new Response(null, { status: 404 }))
-      .mockResolvedValueOnce(releaseResponse("original"));
-
-    await expect(checkForUpdates(true)).resolves.toMatchObject({
-      state: "current",
-      latestVersion: "0.1.132",
-      releaseUrl:
-        "https://github.com/Norixor/NorixorTrans/releases/tag/v0.1.132",
-    });
-    expect(request.mock.calls.map(([url]) => url)).toEqual([
-      canonicalApiUrl,
-      previousApiUrl,
-      originalApiUrl,
-    ]);
-  });
-
-  it("keeps a cached release URL from the previous repository", async () => {
-    browserState.stored["norixortrans:update-state-v1"] = {
+  it("reads a cached NoriTrans release", async () => {
+    browserState.stored["noritrans:update-state-v1"] = {
       latestVersion: "0.1.133",
-      releaseUrl: "https://github.com/Norixor/nTrans/releases/tag/v0.1.133",
+      releaseUrl: "https://github.com/Norixor/NoriTrans/releases/tag/v0.1.133",
       checkedAt: Date.now(),
     };
     const request = vi.spyOn(globalThis, "fetch");
@@ -137,23 +88,7 @@ describe("update checker repository rename compatibility", () => {
     expect(request).not.toHaveBeenCalled();
   });
 
-  it("keeps a cached release URL from the original repository", async () => {
-    browserState.stored["norixortrans:update-state-v1"] = {
-      latestVersion: "0.1.133",
-      releaseUrl:
-        "https://github.com/Norixor/NorixorTrans/releases/tag/v0.1.133",
-      checkedAt: Date.now(),
-    };
-    const request = vi.spyOn(globalThis, "fetch");
-
-    await expect(getUpdateStatus()).resolves.toMatchObject({
-      state: "available",
-      latestVersion: "0.1.133",
-    });
-    expect(request).not.toHaveBeenCalled();
-  });
-
-  it("rejects release URLs outside all exact repositories", async () => {
+  it("rejects release URLs outside the exact repository", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
         JSON.stringify({

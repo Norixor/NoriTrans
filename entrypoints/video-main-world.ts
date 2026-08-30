@@ -43,7 +43,7 @@ import {
 import { MAIN_WORLD_CAPTURE_PROFILE_IDS } from "@/src/subtitles/profiles/catalog";
 import { defineUnlistedScript } from "wxt/utils/define-unlisted-script";
 
-const INSTALLATION_FLAG = "__norixortransSubtitleHookV1__";
+const INSTALLATION_FLAG = "__noritransSubtitleHookV1__";
 const MAX_CAPTURE_CHARACTERS = 5_000_000;
 const MAX_NETFLIX_RESOURCE_RECOVERY_URLS = 12;
 const MAX_NETFLIX_RESOURCE_RECOVERY_CONCURRENCY = 2;

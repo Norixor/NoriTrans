@@ -562,7 +562,7 @@ export const UNIFIED_FLOATING_CONTROL_STYLE = `
   :host([data-edge-hidden="true"][data-docked-edge="bottom"]) .launcher-surface::before { top: 7px; }
   :host([data-loading="true"]) .launcher::after {
     opacity: 1;
-    animation: norixor-launcher-spin 900ms linear infinite;
+    animation: noritrans-launcher-spin 900ms linear infinite;
   }
   :host([data-loading="true"][data-progress-mode="determinate"]) .launcher::after {
     border: 0;
@@ -641,7 +641,7 @@ export const UNIFIED_FLOATING_CONTROL_STYLE = `
     visibility: hidden;
   }
   .danger { color: var(--nt-danger); }
-  @keyframes norixor-launcher-spin { to { transform: rotate(360deg); } }
+  @keyframes noritrans-launcher-spin { to { transform: rotate(360deg); } }
   @media (max-width: 375px) {
     .panel { width: calc(100vw - 20px); max-width: calc(100vw - 20px); }
     .panel-menu-popover button, .panel-menu-popover a,

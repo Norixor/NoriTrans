@@ -9,29 +9,28 @@ describe("stale content runtime UI cleanup", () => {
     );
   });
 
-  it("removes transient current and legacy UI while preserving page translations", () => {
+  it("removes transient runtime UI while preserving page translations", () => {
     document.body.innerHTML = `
-      <norixor-floating-control data-norixortrans-ui="unified-floating-control"></norixor-floating-control>
-      <div data-norixortrans-ui="subtitle-overlay"><button class="stop-button">Old</button></div>
-      <style data-norixortrans-ui="native-subtitle-visibility"></style>
-      <div data-norixortrans-ui="subtitle-fullscreen-portal">
-        <div data-norixortrans-ui="subtitle-overlay"></div>
+      <noritrans-floating-control data-noritrans-ui="unified-floating-control"></noritrans-floating-control>
+      <div data-noritrans-ui="subtitle-overlay"><button class="stop-button">Old</button></div>
+      <style data-noritrans-ui="native-subtitle-visibility"></style>
+      <div data-noritrans-ui="subtitle-fullscreen-portal">
+        <div data-noritrans-ui="subtitle-overlay"></div>
       </div>
-      <div data-norixortrans-ui="floating-control-fullscreen-portal"></div>
-      <div data-norixortrans-ui="ocr-region-selector"></div>
-      <div data-norixor-ui="legacy-widget"></div>
-      <norixor-translation data-norixor-translated="segment-1">Translated</norixor-translation>
-      <div data-norixortrans-ui="unknown-future-marker"></div>
+      <div data-noritrans-ui="floating-control-fullscreen-portal"></div>
+      <div data-noritrans-ui="ocr-region-selector"></div>
+      <noritrans-translation data-noritrans-translated="segment-1">Translated</noritrans-translation>
+      <div data-noritrans-ui="unknown-future-marker"></div>
     `;
 
-    expect(removeStaleRuntimeUi()).toBe(8);
-    expect(document.querySelector("norixor-floating-control")).toBeNull();
+    expect(removeStaleRuntimeUi()).toBe(7);
+    expect(document.querySelector("noritrans-floating-control")).toBeNull();
     expect(document.querySelector(".stop-button")).toBeNull();
-    expect(document.querySelector("norixor-translation")?.textContent).toBe(
+    expect(document.querySelector("noritrans-translation")?.textContent).toBe(
       "Translated",
     );
     expect(
-      document.querySelector('[data-norixortrans-ui="unknown-future-marker"]'),
+      document.querySelector('[data-noritrans-ui="unknown-future-marker"]'),
     ).not.toBeNull();
   });
 });

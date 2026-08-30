@@ -43,7 +43,7 @@ interface NoriTransDatabase extends DBSchema {
 let databasePromise: Promise<IDBPDatabase<NoriTransDatabase>> | undefined;
 
 export function getDatabase(): Promise<IDBPDatabase<NoriTransDatabase>> {
-  databasePromise ??= openDB<NoriTransDatabase>("norixortrans", 1, {
+  databasePromise ??= openDB<NoriTransDatabase>("noritrans", 1, {
     upgrade(database) {
       const translations = database.createObjectStore("translations", {
         keyPath: "key",

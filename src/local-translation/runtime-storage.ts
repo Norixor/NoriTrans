@@ -16,7 +16,7 @@ import type {
 } from "@/src/local-translation/types";
 
 export const BERGAMOT_RUNTIME_CACHE_NAME =
-  "norixortrans-bergamot-models-v1" as const;
+  "noritrans-bergamot-models-v1" as const;
 
 const METADATA_SCHEMA_VERSION = 1 as const;
 const DOWNLOAD_CONNECT_TIMEOUT_MS = 30_000;
@@ -81,7 +81,7 @@ interface InstallJob {
 
 function cacheRequest(key: string): Request {
   return new Request(
-    `https://norixortrans.invalid/bergamot-runtime/${encodeURIComponent(key)}`,
+    `https://noritrans.invalid/bergamot-runtime/${encodeURIComponent(key)}`,
   );
 }
 

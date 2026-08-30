@@ -82,11 +82,11 @@ const STYLE = `
   .overlay {
     position: fixed;
     z-index: 2147483646;
-    left: var(--norixortrans-anchor-x, 50vw);
-    top: var(--norixortrans-anchor-y, 82vh);
+    left: var(--noritrans-anchor-x, 50vw);
+    top: var(--noritrans-anchor-y, 82vh);
     transform: translate(-50%, -100%);
     width: max-content;
-    max-width: var(--norixortrans-max-width, 80vw);
+    max-width: var(--noritrans-max-width, 80vw);
     display: grid;
     justify-items: center;
     gap: 6px;
@@ -111,10 +111,10 @@ const STYLE = `
   }
   .ocr-region-guide {
     position: fixed;
-    left: var(--norixortrans-ocr-left, 0);
-    top: var(--norixortrans-ocr-top, 0);
-    width: var(--norixortrans-ocr-width, 0);
-    height: var(--norixortrans-ocr-height, 0);
+    left: var(--noritrans-ocr-left, 0);
+    top: var(--noritrans-ocr-top, 0);
+    width: var(--noritrans-ocr-width, 0);
+    height: var(--noritrans-ocr-height, 0);
     box-sizing: border-box;
     display: none;
     border: 2px dashed rgb(139 92 246 / 88%);
@@ -131,10 +131,10 @@ const STYLE = `
     box-sizing: border-box;
     padding: 8px 14px;
     border-radius: 8px;
-    background: rgb(8 10 14 / var(--norixortrans-opacity, 0.78));
+    background: rgb(8 10 14 / var(--noritrans-opacity, 0.78));
     color: #fff;
     box-shadow: 0 1px 3px rgb(0 0 0 / 45%);
-    font-size: calc(18px * var(--norixortrans-scale, 1));
+    font-size: calc(18px * var(--noritrans-scale, 1));
     line-height: 1.42;
     max-height: min(45vh, 320px);
     overflow: auto;
@@ -192,7 +192,7 @@ const STYLE = `
   }
   .overlay[hidden], .cue-card[hidden], .original[hidden], .translated[hidden], .notice[hidden] { display: none; }
   @media (max-width: 600px) {
-    .cue-card { font-size: calc(16px * var(--norixortrans-scale, 1)); padding: 7px 10px; }
+    .cue-card { font-size: calc(16px * var(--noritrans-scale, 1)); padding: 7px 10px; }
   }
   @media (prefers-reduced-motion: reduce) { .overlay { scroll-behavior: auto; } }
 `;
@@ -285,8 +285,8 @@ export class SubtitleOverlay {
       position: SubtitleCustomPosition,
     ) => Promise<void> | void,
   ) {
-    this.host.dataset.norixortransUi = "subtitle-overlay";
-    this.fullscreenPortal.dataset.norixortransUi = "subtitle-fullscreen-portal";
+    this.host.dataset.noritransUi = "subtitle-overlay";
+    this.fullscreenPortal.dataset.noritransUi = "subtitle-fullscreen-portal";
     this.fullscreenPortal.setAttribute("popover", "manual");
     Object.assign(this.fullscreenPortal.style, {
       position: "fixed",
@@ -454,19 +454,19 @@ export class SubtitleOverlay {
     }
     this.host.dataset.hasOcrRegion = "true";
     this.host.style.setProperty(
-      "--norixortrans-ocr-left",
+      "--noritrans-ocr-left",
       `${this.ocrRegion.x * window.innerWidth}px`,
     );
     this.host.style.setProperty(
-      "--norixortrans-ocr-top",
+      "--noritrans-ocr-top",
       `${this.ocrRegion.y * window.innerHeight}px`,
     );
     this.host.style.setProperty(
-      "--norixortrans-ocr-width",
+      "--noritrans-ocr-width",
       `${this.ocrRegion.width * window.innerWidth}px`,
     );
     this.host.style.setProperty(
-      "--norixortrans-ocr-height",
+      "--noritrans-ocr-height",
       `${this.ocrRegion.height * window.innerHeight}px`,
     );
   }
@@ -548,11 +548,11 @@ export class SubtitleOverlay {
       this.customPosition = settings.customPosition;
     }
     this.host.style.setProperty(
-      "--norixortrans-scale",
+      "--noritrans-scale",
       String(settings.fontScale),
     );
     this.host.style.setProperty(
-      "--norixortrans-opacity",
+      "--noritrans-opacity",
       String(settings.backgroundOpacity),
     );
     this.updateAnchor();
@@ -1088,10 +1088,10 @@ export class SubtitleOverlay {
     } else {
       delete this.host.dataset.ocrSafeSide;
     }
-    this.host.style.setProperty("--norixortrans-anchor-x", `${anchorX}px`);
-    this.host.style.setProperty("--norixortrans-anchor-y", `${anchorY}px`);
+    this.host.style.setProperty("--noritrans-anchor-x", `${anchorX}px`);
+    this.host.style.setProperty("--noritrans-anchor-y", `${anchorY}px`);
     this.host.style.setProperty(
-      "--norixortrans-max-width",
+      "--noritrans-max-width",
       `${Math.max(1, Math.min(window.innerWidth * 0.8, bounds.width * 0.8))}px`,
     );
   };

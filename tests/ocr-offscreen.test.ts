@@ -66,7 +66,7 @@ describe("offscreen OCR boundary", () => {
     expect(isOcrOffscreenRequest(valid, OCR_BACKGROUND_TARGET)).toBe(true);
     expect(
       isOcrOffscreenRequest(
-        { ...valid, target: "norixortrans-ocr-offscreen" },
+        { ...valid, target: "noritrans-ocr-offscreen" },
         OCR_BACKGROUND_TARGET,
       ),
     ).toBe(false);

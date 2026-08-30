@@ -13,12 +13,9 @@ const TRANSIENT_UI_MARKERS = new Set([
 /** Removes DOM left behind when Chrome invalidates an older extension world. */
 export function removeStaleRuntimeUi(root: ParentNode = document): number {
   const stale = new Set<Element>();
-  for (const element of root.querySelectorAll("[data-norixortrans-ui]")) {
-    const marker = element.getAttribute("data-norixortrans-ui");
+  for (const element of root.querySelectorAll("[data-noritrans-ui]")) {
+    const marker = element.getAttribute("data-noritrans-ui");
     if (marker && TRANSIENT_UI_MARKERS.has(marker)) stale.add(element);
-  }
-  for (const element of root.querySelectorAll("[data-norixor-ui]")) {
-    stale.add(element);
   }
   for (const element of stale) element.remove();
   return stale.size;

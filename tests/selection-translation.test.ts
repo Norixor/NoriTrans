@@ -33,7 +33,7 @@ function selectNode(node: Node): void {
 
 function host(): HTMLElement {
   const value = document.querySelector<HTMLElement>(
-    '[data-norixortrans-ui="selection-translation"]',
+    '[data-noritrans-ui="selection-translation"]',
   );
   if (!value) throw new Error("Missing selection translation host");
   return value;
@@ -199,7 +199,7 @@ describe("selection translation", () => {
     createControl();
     const element = document.body.appendChild(document.createElement(tagName));
     element.textContent = text;
-    if (kind === "extension UI") element.dataset.norixortransUi = "fixture";
+    if (kind === "extension UI") element.dataset.noritransUi = "fixture";
     if (kind === "editable text")
       element.setAttribute("contenteditable", "true");
 

@@ -74,7 +74,7 @@ function createVisibleCandidate(): HTMLDivElement {
 
 function wizardRoot(): ShadowRoot {
   const root = document.querySelector<HTMLElement>(
-    '[data-norixortrans-ui="subtitle-profile-wizard"]',
+    '[data-noritrans-ui="subtitle-profile-wizard"]',
   )?.shadowRoot;
   if (!root) throw new Error("missing subtitle profile wizard");
   return root;
@@ -176,7 +176,7 @@ describe("subtitle profile wizard", () => {
   });
 
   it("restores a collapsed shadow control to its visible launcher", () => {
-    const control = document.createElement("norixor-floating-control");
+    const control = document.createElement("noritrans-floating-control");
     const root = control.attachShadow({ mode: "open" });
     const panel = document.createElement("div");
     const trigger = document.createElement("button");
@@ -197,7 +197,7 @@ describe("subtitle profile wizard", () => {
 
   it("temporarily hides the subtitle overlay so manual picking stays clickable", () => {
     const overlay = document.createElement("div");
-    overlay.dataset.norixortransUi = "subtitle-overlay";
+    overlay.dataset.noritransUi = "subtitle-overlay";
     document.body.append(overlay);
     const wizard = new SubtitleProfileWizard({ onSave: vi.fn() });
 
@@ -487,9 +487,7 @@ describe("subtitle profile wizard", () => {
     root.querySelector<HTMLButtonElement>("button.close")?.click();
 
     expect(
-      document.querySelector(
-        '[data-norixortrans-ui="subtitle-profile-wizard"]',
-      ),
+      document.querySelector('[data-noritrans-ui="subtitle-profile-wizard"]'),
     ).toBeNull();
   });
 
@@ -636,7 +634,7 @@ describe("subtitle profile wizard", () => {
   it("excludes extension and non-content nodes, resamples, and closes with Escape", async () => {
     vi.useFakeTimers();
     const extension = document.createElement("div");
-    extension.dataset.norixortransUi = "test";
+    extension.dataset.noritransUi = "test";
     const nested = document.createElement("div");
     nested.className = "caption-extension";
     nested.textContent = "Extension status";
@@ -669,9 +667,7 @@ describe("subtitle profile wizard", () => {
         new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
       );
     expect(
-      document.querySelector(
-        '[data-norixortrans-ui="subtitle-profile-wizard"]',
-      ),
+      document.querySelector('[data-noritrans-ui="subtitle-profile-wizard"]'),
     ).toBeNull();
     root = document.createElement("div").attachShadow({ mode: "open" });
     expect(root.childNodes).toHaveLength(0);

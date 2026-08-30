@@ -3,10 +3,9 @@ import {
   selectActiveVideo,
 } from "@/src/subtitles/video-selection";
 
-const HIDDEN_ATTRIBUTE = "data-norixortrans-hide-native-subtitles";
-const ACTIVE_CAPTION_ATTRIBUTE = "data-norixortrans-active-native-subtitle";
-export const DYNAMIC_NATIVE_CAPTION_ATTRIBUTE =
-  "data-norixortrans-native-caption";
+const HIDDEN_ATTRIBUTE = "data-noritrans-hide-native-subtitles";
+const ACTIVE_CAPTION_ATTRIBUTE = "data-noritrans-active-native-subtitle";
+export const DYNAMIC_NATIVE_CAPTION_ATTRIBUTE = "data-noritrans-native-caption";
 
 /**
  * Writes only trusted built-in selectors directly into the stylesheet. User
@@ -90,7 +89,7 @@ export class NativeSubtitleVisibility {
     preemptiveSelectors: readonly string[] = [],
   ) {
     this.additionalSelectors = [...additionalSelectors];
-    this.style.dataset.norixortransUi = "native-subtitle-visibility";
+    this.style.dataset.noritransUi = "native-subtitle-visibility";
     this.style.textContent = visibilityStyle(preemptiveSelectors);
     this.ensureStyleMounted();
     this.observer = new MutationObserver(() => this.queueRefresh());

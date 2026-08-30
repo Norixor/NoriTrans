@@ -52,7 +52,7 @@ describe("PageRenderer", () => {
     ).toBe(true);
 
     const host = paragraph.nextElementSibling;
-    expect(host?.tagName).toBe("NORIXOR-TRANSLATION");
+    expect(host?.tagName).toBe("NORITRANS-TRANSLATION");
     expect(host?.shadowRoot?.querySelector("span")?.textContent).toBe(
       "你好世界",
     );
@@ -149,7 +149,7 @@ describe("PageRenderer", () => {
     );
 
     const companion = heading.nextElementSibling as HTMLElement | null;
-    expect(companion?.tagName).toBe("NORIXOR-TRANSLATION");
+    expect(companion?.tagName).toBe("NORITRANS-TRANSLATION");
     expect(companion?.style.transform).toBe("matrix(1, 0, 0, -1, 0, 0)");
     expect(companion?.style.transformOrigin).toBe("20px 10px");
   });
@@ -168,7 +168,7 @@ describe("PageRenderer", () => {
     renderer.apply(segment(link, node), "结果链接", "bilingual", "zh-CN");
 
     const companion = link.querySelector<HTMLElement>(
-      ":scope > norixor-translation",
+      ":scope > noritrans-translation",
     );
     expect(companion?.style.transform).toBe("");
   });
@@ -182,7 +182,7 @@ describe("PageRenderer", () => {
 
     renderer.apply(segment(item, node), "第一项", "bilingual", "zh-CN");
 
-    expect(item.querySelector(":scope > norixor-translation")).not.toBeNull();
+    expect(item.querySelector(":scope > noritrans-translation")).not.toBeNull();
     expect(document.querySelectorAll("ol > li")).toHaveLength(1);
   });
 
@@ -202,10 +202,10 @@ describe("PageRenderer", () => {
     );
 
     expect(document.body.children[0]).toBe(source);
-    expect(document.body.children[1]?.tagName).toBe("NORIXOR-TRANSLATION");
+    expect(document.body.children[1]?.tagName).toBe("NORITRANS-TRANSLATION");
     expect(document.body.children[2]?.tagName).toBe("MAIN");
     expect(
-      document.documentElement.querySelector(":scope > norixor-translation"),
+      document.documentElement.querySelector(":scope > noritrans-translation"),
     ).toBeNull();
   });
 
@@ -228,7 +228,7 @@ describe("PageRenderer", () => {
 
       expect(document.querySelectorAll("main > p")).toHaveLength(1);
       expect(
-        paragraph.querySelector(":scope > norixor-translation"),
+        paragraph.querySelector(":scope > noritrans-translation"),
       ).not.toBeNull();
     },
   );
@@ -249,13 +249,13 @@ describe("PageRenderer", () => {
       "zh-CN",
     );
     const companion = paragraph.nextElementSibling;
-    expect(companion?.tagName).toBe("NORIXOR-TRANSLATION");
+    expect(companion?.tagName).toBe("NORITRANS-TRANSLATION");
 
     main.style.display = "flex";
     expect(renderer.reconcile()).toEqual([]);
 
     expect(paragraph.nextElementSibling).toBeNull();
-    expect(paragraph.querySelector(":scope > norixor-translation")).toBe(
+    expect(paragraph.querySelector(":scope > noritrans-translation")).toBe(
       companion,
     );
     expect(companion?.hasAttribute("data-contained")).toBe(true);
@@ -276,7 +276,9 @@ describe("PageRenderer", () => {
 
     renderer.apply(segment(anchor, node), "弹性布局译文", "bilingual", "zh-CN");
 
-    expect(anchor.querySelector(":scope > norixor-translation")).not.toBeNull();
+    expect(
+      anchor.querySelector(":scope > noritrans-translation"),
+    ).not.toBeNull();
     expect(anchor.nextElementSibling).toBeNull();
   });
 
@@ -291,7 +293,7 @@ describe("PageRenderer", () => {
     renderer.apply(segment(cell, node), "单元格译文", "bilingual", "zh-CN");
 
     expect(document.querySelectorAll("tr > td")).toHaveLength(1);
-    expect(cell.querySelector(":scope > norixor-translation")).not.toBeNull();
+    expect(cell.querySelector(":scope > noritrans-translation")).not.toBeNull();
   });
 
   it("replaces and restores only text owned by the current session", () => {
@@ -323,7 +325,7 @@ describe("PageRenderer", () => {
     renderer.apply(segment(link, node), "文档", "bilingual", "zh-CN");
 
     const companion = link.querySelector<HTMLElement>(
-      ":scope > norixor-translation",
+      ":scope > noritrans-translation",
     );
     expect(link.getAttribute("href")).toBe("/docs");
     expect(link.childNodes[0]?.textContent).toBe("Documentation");
@@ -351,13 +353,13 @@ describe("PageRenderer", () => {
       "zh-CN",
     );
 
-    const translations = document.querySelectorAll("norixor-translation");
+    const translations = document.querySelectorAll("noritrans-translation");
     expect(translations).toHaveLength(1);
     expect(
       translations[0]?.shadowRoot?.querySelector("span")?.textContent,
     ).toBe("更新后的译文");
     renderer.restore();
-    expect(document.querySelector("norixor-translation")).toBeNull();
+    expect(document.querySelector("noritrans-translation")).toBeNull();
     expect(paragraph.textContent).toBe("Updated source");
   });
 
@@ -439,7 +441,7 @@ describe("PageRenderer", () => {
     const renderer = new PageRenderer();
     renderer.apply(segment(paragraph, node), "你好世界", "bilingual", "zh-CN");
     const companion = document.querySelector<HTMLElement>(
-      "norixor-translation",
+      "noritrans-translation",
     );
 
     paragraph.hidden = true;
@@ -452,7 +454,7 @@ describe("PageRenderer", () => {
 
     node.remove();
     renderer.reconcile();
-    expect(document.querySelector("norixor-translation")).toBeNull();
+    expect(document.querySelector("noritrans-translation")).toBeNull();
   });
 
   it("keeps an external bilingual companion beside a source element moved by the page", () => {
@@ -465,14 +467,14 @@ describe("PageRenderer", () => {
       throw new Error("invalid fixture");
     const renderer = new PageRenderer();
     renderer.apply(segment(paragraph, node), "你好世界", "bilingual", "zh-CN");
-    const companion = document.querySelector("norixor-translation");
+    const companion = document.querySelector("noritrans-translation");
 
     second.append(paragraph);
     renderer.reconcile();
 
     expect(paragraph.nextElementSibling).toBe(companion);
     expect(second.lastElementChild).toBe(companion);
-    expect(document.querySelector("#first norixor-translation")).toBeNull();
+    expect(document.querySelector("#first noritrans-translation")).toBeNull();
   });
 
   it("keeps bilingual translations compact and inside interactive labels", () => {
@@ -495,8 +497,8 @@ describe("PageRenderer", () => {
     renderer.apply(segment(link, linkText), "历史", "bilingual", "zh-CN");
     renderer.apply(segment(button, buttonText), "隐藏", "bilingual", "zh-CN");
 
-    const linkTranslation = link.querySelector("norixor-translation");
-    const buttonTranslation = button.querySelector("norixor-translation");
+    const linkTranslation = link.querySelector("noritrans-translation");
+    const buttonTranslation = button.querySelector("noritrans-translation");
     expect(linkTranslation?.hasAttribute("data-compact-interactive")).toBe(
       true,
     );
@@ -547,7 +549,7 @@ describe("PageRenderer", () => {
       ),
     ).toBe(true);
 
-    const companion = customHost.querySelector("norixor-translation");
+    const companion = customHost.querySelector("noritrans-translation");
     expect(slot.assignedElements()).toEqual([source, companion]);
     expect(companion?.getAttribute("slot")).toBe(name || null);
     renderer.restore();
@@ -640,6 +642,6 @@ describe("PageRenderer", () => {
     expect(
       renderer.apply(pendingSegment, "迟到译文", "bilingual", "zh-CN"),
     ).toBe(false);
-    expect(document.querySelector("norixor-translation")).toBeNull();
+    expect(document.querySelector("noritrans-translation")).toBeNull();
   });
 });

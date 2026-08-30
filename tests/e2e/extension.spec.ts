@@ -928,7 +928,7 @@ test("popup and options honor dark mode, reduced motion, and narrow widths", asy
     expect(permissionGeometry.horizontalOverflow).toBe(false);
     expect(permissionGeometry.unresolvedMessages).toBe(false);
 
-    const darkFloatingPageUrl = "https://example.com/norixortrans-dark-selects";
+    const darkFloatingPageUrl = "https://example.com/noritrans-dark-selects";
     await context.route(darkFloatingPageUrl, (route) =>
       route.fulfill({
         contentType: "text/html",
@@ -936,10 +936,10 @@ test("popup and options honor dark mode, reduced motion, and narrow widths", asy
       }),
     );
     await page.goto(darkFloatingPageUrl);
-    await expect(page.locator("norixor-floating-control")).toBeAttached();
+    await expect(page.locator("noritrans-floating-control")).toBeAttached();
     const floatingSelectPalette = await page.evaluate(() => {
       const root = document.querySelector(
-        "norixor-floating-control",
+        "noritrans-floating-control",
       )?.shadowRoot;
       const select = root?.querySelector<HTMLSelectElement>("select");
       const option = select?.options[0];
@@ -1314,7 +1314,7 @@ test("options saves a valid provider through the background settings boundary", 
 });
 
 test("selection translation sends text only after its compact trigger is clicked", async () => {
-  const pageUrl = "https://example.com/norixortrans-selection-translation";
+  const pageUrl = "https://example.com/noritrans-selection-translation";
   await context.route(pageUrl, (route) =>
     route.fulfill({
       contentType: "text/html",
@@ -1333,7 +1333,7 @@ test("selection translation sends text only after its compact trigger is clicked
       selection?.addRange(range);
       document.dispatchEvent(new Event("selectionchange"));
     });
-    const host = page.locator("norixor-selection-translation");
+    const host = page.locator("noritrans-selection-translation");
     const trigger = host.locator(".translate-trigger");
     await expect(trigger).toBeVisible();
     const triggerBox = await trigger.boundingBox();
@@ -1652,13 +1652,13 @@ test("options rejects an insecure remote HTTP provider without changing settings
 });
 
 test("automatically mounts one unified page and video control", async () => {
-  const pageUrl = "https://example.com/norixortrans-unified-control";
+  const pageUrl = "https://example.com/noritrans-unified-control";
   await context.route(pageUrl, (route) =>
     route.fulfill({
       contentType: "text/html",
       body: `<!doctype html>
         <style>
-          norixor-floating-control {
+          noritrans-floating-control {
             width: 48px;
             max-width: 48px;
             overflow: hidden;
@@ -1674,7 +1674,7 @@ test("automatically mounts one unified page and video control", async () => {
   const page = await context.newPage();
   try {
     await page.goto(pageUrl);
-    const control = page.locator("norixor-floating-control");
+    const control = page.locator("noritrans-floating-control");
     await expect(control).toHaveAttribute("data-hidden", "false");
     await expect(control.locator(".panel")).toBeHidden();
     await control.locator(".launcher").click();
@@ -1699,11 +1699,11 @@ test("automatically mounts one unified page and video control", async () => {
     expect(
       (await control.locator(".panel").boundingBox())?.width,
     ).toBeGreaterThanOrEqual(280);
-    await expect(control.locator("#norixortrans-page-panel-tab")).toBeFocused();
+    await expect(control.locator("#noritrans-page-panel-tab")).toBeFocused();
     await expect(control.locator('[role="tab"]')).toHaveCount(3);
-    await expect(control.locator("#norixortrans-page-panel")).toBeVisible();
-    await control.locator("#norixortrans-video-panel-tab").click();
-    await expect(control.locator("#norixortrans-video-panel")).toBeVisible();
+    await expect(control.locator("#noritrans-page-panel")).toBeVisible();
+    await control.locator("#noritrans-video-panel-tab").click();
+    await expect(control.locator("#noritrans-video-panel")).toBeVisible();
     const launcher = control.locator(".launcher");
     const launcherBox = await launcher.boundingBox();
     if (!launcherBox) throw new Error("Missing floating launcher geometry");
@@ -1762,7 +1762,7 @@ test("automatically mounts one unified page and video control", async () => {
       .toBe(0);
     await page.evaluate(() => sessionStorage.clear());
     await page.reload();
-    const restoredControl = page.locator("norixor-floating-control");
+    const restoredControl = page.locator("noritrans-floating-control");
     await expect(restoredControl).toHaveAttribute("data-docked-edge", "left");
     await expect(restoredControl).toHaveAttribute("data-edge-hidden", "true");
     const restoredLauncher = restoredControl.locator(".launcher");
@@ -1816,7 +1816,7 @@ test("reinjects an invalidated content script through the runtime handshake", as
   const page = await context.newPage();
   try {
     await page.goto(pageUrl);
-    await expect(page.locator("norixor-floating-control")).toHaveCount(1);
+    await expect(page.locator("noritrans-floating-control")).toHaveCount(1);
     const invalidated = await controlPage.evaluate(async (targetUrl) => {
       const [target] = await chrome.tabs.query({ url: targetUrl });
       if (target?.id === undefined) return false;
@@ -1838,20 +1838,20 @@ test("reinjects an invalidated content script through the runtime handshake", as
       return true;
     }, pageUrl);
     expect(invalidated).toBe(true);
-    await expect(page.locator("norixor-floating-control")).toHaveCount(0);
+    await expect(page.locator("noritrans-floating-control")).toHaveCount(0);
     await page.evaluate(() => {
-      const staleControl = document.createElement("norixor-floating-control");
-      staleControl.dataset.norixortransUi = "unified-floating-control";
+      const staleControl = document.createElement("noritrans-floating-control");
+      staleControl.dataset.noritransUi = "unified-floating-control";
       const staleOverlay = document.createElement("div");
-      staleOverlay.dataset.norixortransUi = "subtitle-overlay";
+      staleOverlay.dataset.noritransUi = "subtitle-overlay";
       staleOverlay.attachShadow({ mode: "open" }).innerHTML =
         '<button class="stop-button">Old cancel</button>';
       const staleVisibility = document.createElement("style");
-      staleVisibility.dataset.norixortransUi = "native-subtitle-visibility";
+      staleVisibility.dataset.noritransUi = "native-subtitle-visibility";
       const preservedTranslation = document.createElement(
-        "norixor-translation",
+        "noritrans-translation",
       );
-      preservedTranslation.dataset.norixorTranslated = "stale-e2e-copy";
+      preservedTranslation.dataset.noritransTranslated = "stale-e2e-copy";
       preservedTranslation.textContent = "Preserved translation";
       document.documentElement.append(
         staleControl,
@@ -1860,7 +1860,7 @@ test("reinjects an invalidated content script through the runtime handshake", as
         preservedTranslation,
       );
     });
-    await expect(page.locator("norixor-floating-control")).toHaveCount(1);
+    await expect(page.locator("noritrans-floating-control")).toHaveCount(1);
 
     const ensured: unknown = await controlPage.evaluate(async (targetUrl) => {
       const [target] = await chrome.tabs.query({ url: targetUrl });
@@ -1873,16 +1873,16 @@ test("reinjects an invalidated content script through the runtime handshake", as
     }, pageUrl);
     expect(ensured).toMatchObject({ ok: true });
 
-    await expect(page.locator("norixor-floating-control")).toHaveCount(1, {
+    await expect(page.locator("noritrans-floating-control")).toHaveCount(1, {
       timeout: 12_000,
     });
     await expect(
-      page.locator('[data-norixortrans-ui="subtitle-overlay"]'),
+      page.locator('[data-noritrans-ui="subtitle-overlay"]'),
     ).toHaveCount(1);
     await expect(
-      page.locator('[data-norixortrans-ui="subtitle-overlay"] .stop-button'),
+      page.locator('[data-noritrans-ui="subtitle-overlay"] .stop-button'),
     ).toHaveCount(0);
-    await expect(page.locator("norixor-translation")).toContainText(
+    await expect(page.locator("noritrans-translation")).toContainText(
       "Preserved translation",
     );
   } finally {
@@ -1892,7 +1892,7 @@ test("reinjects an invalidated content script through the runtime handshake", as
 });
 
 test("unified page and selection modes persist independently", async () => {
-  const pageUrl = "https://example.com/norixortrans-page-mode-control";
+  const pageUrl = "https://example.com/noritrans-page-mode-control";
   await context.route(pageUrl, (route) =>
     route.fulfill({
       contentType: "text/html",
@@ -1940,9 +1940,9 @@ test("unified page and selection modes persist independently", async () => {
   const page = await context.newPage();
   try {
     await page.goto(pageUrl);
-    const control = page.locator("norixor-floating-control");
+    const control = page.locator("noritrans-floating-control");
     await control.locator(".launcher").click();
-    const pagePanel = control.locator("#norixortrans-page-panel");
+    const pagePanel = control.locator("#noritrans-page-panel");
     const sourceLanguage = pagePanel.locator(
       'select:has(option[value="auto"])',
     );
@@ -2089,22 +2089,26 @@ test("enables global auto-translate without starting every existing background t
     await backgroundPage.goto(pageBUrl);
     await currentPage.goto(pageAUrl);
     await currentPage.bringToFront();
-    const control = currentPage.locator("norixor-floating-control");
+    const control = currentPage.locator("noritrans-floating-control");
     await control.locator(".launcher").click();
     await control
       .getByRole("checkbox", { name: /auto translate|自动翻译/iu })
       .check();
-    await expect(currentPage.locator("norixor-translation")).toHaveCount(1);
+    await expect(currentPage.locator("noritrans-translation")).toHaveCount(1);
     await expect(
       currentPage
         .frameLocator(`iframe[src="${currentFrameUrl}"]`)
-        .locator("norixor-translation"),
+        .locator("noritrans-translation"),
     ).toHaveCount(1);
     await backgroundPage.waitForTimeout(600);
-    await expect(backgroundPage.locator("norixor-translation")).toHaveCount(0);
+    await expect(backgroundPage.locator("noritrans-translation")).toHaveCount(
+      0,
+    );
 
     await backgroundPage.goto(pageBNextUrl);
-    await expect(backgroundPage.locator("norixor-translation")).toHaveCount(1);
+    await expect(backgroundPage.locator("noritrans-translation")).toHaveCount(
+      1,
+    );
 
     await currentPage.bringToFront();
     await control
@@ -2116,7 +2120,9 @@ test("enables global auto-translate without starting every existing background t
       if (main) main.innerHTML = "<p>Auto translation is disabled.</p>";
     });
     await backgroundPage.waitForTimeout(900);
-    await expect(backgroundPage.locator("norixor-translation")).toHaveCount(0);
+    await expect(backgroundPage.locator("noritrans-translation")).toHaveCount(
+      0,
+    );
     await expect(backgroundPage.locator("main > p")).toHaveText(
       "Auto translation is disabled.",
     );
@@ -2132,7 +2138,7 @@ test("enables global auto-translate without starting every existing background t
 });
 
 test("mounts the unified translation control on an ordinary HTTPS page", async () => {
-  const pageUrl = "https://plain-http.example/norixortrans-e2e";
+  const pageUrl = "https://plain-http.example/noritrans-e2e";
   await context.route(pageUrl, (route) =>
     route.fulfill({
       contentType: "text/html",
@@ -2142,7 +2148,7 @@ test("mounts the unified translation control on an ordinary HTTPS page", async (
   const page = await context.newPage();
   try {
     await page.goto(pageUrl);
-    const control = page.locator("norixor-floating-control");
+    const control = page.locator("noritrans-floating-control");
     await expect(control).toHaveCount(1);
     await expect(control).toHaveAttribute("data-hidden", "false");
   } finally {
@@ -2152,7 +2158,7 @@ test("mounts the unified translation control on an ordinary HTTPS page", async (
 });
 
 test("restores a control hidden for the current browsing session", async () => {
-  const pageUrl = "https://example.com/norixortrans-session-hidden-control";
+  const pageUrl = "https://example.com/noritrans-session-hidden-control";
   await context.route(pageUrl, (route) =>
     route.fulfill({
       contentType: "text/html",
@@ -2169,7 +2175,7 @@ test("restores a control hidden for the current browsing session", async () => {
   const page = await context.newPage();
   try {
     await page.goto(pageUrl);
-    let control = page.locator("norixor-floating-control");
+    let control = page.locator("noritrans-floating-control");
     await expect(control).toHaveAttribute("data-hidden", "false");
     await control.locator(".launcher").click();
     await control.locator(".panel-menu > summary").click();
@@ -2177,7 +2183,7 @@ test("restores a control hidden for the current browsing session", async () => {
     await expect(control).toHaveAttribute("data-hidden", "true");
 
     await page.reload();
-    control = page.locator("norixor-floating-control");
+    control = page.locator("noritrans-floating-control");
     await expect(control).toHaveAttribute("data-hidden", "true");
     await controlPage.locator("#visibility-settings-tab").click();
     await controlPage.locator("#restore-session-floating").click();
@@ -2192,7 +2198,7 @@ test("restores a control hidden for the current browsing session", async () => {
 });
 
 test("re-enables a permanently hidden control from Options on an already open page", async () => {
-  const pageUrl = "https://example.com/norixortrans-permanently-hidden-control";
+  const pageUrl = "https://example.com/noritrans-permanently-hidden-control";
   await context.route(pageUrl, (route) =>
     route.fulfill({
       contentType: "text/html",
@@ -2217,7 +2223,7 @@ test("re-enables a permanently hidden control from Options on an already open pa
   const page = await context.newPage();
   try {
     await page.goto(pageUrl);
-    const control = page.locator("norixor-floating-control");
+    const control = page.locator("noritrans-floating-control");
     await expect(control).toHaveAttribute("data-hidden", "false");
     await controlPage.locator("#visibility-settings-tab").click();
     const enabled = controlPage.locator("#floating-control-enabled");
@@ -2283,12 +2289,12 @@ test("requests optional OCR capture permission without enabling it before consen
   let permissionPage: Page | undefined;
   try {
     await page.goto(pageUrl);
-    const control = page.locator("norixor-floating-control");
+    const control = page.locator("noritrans-floating-control");
     await control.locator(".launcher").click();
-    await control.locator("#norixortrans-video-panel-tab").click();
+    await control.locator("#noritrans-video-panel-tab").click();
     await control.locator(".ocr-section > summary").click();
     const permissionWindow = permissionContext.waitForEvent("page");
-    await control.locator('.ocr-section input[type="checkbox"]').check();
+    await control.locator('.ocr-section input[type="checkbox"]').click();
     permissionPage = await permissionWindow;
     await permissionPage.waitForLoadState();
 
@@ -2371,7 +2377,7 @@ test("advanced subtitle picking releases the page after selecting a DOM region",
         <style>
           video { display:block; width:720px; height:405px; background:#18202b }
           [data-test-caption] { position:absolute; left:180px; top:330px; width:520px; height:48px; color:white }
-          norixor-subtitle-profile-wizard { position:static !important; z-index:-1 !important; pointer-events:none !important }
+          noritrans-subtitle-profile-wizard { position:static !important; z-index:-1 !important; pointer-events:none !important }
         </style>
         <video></video>
         <div data-test-caption>Visible subtitle candidate</div>
@@ -2381,14 +2387,14 @@ test("advanced subtitle picking releases the page after selecting a DOM region",
   const page = await context.newPage();
   try {
     await page.goto(pageUrl);
-    const control = page.locator("norixor-floating-control");
+    const control = page.locator("noritrans-floating-control");
     await control.locator(".launcher").click();
-    await control.locator("#norixortrans-video-panel-tab").click();
+    await control.locator("#noritrans-video-panel-tab").click();
     await control
-      .locator("#norixortrans-video-panel > button.profile-action")
+      .locator("#noritrans-video-panel > button.profile-action")
       .click();
 
-    const wizard = page.locator("norixor-subtitle-profile-wizard");
+    const wizard = page.locator("noritrans-subtitle-profile-wizard");
     await expect(wizard).toBeVisible();
     await expect
       .poll(() =>
@@ -2535,10 +2541,10 @@ test("Tencent remains OCR-only and ignores page DOM caption candidates", async (
   const page = await context.newPage();
   try {
     await page.goto(pageUrl);
-    const overlay = page.locator('[data-norixortrans-ui="subtitle-overlay"]');
+    const overlay = page.locator('[data-noritrans-ui="subtitle-overlay"]');
     await expect(overlay.locator(".cue-card")).toBeHidden();
 
-    const control = page.locator("norixor-floating-control");
+    const control = page.locator("noritrans-floating-control");
     await page.evaluate(() => {
       const clientWidth = window.innerWidth - 8;
       Object.defineProperty(document.documentElement, "clientWidth", {
@@ -2562,7 +2568,7 @@ test("Tencent remains OCR-only and ignores page DOM caption candidates", async (
     expect(edgeVisibility.scrollbarWidth).toBe(8);
     expect(edgeVisibility.visibleWidth).toBeGreaterThanOrEqual(12);
     await control.locator(".launcher").click();
-    await control.locator("#norixortrans-video-panel-tab").click();
+    await control.locator("#noritrans-video-panel-tab").click();
     await page.locator(".txp_subtitle_line").evaluate((element) => {
       element.textContent = "Caption after stop";
     });
@@ -2620,7 +2626,7 @@ test("translates, follows dynamic and SPA content, and restores in a real conten
     await page.goto(pageUrl);
     await sendContentCommand(pageUrl, "PAGE_TRANSLATE");
 
-    const pageWidget = page.locator("norixor-floating-control");
+    const pageWidget = page.locator("noritrans-floating-control");
     await expect(pageWidget).toHaveAttribute("data-hidden", "false");
     await expect(pageWidget.locator(".panel")).toBeHidden();
     await pageWidget.locator(".launcher").click();
@@ -2629,7 +2635,7 @@ test("translates, follows dynamic and SPA content, and restores in a real conten
     await expect
       .poll(() =>
         page.evaluate(() =>
-          [...document.querySelectorAll("norixor-translation")].map(
+          [...document.querySelectorAll("noritrans-translation")].map(
             (host) => host.shadowRoot?.querySelector("span")?.textContent,
           ),
         ),
@@ -2639,12 +2645,12 @@ test("translates, follows dynamic and SPA content, and restores in a real conten
       .poll(() =>
         page.evaluate(() => {
           const documentTranslations = [
-            ...document.querySelectorAll("norixor-translation"),
+            ...document.querySelectorAll("noritrans-translation"),
           ].map((host) => host.shadowRoot?.querySelector("span")?.textContent);
           const shadowTranslations = [
             ...(document
               .querySelector("#shadow-host")
-              ?.shadowRoot?.querySelectorAll("norixor-translation") ?? []),
+              ?.shadowRoot?.querySelectorAll("noritrans-translation") ?? []),
           ].map((host) => host.shadowRoot?.querySelector("span")?.textContent);
           return [...documentTranslations, ...shadowTranslations];
         }),
@@ -2680,17 +2686,17 @@ test("translates, follows dynamic and SPA content, and restores in a real conten
       .toBe("Cancel editing");
     await expect(page.locator("#docs-link")).toHaveAttribute("href", "/docs");
     await expect(
-      page.locator("#save-action > norixor-translation"),
+      page.locator("#save-action > noritrans-translation"),
     ).toHaveAttribute("data-compact-interactive", "");
     await expect(
-      page.locator("#docs-link > norixor-translation"),
+      page.locator("#docs-link > noritrans-translation"),
     ).toHaveAttribute("data-compact-interactive", "");
     await expect(
-      page.locator("#save-action + norixor-translation"),
+      page.locator("#save-action + noritrans-translation"),
     ).toHaveCount(0);
-    await expect(page.locator("#docs-link + norixor-translation")).toHaveCount(
-      0,
-    );
+    await expect(
+      page.locator("#docs-link + noritrans-translation"),
+    ).toHaveCount(0);
     await expect(page.locator(".ytp-caption-segment")).toHaveText(
       "Native video caption",
     );
@@ -2699,7 +2705,7 @@ test("translates, follows dynamic and SPA content, and restores in a real conten
         page.evaluate(
           () =>
             document
-              .querySelector("#cache-source + norixor-translation")
+              .querySelector("#cache-source + noritrans-translation")
               ?.shadowRoot?.querySelector("span")?.textContent,
         ),
       )
@@ -2716,7 +2722,7 @@ test("translates, follows dynamic and SPA content, and restores in a real conten
         page.evaluate(
           () =>
             document
-              .querySelector("#cache-duplicate + norixor-translation")
+              .querySelector("#cache-duplicate + noritrans-translation")
               ?.shadowRoot?.querySelector("span")?.textContent,
         ),
       )
@@ -2732,7 +2738,7 @@ test("translates, follows dynamic and SPA content, and restores in a real conten
     await expect
       .poll(() =>
         page.evaluate(() =>
-          [...document.querySelectorAll("norixor-translation")].map(
+          [...document.querySelectorAll("noritrans-translation")].map(
             (host) => host.shadowRoot?.querySelector("span")?.textContent,
           ),
         ),
@@ -2745,7 +2751,7 @@ test("translates, follows dynamic and SPA content, and restores in a real conten
         page.evaluate(
           () =>
             document
-              .querySelector("#click-detail + norixor-translation")
+              .querySelector("#click-detail + noritrans-translation")
               ?.shadowRoot?.querySelector("span")?.textContent,
         ),
       )
@@ -2757,7 +2763,7 @@ test("translates, follows dynamic and SPA content, and restores in a real conten
         page.evaluate(
           () =>
             document
-              .querySelector("#hover-detail + norixor-translation")
+              .querySelector("#hover-detail + noritrans-translation")
               ?.shadowRoot?.querySelector("span")?.textContent,
         ),
       )
@@ -2771,7 +2777,7 @@ test("translates, follows dynamic and SPA content, and restores in a real conten
     await expect
       .poll(() =>
         page.evaluate(() =>
-          [...document.querySelectorAll("norixor-translation")].map(
+          [...document.querySelectorAll("noritrans-translation")].map(
             (host) => host.shadowRoot?.querySelector("span")?.textContent,
           ),
         ),
@@ -2786,7 +2792,7 @@ test("translates, follows dynamic and SPA content, and restores in a real conten
     await expect
       .poll(() =>
         page.evaluate(() =>
-          [...document.querySelectorAll("norixor-translation")].map(
+          [...document.querySelectorAll("noritrans-translation")].map(
             (host) => host.shadowRoot?.querySelector("span")?.textContent,
           ),
         ),
@@ -2804,7 +2810,7 @@ test("translates, follows dynamic and SPA content, and restores in a real conten
     await expect
       .poll(() =>
         page.evaluate(() =>
-          [...document.querySelectorAll("norixor-translation")].map(
+          [...document.querySelectorAll("noritrans-translation")].map(
             (host) => host.shadowRoot?.querySelector("span")?.textContent,
           ),
         ),
@@ -2835,7 +2841,7 @@ test("translates, follows dynamic and SPA content, and restores in a real conten
     await expect(page.locator("#ordinary-hash-spa")).toHaveText(
       "已译 Ordinary hash SPA destination.",
     );
-    await expect(page.locator("norixor-translation")).toHaveCount(0);
+    await expect(page.locator("noritrans-translation")).toHaveCount(0);
     await sendContentCommand(page.url(), "PAGE_RESTORE");
     await expect(page.locator("#ordinary-hash-spa")).toHaveText(
       "Ordinary hash SPA destination.",
@@ -2890,7 +2896,7 @@ test("translates across an inline link without replacing its DOM or click behavi
         <script>
           window.__inlineLinkClicks = 0;
           const link = document.querySelector("#inline-link");
-          link.__norixorIdentity = "preserved";
+          link.__noritransIdentity = "preserved";
           link.addEventListener("click", (event) => {
             event.preventDefault();
             window.__inlineLinkClicks += 1;
@@ -2912,7 +2918,7 @@ test("translates across an inline link without replacing its DOM or click behavi
         page
           .locator("#inline-link")
           .evaluate(
-            (element) => Reflect.get(element, "__norixorIdentity") as unknown,
+            (element) => Reflect.get(element, "__noritransIdentity") as unknown,
           ),
       )
       .toBe("preserved");
@@ -3016,10 +3022,10 @@ test("translates cross-origin iframe text and TextTrack with one top-level contr
     await page.goto(pageUrl);
     const embedded = page.frameLocator("#embedded");
     const secondEmbedded = page.frameLocator("#secondary");
-    await expect(page.locator("norixor-floating-control")).toHaveCount(1);
-    await expect(embedded.locator("norixor-floating-control")).toHaveCount(0);
+    await expect(page.locator("noritrans-floating-control")).toHaveCount(1);
+    await expect(embedded.locator("noritrans-floating-control")).toHaveCount(0);
     await expect(
-      secondEmbedded.locator("norixor-floating-control"),
+      secondEmbedded.locator("noritrans-floating-control"),
     ).toHaveCount(0);
 
     await sendContentCommand(pageUrl, "PAGE_TRANSLATE");
@@ -3027,7 +3033,7 @@ test("translates cross-origin iframe text and TextTrack with one top-level contr
       .poll(() =>
         page.evaluate(() =>
           document
-            .querySelector("norixor-translation")
+            .querySelector("noritrans-translation")
             ?.shadowRoot?.querySelector("span")
             ?.textContent?.trim(),
         ),
@@ -3035,13 +3041,13 @@ test("translates cross-origin iframe text and TextTrack with one top-level contr
       .toBe("已译 Top frame copy.");
     await expect
       .poll(() =>
-        embedded.locator("norixor-translation span").first().textContent(),
+        embedded.locator("noritrans-translation span").first().textContent(),
       )
       .toBe("已译 Embedded frame copy.");
     await expect
       .poll(() =>
         secondEmbedded
-          .locator("norixor-translation span")
+          .locator("noritrans-translation span")
           .first()
           .textContent(),
       )
@@ -3067,12 +3073,12 @@ test("translates cross-origin iframe text and TextTrack with one top-level contr
       });
     await expect(
       embedded.locator(
-        '[data-norixortrans-ui="subtitle-overlay"] .cue.translated',
+        '[data-noritrans-ui="subtitle-overlay"] .cue.translated',
       ),
     ).toContainText("已译 Embedded subtitle.");
     await expect(
       secondEmbedded.locator(
-        '[data-norixortrans-ui="subtitle-overlay"] .cue.translated',
+        '[data-noritrans-ui="subtitle-overlay"] .cue.translated',
       ),
     ).toContainText("已译 Second embedded subtitle.");
 
@@ -3112,19 +3118,17 @@ test("translates cross-origin iframe text and TextTrack with one top-level contr
       "已译 Second embedded frame copy.",
     );
     await expect(
-      embedded.locator(
-        '[data-norixortrans-ui="subtitle-overlay"] .cue.original',
-      ),
+      embedded.locator('[data-noritrans-ui="subtitle-overlay"] .cue.original'),
     ).toBeHidden();
     await expect(
       embedded.locator(
-        '[data-norixortrans-ui="subtitle-overlay"] .cue.translated',
+        '[data-noritrans-ui="subtitle-overlay"] .cue.translated',
       ),
     ).toBeVisible();
 
-    const floatingControl = page.locator("norixor-floating-control");
+    const floatingControl = page.locator("noritrans-floating-control");
     await floatingControl.locator(".launcher").click();
-    await floatingControl.locator("#norixortrans-video-panel-tab").click();
+    await floatingControl.locator("#noritrans-video-panel-tab").click();
     await floatingControl
       .locator(".subtitle-actions button:not(.primary)")
       .click();
@@ -3135,11 +3139,11 @@ test("translates cross-origin iframe text and TextTrack with one top-level contr
         total: 2,
       });
     await expect(
-      embedded.locator('[data-norixortrans-ui="subtitle-overlay"] .cue-card'),
+      embedded.locator('[data-noritrans-ui="subtitle-overlay"] .cue-card'),
     ).toBeHidden();
     await expect(
       secondEmbedded.locator(
-        '[data-norixortrans-ui="subtitle-overlay"] .cue-card',
+        '[data-noritrans-ui="subtitle-overlay"] .cue-card',
       ),
     ).toBeHidden();
     await floatingControl.locator(".subtitle-actions .primary").click();
@@ -3153,7 +3157,7 @@ test("translates cross-origin iframe text and TextTrack with one top-level contr
       });
     await expect(
       embedded.locator(
-        '[data-norixortrans-ui="subtitle-overlay"] .cue.translated',
+        '[data-noritrans-ui="subtitle-overlay"] .cue.translated',
       ),
     ).toBeVisible();
 
@@ -3181,7 +3185,7 @@ test("translates cross-origin iframe text and TextTrack with one top-level contr
     );
     await expect(
       secondEmbedded.locator(
-        '[data-norixortrans-ui="subtitle-overlay"] .cue.translated',
+        '[data-noritrans-ui="subtitle-overlay"] .cue.translated',
       ),
     ).toContainText("已译 Second embedded subtitle.");
   } finally {
@@ -3259,7 +3263,7 @@ test("renders a large AI page progressively instead of waiting for every batch",
         completed: paragraphCount,
         failed: 0,
       });
-    await expect(page.locator("norixor-translation")).toHaveCount(
+    await expect(page.locator("noritrans-translation")).toHaveCount(
       paragraphCount,
     );
   } finally {
@@ -3481,9 +3485,9 @@ test("shows a safe clickable diagnostic for an invalid Provider response", async
         ),
       });
 
-    const control = page.locator("norixor-floating-control");
+    const control = page.locator("noritrans-floating-control");
     await control.locator(".launcher").click();
-    const diagnostic = control.locator("#norixortrans-page-panel .diagnostic");
+    const diagnostic = control.locator("#noritrans-page-panel .diagnostic");
     await expect(diagnostic).toBeVisible();
     await diagnostic.locator("summary").click();
     await expect(diagnostic.locator("pre")).toContainText(
@@ -3504,7 +3508,7 @@ test("shows a safe clickable diagnostic for an invalid Provider response", async
     await expect(control.locator(".panel")).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(control.locator(".panel")).toBeHidden();
-    await expect(page.locator("norixor-translation")).toHaveCount(0);
+    await expect(page.locator("noritrans-translation")).toHaveCount(0);
   } finally {
     await controlPage.evaluate(async (previous) => {
       const stored: unknown = await chrome.runtime.sendMessage({
@@ -3572,9 +3576,9 @@ test("keeps partial stream progress and recovers only its missing IDs", async ()
         failed: 0,
       });
 
-    const control = page.locator("norixor-floating-control");
+    const control = page.locator("noritrans-floating-control");
     await control.locator(".launcher").click();
-    const diagnostic = control.locator("#norixortrans-page-panel .diagnostic");
+    const diagnostic = control.locator("#noritrans-page-panel .diagnostic");
     await expect(diagnostic).toBeHidden();
     await expect(
       page.getByText("已译 PARTIAL_STREAM_DETAILS second.", {
@@ -3606,6 +3610,28 @@ for (const failure of [
         body: `<!doctype html><main><p>${failure.marker} fixture.</p></main>`,
       }),
     );
+    const previousSettings = await controlPage.evaluate(async () => {
+      const settings: unknown = await chrome.runtime.sendMessage({
+        type: "SETTINGS_GET",
+      });
+      if (
+        !settings ||
+        typeof settings !== "object" ||
+        !("page" in settings) ||
+        !settings.page ||
+        typeof settings.page !== "object"
+      ) {
+        throw new Error("Missing page settings");
+      }
+      await chrome.runtime.sendMessage({
+        type: "SETTINGS_SET",
+        settings: {
+          ...settings,
+          page: { ...settings.page, mode: "ai" },
+        },
+      });
+      return settings;
+    });
     const page = await context.newPage();
     try {
       await page.goto(pageUrl);
@@ -3613,8 +3639,11 @@ for (const failure of [
       await expect
         .poll(async () => await pageStatus(pageUrl))
         .toMatchObject({ state: "error", completed: 0, failed: 1 });
-      await expect(page.locator("norixor-translation")).toHaveCount(0);
+      await expect(page.locator("noritrans-translation")).toHaveCount(0);
     } finally {
+      await controlPage.evaluate(async (settings) => {
+        await chrome.runtime.sendMessage({ type: "SETTINGS_SET", settings });
+      }, previousSettings);
       await page.close();
       await context.unroute(pageUrl);
     }
@@ -3642,7 +3671,7 @@ test("cancels a slow page translation without applying the late response", async
     await expect(page.locator("#source")).toHaveText(
       "SLOW_TRANSLATION fixture.",
     );
-    await expect(page.locator("norixor-translation")).toHaveCount(0);
+    await expect(page.locator("noritrans-translation")).toHaveCount(0);
     expect(await pageStatus(pageUrl)).toMatchObject({
       state: "idle",
       completed: 0,
@@ -3703,7 +3732,7 @@ test("cache clearing cancels active page workers before emptying background stor
     expect(cleared).toEqual({ ok: true });
     await page.waitForTimeout(1_700);
 
-    await expect(page.locator("norixor-translation")).toHaveCount(0);
+    await expect(page.locator("noritrans-translation")).toHaveCount(0);
     await expect(page.locator("main > p").first()).toHaveText(
       "SLOW_TRANSLATION cache fixture 1.",
     );
@@ -3859,9 +3888,9 @@ test("ends empty subtitle discovery and exposes a manual rescan action", async (
         failed: 0,
       });
 
-    const control = page.locator("norixor-floating-control");
+    const control = page.locator("noritrans-floating-control");
     await control.locator(".launcher").click();
-    await control.locator("#norixortrans-video-panel-tab").click();
+    await control.locator("#noritrans-video-panel-tab").click();
     const start = control.locator(".subtitle-actions .primary");
     await expect(start).toBeEnabled();
     await start.click();
@@ -3911,11 +3940,11 @@ test("shows a clickable diagnostic for an invalid subtitle Provider response", a
         ),
       });
 
-    const control = page.locator("norixor-floating-control");
+    const control = page.locator("noritrans-floating-control");
     await control.locator(".launcher").click();
-    await control.locator("#norixortrans-video-panel-tab").click();
+    await control.locator("#noritrans-video-panel-tab").click();
     const diagnostic = control.locator(
-      "#norixortrans-video-panel .diagnostic:not([hidden])",
+      "#noritrans-video-panel .diagnostic:not([hidden])",
     );
     await expect(diagnostic).toBeVisible();
     await diagnostic.locator("summary").click();
@@ -4221,7 +4250,7 @@ test("leaves ordinary YouTube media fetch responses untouched", async () => {
       contentType: "text/html",
       body: `<!doctype html><video></video><script>
         window.__captureEvents = 0;
-        window.addEventListener('norixortrans:subtitle-response', () => {
+        window.addEventListener('noritrans:subtitle-response', () => {
           window.__captureEvents += 1;
         });
         setTimeout(async () => {
@@ -4286,7 +4315,7 @@ test("uses YouTube rendered captions when a full timedtext body is unavailable",
         completed: 1,
       });
     const cueCard = page.locator(
-      '[data-norixortrans-ui="subtitle-overlay"] .cue-card',
+      '[data-noritrans-ui="subtitle-overlay"] .cue-card',
     );
     await expect(cueCard).toBeVisible();
     await page.locator(".ytp-caption-segment").evaluate((element) => {
@@ -4329,10 +4358,10 @@ test("applies native caption visibility and overlay position at runtime", async 
       "hidden",
     );
     await expect(
-      page.locator('[data-norixortrans-ui="subtitle-overlay"]'),
+      page.locator('[data-noritrans-ui="subtitle-overlay"]'),
     ).toHaveAttribute("data-position", "top");
     const subtitleOverlay = page.locator(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     );
     const originalCue = subtitleOverlay.locator(".cue.original");
     const translatedCue = subtitleOverlay.locator(".cue.translated");
@@ -4352,13 +4381,13 @@ test("applies native caption visibility and overlay position at runtime", async 
     await expect(originalCue).toBeHidden();
     await expect(translatedCue).toBeVisible();
     const videoAnchoring = await page
-      .locator('[data-norixortrans-ui="subtitle-overlay"]')
+      .locator('[data-noritrans-ui="subtitle-overlay"]')
       .evaluate((host: HTMLElement) => ({
-        x: host.style.getPropertyValue("--norixortrans-anchor-x"),
-        maxWidth: host.style.getPropertyValue("--norixortrans-max-width"),
+        x: host.style.getPropertyValue("--noritrans-anchor-x"),
+        maxWidth: host.style.getPropertyValue("--noritrans-max-width"),
       }));
     expect(videoAnchoring).toEqual({ x: "440px", maxWidth: "512px" });
-    const quickControl = page.locator("norixor-floating-control");
+    const quickControl = page.locator("noritrans-floating-control");
     await page.locator("#fullscreen").click();
     await expect
       .poll(() =>
@@ -4368,7 +4397,7 @@ test("applies native caption visibility and overlay position at runtime", async 
       )
       .toBe(true);
     await expect(
-      page.locator('[data-norixortrans-ui="subtitle-overlay"] .cue-card'),
+      page.locator('[data-noritrans-ui="subtitle-overlay"] .cue-card'),
     ).toBeVisible();
     await expect(quickControl.locator(".launcher")).toBeVisible();
     await expect(quickControl.locator(".panel")).toBeHidden();
@@ -4376,7 +4405,7 @@ test("applies native caption visibility and overlay position at runtime", async 
       .poll(() =>
         quickControl.evaluate(
           (element) =>
-            element.parentElement?.getAttribute("data-norixortrans-ui") ?? "",
+            element.parentElement?.getAttribute("data-noritrans-ui") ?? "",
         ),
       )
       .toBe("floating-control-fullscreen-portal");
@@ -4395,10 +4424,8 @@ test("applies native caption visibility and overlay position at runtime", async 
     await expect(quickControl.locator(".panel")).toBeHidden();
     await quickControl.locator(".launcher").click();
     await expect(quickControl.locator(".panel")).toBeVisible();
-    await quickControl.locator("#norixortrans-video-panel-tab").click();
-    await expect(
-      quickControl.locator("#norixortrans-video-panel"),
-    ).toBeVisible();
+    await quickControl.locator("#noritrans-video-panel-tab").click();
+    await expect(quickControl.locator("#noritrans-video-panel")).toBeVisible();
     await quickControl.locator(".header .icon-button").click();
     await expect(quickControl.locator(".panel")).toBeHidden();
 
@@ -4411,14 +4438,14 @@ test("applies native caption visibility and overlay position at runtime", async 
       "visible",
     );
     await expect(
-      page.locator('[data-norixortrans-ui="subtitle-overlay"]'),
+      page.locator('[data-noritrans-ui="subtitle-overlay"]'),
     ).toHaveAttribute("data-position", "bottom");
 
     const dragHandle = page.locator(
-      '[data-norixortrans-ui="subtitle-overlay"] .cue-card',
+      '[data-noritrans-ui="subtitle-overlay"] .cue-card',
     );
     await page
-      .locator('[data-norixortrans-ui="subtitle-overlay"] .cue-card')
+      .locator('[data-noritrans-ui="subtitle-overlay"] .cue-card')
       .hover();
     const dragBox = await dragHandle.boundingBox();
     if (!dragBox) throw new Error("Missing subtitle drag handle geometry");
@@ -4434,7 +4461,7 @@ test("applies native caption visibility and overlay position at runtime", async 
     );
     await page.mouse.up();
     await expect(
-      page.locator('[data-norixortrans-ui="subtitle-overlay"]'),
+      page.locator('[data-noritrans-ui="subtitle-overlay"]'),
     ).toHaveAttribute("data-position", "custom");
 
     await updateSubtitlePreferences({ hideNativeSubtitles: true });
@@ -4443,7 +4470,7 @@ test("applies native caption visibility and overlay position at runtime", async 
       "hidden",
     );
     await quickControl.locator(".launcher").click();
-    await quickControl.locator("#norixortrans-video-panel-tab").click();
+    await quickControl.locator("#noritrans-video-panel-tab").click();
     await quickControl
       .locator(".subtitle-actions button:not(.primary)")
       .click();
@@ -4452,7 +4479,7 @@ test("applies native caption visibility and overlay position at runtime", async 
       "visible",
     );
     await expect(
-      page.locator('[data-norixortrans-ui="subtitle-overlay"] .stop-button'),
+      page.locator('[data-noritrans-ui="subtitle-overlay"] .stop-button'),
     ).toHaveCount(0);
   } finally {
     await updateSubtitlePreferences(previous);
@@ -4548,7 +4575,7 @@ test("prefetches a finite Max DASH track and displays its AI translation", async
     });
     expect(status).toMatchObject({ total: 2, completed: 2, failed: 0 });
     await expect(
-      page.locator('[data-norixortrans-ui="subtitle-overlay"] .cue.translated'),
+      page.locator('[data-noritrans-ui="subtitle-overlay"] .cue.translated'),
     ).toContainText("已译 Max first subtitle.");
   } finally {
     await page.close();
@@ -4600,7 +4627,7 @@ test("prefetches a finite Max HLS WebVTT track from the built-in profile", async
     });
     expect(status).toMatchObject({ total: 1, completed: 1, failed: 0 });
     await expect(
-      page.locator('[data-norixortrans-ui="subtitle-overlay"] .cue.translated'),
+      page.locator('[data-noritrans-ui="subtitle-overlay"] .cue.translated'),
     ).toContainText("已译 Max HLS built-in subtitle.");
   } finally {
     await page.close();
@@ -4655,9 +4682,7 @@ test("captures the built-in Disney+ and Amazon Prime Video subtitle profiles", a
       });
       expect(status).toMatchObject({ total: 1, completed: 1, failed: 0 });
       await expect(
-        page.locator(
-          '[data-norixortrans-ui="subtitle-overlay"] .cue.translated',
-        ),
+        page.locator('[data-noritrans-ui="subtitle-overlay"] .cue.translated'),
       ).toContainText(fixture.translatedText);
     } finally {
       await page.close();
@@ -4694,7 +4719,7 @@ test("promotes a complete Udemy WebVTT response from the built-in profile", asyn
     });
     expect(status).toMatchObject({ total: 1, completed: 1, failed: 0 });
     await expect(
-      page.locator('[data-norixortrans-ui="subtitle-overlay"] .cue.translated'),
+      page.locator('[data-noritrans-ui="subtitle-overlay"] .cue.translated'),
     ).toContainText("已译 Udemy complete subtitle.");
   } finally {
     await page.close();
@@ -4755,7 +4780,7 @@ test("prefetches a finite Disney+ HLS WebVTT track as complete", async () => {
     });
     expect(status).toMatchObject({ total: 2, completed: 2, failed: 0 });
     await expect(
-      page.locator('[data-norixortrans-ui="subtitle-overlay"] .cue.translated'),
+      page.locator('[data-noritrans-ui="subtitle-overlay"] .cue.translated'),
     ).toContainText("已译 Disney first HLS subtitle.");
   } finally {
     await page.close();
@@ -4791,7 +4816,7 @@ test("captures an explicit Netflix timed-text endpoint as a full track", async (
     });
     expect(status).toMatchObject({ total: 1, completed: 1, failed: 0 });
     await expect(
-      page.locator('[data-norixortrans-ui="subtitle-overlay"] .cue.translated'),
+      page.locator('[data-noritrans-ui="subtitle-overlay"] .cue.translated'),
     ).toContainText("已译 Complete Netflix subtitle.");
   } finally {
     await page.close();
@@ -5061,8 +5086,8 @@ test("recognizes burned-in subtitles inside a canvas-player iframe", async () =>
               iframe { display: block; width: 720px; height: 405px; margin: 40px; border: 0; }
               .outside { position: fixed; top: 4px; right: 8px; color: #111; font: 700 24px Arial, sans-serif; }
               #fullscreen { position:fixed; bottom:8px; left:8px; min-width:44px; min-height:44px; }
-              norixor-ocr-region-selector,
-              [data-norixortrans-ui="subtitle-overlay"] { position:static !important; z-index:-1 !important; pointer-events:none !important; }
+              noritrans-ocr-region-selector,
+              [data-noritrans-ui="subtitle-overlay"] { position:static !important; z-index:-1 !important; pointer-events:none !important; }
             </style>
           </head>
           <body>
@@ -5199,9 +5224,9 @@ test("recognizes burned-in subtitles inside a canvas-player iframe", async () =>
   try {
     await page.goto(pageUrl);
     await page.bringToFront();
-    const floatingControl = page.locator("norixor-floating-control");
+    const floatingControl = page.locator("noritrans-floating-control");
     await floatingControl.locator(".launcher").click();
-    await floatingControl.locator("#norixortrans-video-panel-tab").click();
+    await floatingControl.locator("#noritrans-video-panel-tab").click();
     await floatingControl.locator(".ocr-section > summary").click();
     const ocrToggle = floatingControl.locator(
       '.ocr-section input[type="checkbox"]',
@@ -5229,7 +5254,7 @@ test("recognizes burned-in subtitles inside a canvas-player iframe", async () =>
       .locator(".ocr-section .actions button.primary")
       .click();
     await page.bringToFront();
-    const selector = page.locator("norixor-ocr-region-selector");
+    const selector = page.locator("noritrans-ocr-region-selector");
     await expect(selector).toBeVisible();
     await expect(selector).toHaveAttribute("data-ready", "true");
     await expect
@@ -5299,7 +5324,7 @@ test("recognizes burned-in subtitles inside a canvas-player iframe", async () =>
     await expect
       .poll(() =>
         page
-          .locator('[data-norixortrans-ui="subtitle-overlay"]')
+          .locator('[data-noritrans-ui="subtitle-overlay"]')
           .evaluate((host) => ({
             position: getComputedStyle(host).position,
             zIndex: getComputedStyle(host).zIndex,
@@ -5312,16 +5337,16 @@ test("recognizes burned-in subtitles inside a canvas-player iframe", async () =>
         pointerEvents: "none",
       });
     await expect(
-      page.locator('[data-norixortrans-ui="subtitle-overlay"] .cue.original'),
+      page.locator('[data-noritrans-ui="subtitle-overlay"] .cue.original'),
     ).toContainText(/HELLO ?OCR 123/u);
     await expect(
-      page.locator('[data-norixortrans-ui="subtitle-overlay"] .notice'),
+      page.locator('[data-noritrans-ui="subtitle-overlay"] .notice'),
     ).toContainText(/local translation|本地翻译/iu);
     await expect(
-      page.locator('[data-norixortrans-ui="subtitle-overlay"] .cue.original'),
+      page.locator('[data-noritrans-ui="subtitle-overlay"] .cue.original'),
     ).not.toContainText("IGNORE OUTSIDE REGION");
     const subtitleOverlay = page.locator(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     );
     const cueCard = subtitleOverlay.locator(".cue-card");
     const dragHandle = subtitleOverlay.locator(".drag-handle");
@@ -5373,7 +5398,7 @@ test("recognizes burned-in subtitles inside a canvas-player iframe", async () =>
       drawSubtitle("SECOND OCR LINE");
     });
     await expect(
-      page.locator('[data-norixortrans-ui="subtitle-overlay"] .cue.original'),
+      page.locator('[data-noritrans-ui="subtitle-overlay"] .cue.original'),
     ).toHaveText(/^SECOND ?OCR ?LINE$/u, { timeout: 2_500 });
     const warmedCueLatencyMs = Date.now() - warmedCueStartedAt;
     expect(
@@ -5406,7 +5431,7 @@ test("recognizes burned-in subtitles inside a canvas-player iframe", async () =>
         page.evaluate(
           () =>
             document
-              .querySelector("norixor-floating-control")
+              .querySelector("noritrans-floating-control")
               ?.shadowRoot?.querySelector(".ocr-section .status-row")
               ?.textContent?.replace(/\s+/gu, " ")
               .trim() ?? "",
@@ -5419,7 +5444,7 @@ test("recognizes burned-in subtitles inside a canvas-player iframe", async () =>
         page.evaluate(
           () =>
             document
-              .querySelector("norixor-floating-control")
+              .querySelector("noritrans-floating-control")
               ?.shadowRoot?.querySelector(".ocr-section .status-row")
               ?.textContent?.replace(/\s+/gu, " ")
               .trim() ?? "",
@@ -5445,7 +5470,7 @@ test("recognizes burned-in subtitles inside a canvas-player iframe", async () =>
       .poll(() =>
         floatingControl.evaluate(
           (element) =>
-            element.parentElement?.getAttribute("data-norixortrans-ui") ?? "",
+            element.parentElement?.getAttribute("data-noritrans-ui") ?? "",
         ),
       )
       .toBe("floating-control-fullscreen-portal");
@@ -5465,7 +5490,7 @@ test("recognizes burned-in subtitles inside a canvas-player iframe", async () =>
         () =>
           page.evaluate(() => {
             const row = document
-              .querySelector("norixor-floating-control")
+              .querySelector("noritrans-floating-control")
               ?.shadowRoot?.querySelector(".ocr-section .status-row");
             return {
               state: row?.getAttribute("data-state") ?? "",
@@ -5479,10 +5504,10 @@ test("recognizes burned-in subtitles inside a canvas-player iframe", async () =>
         text: expect.stringMatching(/protected|受.*保护|DRM/iu),
       });
     await expect(
-      page.locator('[data-norixortrans-ui="subtitle-overlay"] .notice'),
+      page.locator('[data-noritrans-ui="subtitle-overlay"] .notice'),
     ).toContainText(/protected|受.*保护|DRM/iu);
     await expect(
-      page.locator('[data-norixortrans-ui="subtitle-overlay"] .cue-card'),
+      page.locator('[data-noritrans-ui="subtitle-overlay"] .cue-card'),
     ).toBeHidden();
     await expect
       .poll(() => page.evaluate(() => document.fullscreenElement !== null))

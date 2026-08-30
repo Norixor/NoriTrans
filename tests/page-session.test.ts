@@ -1916,7 +1916,9 @@ describe("PageTranslationSession", () => {
 
     try {
       await session.translate(settings);
-      expect(document.querySelectorAll("norixor-translation")).toHaveLength(1);
+      expect(document.querySelectorAll("noritrans-translation")).toHaveLength(
+        1,
+      );
 
       revealed = true;
       paragraph.dispatchEvent(
@@ -1925,7 +1927,7 @@ describe("PageTranslationSession", () => {
 
       await vi.waitFor(
         () => {
-          const companions = document.querySelectorAll("norixor-translation");
+          const companions = document.querySelectorAll("noritrans-translation");
           expect(companions).toHaveLength(1);
           expect(
             companions[0]?.shadowRoot?.querySelector("span")?.textContent,
@@ -2400,12 +2402,12 @@ describe("PageTranslationSession", () => {
     const paragraph = document.querySelector("p");
     const source = paragraph?.firstChild;
     if (!(source instanceof Text)) throw new Error("invalid source fixture");
-    expect(document.querySelectorAll("norixor-translation")).toHaveLength(1);
+    expect(document.querySelectorAll("noritrans-translation")).toHaveLength(1);
 
     source.textContent = "Updated bilingual source";
     await vi.waitFor(
       () => {
-        const translations = document.querySelectorAll("norixor-translation");
+        const translations = document.querySelectorAll("noritrans-translation");
         expect(translations).toHaveLength(1);
         expect(
           translations[0]?.shadowRoot?.querySelector("span")?.textContent,
@@ -2430,7 +2432,7 @@ describe("PageTranslationSession", () => {
 
     await vi.waitFor(
       () => {
-        const translations = document.querySelectorAll("norixor-translation");
+        const translations = document.querySelectorAll("noritrans-translation");
         expect(translations).toHaveLength(1);
         expect(
           translations[0]?.shadowRoot?.querySelector("span")?.textContent,
@@ -2453,12 +2455,12 @@ describe("PageTranslationSession", () => {
     const conditional =
       document.querySelector<HTMLElement>("#conditional-copy");
     if (!conditional) throw new Error("missing conditional inline fixture");
-    expect(document.querySelectorAll("norixor-translation")).toHaveLength(1);
+    expect(document.querySelectorAll("noritrans-translation")).toHaveLength(1);
 
     conditional.hidden = false;
     await vi.waitFor(
       () => {
-        const companions = document.querySelectorAll("norixor-translation");
+        const companions = document.querySelectorAll("noritrans-translation");
         expect(companions).toHaveLength(1);
         expect(
           companions[0]?.shadowRoot?.querySelector("span")?.textContent,
@@ -2470,7 +2472,7 @@ describe("PageTranslationSession", () => {
     conditional.hidden = true;
     await vi.waitFor(
       () => {
-        const companions = document.querySelectorAll("norixor-translation");
+        const companions = document.querySelectorAll("noritrans-translation");
         expect(companions).toHaveLength(1);
         expect(
           companions[0]?.shadowRoot?.querySelector("span")?.textContent,
@@ -3639,17 +3641,17 @@ describe("PageTranslationSession", () => {
     settings.page.displayMode = "bilingual";
 
     await session.translate(settings);
-    let companion = host.querySelector("norixor-translation");
+    let companion = host.querySelector("noritrans-translation");
     expect(slot.assignedElements()).toEqual([assigned, companion]);
     expect(companion?.slot).toBe("article");
-    expect(shadow.querySelectorAll("norixor-translation")).toHaveLength(0);
+    expect(shadow.querySelectorAll("noritrans-translation")).toHaveLength(0);
 
     slot.name = "missing";
     await vi.waitFor(
       () => {
-        expect(host.querySelector("norixor-translation")).toBeNull();
+        expect(host.querySelector("noritrans-translation")).toBeNull();
         const fallbackCompanion = shadow.querySelector(
-          "slot > norixor-translation",
+          "slot > noritrans-translation",
         );
         expect(fallbackCompanion).not.toBeNull();
         expect(
@@ -3662,15 +3664,15 @@ describe("PageTranslationSession", () => {
     slot.name = "article";
     await vi.waitFor(
       () => {
-        companion = host.querySelector("norixor-translation");
+        companion = host.querySelector("noritrans-translation");
         expect(slot.assignedElements()).toEqual([assigned, companion]);
-        expect(shadow.querySelector("slot > norixor-translation")).toBeNull();
+        expect(shadow.querySelector("slot > noritrans-translation")).toBeNull();
       },
       { timeout: 1_500 },
     );
     session.restore();
-    expect(host.querySelector("norixor-translation")).toBeNull();
-    expect(shadow.querySelector("norixor-translation")).toBeNull();
+    expect(host.querySelector("noritrans-translation")).toBeNull();
+    expect(shadow.querySelector("noritrans-translation")).toBeNull();
   });
 
   it("removes detached replacements from progress before translating new content", async () => {
@@ -3800,7 +3802,7 @@ describe("PageTranslationSession", () => {
     await session.translate(settings);
     const paragraph = document.querySelector<HTMLParagraphElement>("p");
     const companion = document.querySelector<HTMLElement>(
-      "norixor-translation",
+      "noritrans-translation",
     );
     if (!paragraph || !companion) throw new Error("invalid bilingual fixture");
 

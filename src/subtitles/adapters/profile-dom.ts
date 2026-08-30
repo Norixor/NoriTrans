@@ -32,8 +32,8 @@ function pageRouteKey(value = location.href): string {
 function visibleText(element: HTMLElement): string {
   if (
     isExcludedDomCaptionElement(element) ||
-    element.closest("[data-norixortrans-ui]") ||
-    element.closest("norixor-translation") ||
+    element.closest("[data-noritrans-ui]") ||
+    element.closest("noritrans-translation") ||
     element.hidden ||
     element.getAttribute("aria-hidden") === "true" ||
     element.getAttribute("translate") === "no" ||

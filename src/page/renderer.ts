@@ -128,8 +128,8 @@ function createBilingualHost(
   targetLanguage: string,
   anchor: Element,
 ): HTMLElement {
-  const host = document.createElement("norixor-translation");
-  host.dataset.norixorTranslated = segmentId;
+  const host = document.createElement("noritrans-translation");
+  host.dataset.noritransTranslated = segmentId;
   host.setAttribute("role", "note");
   const sourceStyle = getComputedStyle(anchor);
   host.style.color = sourceStyle.color;
@@ -353,8 +353,8 @@ function createPendingOverlay(): {
   host: HTMLElement;
   layer: HTMLElement;
 } {
-  const host = document.createElement("norixor-translation-pending");
-  host.dataset.norixortransUi = "page-translation-pending";
+  const host = document.createElement("noritrans-translation-pending");
+  host.dataset.noritransUi = "page-translation-pending";
   host.setAttribute("aria-hidden", "true");
   const shadow = host.attachShadow({ mode: "closed" });
   const style = document.createElement("style");
@@ -384,8 +384,8 @@ function createPendingOverlay(): {
       opacity: 0.56;
     }
     @media (prefers-reduced-motion: no-preference) {
-      .indicator { animation: norixor-page-pending 720ms linear infinite; }
-      @keyframes norixor-page-pending {
+      .indicator { animation: noritrans-page-pending 720ms linear infinite; }
+      @keyframes noritrans-page-pending {
         to { transform: rotate(360deg); }
       }
     }

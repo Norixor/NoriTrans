@@ -71,8 +71,8 @@ export class OcrRegionSelector {
     const bounds = mediaBounds(target);
     if (!bounds) return Promise.reject(new Error("video_not_visible"));
     const previousFocus = deepestActiveElement();
-    const host = document.createElement("norixor-ocr-region-selector");
-    host.dataset.norixortransUi = "ocr-region-selector";
+    const host = document.createElement("noritrans-ocr-region-selector");
+    host.dataset.noritransUi = "ocr-region-selector";
     host.dataset.ready = "false";
     Object.assign(host.style, {
       position: "fixed",
@@ -101,9 +101,9 @@ export class OcrRegionSelector {
     dialog.className = "dialog";
     dialog.setAttribute("role", "dialog");
     dialog.setAttribute("aria-modal", "true");
-    dialog.setAttribute("aria-labelledby", "norixor-ocr-selector-title");
+    dialog.setAttribute("aria-labelledby", "noritrans-ocr-selector-title");
     const title = document.createElement("p");
-    title.id = "norixor-ocr-selector-title";
+    title.id = "noritrans-ocr-selector-title";
     title.textContent = message("ocrSelectTitle");
     const hint = document.createElement("p");
     hint.className = "hint";
@@ -131,7 +131,7 @@ export class OcrRegionSelector {
       typeof HTMLElement.prototype.showPopover === "function"
     ) {
       fullscreenPortal = document.createElement("div");
-      fullscreenPortal.dataset.norixortransUi = "ocr-fullscreen-portal";
+      fullscreenPortal.dataset.noritransUi = "ocr-fullscreen-portal";
       fullscreenPortal.setAttribute("popover", "manual");
       Object.assign(fullscreenPortal.style, {
         position: "fixed",

@@ -178,8 +178,8 @@ describe("scanPageSegments", () => {
     const root = host.attachShadow({ mode: "open" });
     root.append(document.createTextNode("Direct shadow copy"));
 
-    const extensionHost = document.createElement("norixor-own-ui");
-    extensionHost.setAttribute("data-norixortrans-ui", "floating-control");
+    const extensionHost = document.createElement("noritrans-own-ui");
+    extensionHost.setAttribute("data-noritrans-ui", "floating-control");
     const extensionRoot = extensionHost.attachShadow({ mode: "open" });
     extensionRoot.append(document.createTextNode("Extension UI copy"));
     document.body.replaceChildren(host, extensionHost);
@@ -307,8 +307,8 @@ describe("scanPageSegments", () => {
           <div class="custom-video-subtitle-layer">Generic subtitle cue</div>
           <div class="live-caption-container">Generic caption cue</div>
         </div>
-        <section data-norixortrans-ui="subtitle-overlay">Extension subtitle</section>
-        <section data-norixor-ui>Legacy extension UI</section>
+        <section data-noritrans-ui="subtitle-overlay">Extension subtitle</section>
+        <section data-noritrans-ui>Extension UI without a surface marker</section>
         <figcaption>Ordinary figure description</figcaption>
       </main>
     `;

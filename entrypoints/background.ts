@@ -132,9 +132,9 @@ const LOCAL_TRANSLATION_RUNTIME_DOWNLOAD_ORIGINS = [
 ];
 const IMAGE_SOURCE_MAX_BYTES = 8_000_000;
 const IMAGE_SOURCE_FETCH_TIMEOUT_MS = 15_000;
-const FLOATING_POSITION_STORAGE_KEY = "norixortrans:floating-position-v1";
+const FLOATING_POSITION_STORAGE_KEY = "noritrans:floating-position-v1";
 const MANUAL_TRANSLATION_STORAGE_KEY =
-  "norixortrans:manual-page-translation-tabs-v1";
+  "noritrans:manual-page-translation-tabs-v1";
 let ocrPermissionWindowId: number | undefined;
 let ocrPermissionRequestTabId: number | undefined;
 const OCR_PERMISSION_REQUEST_TAB_KEY = "ocrPermissionRequestTabId";

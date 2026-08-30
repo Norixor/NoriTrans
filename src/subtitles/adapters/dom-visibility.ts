@@ -1,5 +1,4 @@
-const EXTENSION_HIDES_NATIVE_ATTRIBUTE =
-  "data-norixortrans-hide-native-subtitles";
+const EXTENSION_HIDES_NATIVE_ATTRIBUTE = "data-noritrans-hide-native-subtitles";
 
 interface CaptionVisibilityStyle {
   display: string;

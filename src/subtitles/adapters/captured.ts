@@ -1,6 +1,6 @@
-export const SUBTITLE_CAPTURE_EVENT = "norixortrans:subtitle-response";
+export const SUBTITLE_CAPTURE_EVENT = "noritrans:subtitle-response";
 export const SUBTITLE_DISCOVERY_CONTROL_EVENT =
-  "norixortrans:subtitle-discovery-control";
+  "noritrans:subtitle-discovery-control";
 
 import { builtInSiteProfile } from "@/src/subtitles/profiles/registry";
 import type { SubtitleSiteProfile } from "@/src/subtitles/profiles/types";

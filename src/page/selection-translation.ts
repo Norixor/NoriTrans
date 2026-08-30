@@ -23,9 +23,8 @@ const EXCLUDED_SELECTOR = [
   "textarea",
   "select",
   '[contenteditable]:not([contenteditable="false"])',
-  "[data-norixortrans-ui]",
-  "[data-norixor-ui]",
-  "norixor-translation",
+  "[data-noritrans-ui]",
+  "noritrans-translation",
 ].join(",");
 
 const STYLE = `
@@ -254,7 +253,7 @@ function isExcludedNode(node: Node | null): boolean {
   while (current) {
     if (current instanceof Element) {
       if (
-        current.tagName.startsWith("NORIXOR-") ||
+        current.tagName.startsWith("NORITRANS-") ||
         current.matches(EXCLUDED_SELECTOR) ||
         (current instanceof HTMLInputElement && current.type === "password") ||
         (current instanceof HTMLElement && current.isContentEditable)
@@ -401,7 +400,7 @@ export class SelectionTranslation {
   >;
   private readonly createLocalProvider: () => ChromeLocalProvider;
   private readonly host = document.createElement(
-    "norixor-selection-translation",
+    "noritrans-selection-translation",
   );
   private readonly root: ShadowRoot;
   private readonly trigger: HTMLButtonElement;
@@ -448,7 +447,7 @@ export class SelectionTranslation {
             keepAliveForTask: true,
             dynamicSourceLanguage: true,
           });
-    this.host.dataset.norixortransUi = "selection-translation";
+    this.host.dataset.noritransUi = "selection-translation";
     this.host.hidden = true;
     this.root = this.host.attachShadow({ mode: "open" });
     this.root.innerHTML = `

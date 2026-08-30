@@ -461,7 +461,7 @@ export class ImageTranslationController {
   private settings: ContentSettings;
   private readonly onStatus: (status: ImageTranslationStatus) => void;
   private readonly controlHost = document.createElement(
-    "norixor-image-translation-control",
+    "noritrans-image-translation-control",
   );
   private readonly translateButton = document.createElement("button");
   private readonly clearButton = document.createElement("button");
@@ -490,10 +490,10 @@ export class ImageTranslationController {
     // progress text cannot overlap the current image controls.
     document
       .querySelectorAll(
-        "norixor-image-translation-control, norixor-image-translation-overlay",
+        "noritrans-image-translation-control, noritrans-image-translation-overlay",
       )
       .forEach((host) => host.remove());
-    this.controlHost.dataset.norixortransUi = "image-translation-control";
+    this.controlHost.dataset.noritransUi = "image-translation-control";
     this.controlHost.hidden = true;
     const root = this.controlHost.attachShadow({ mode: "open" });
     const style = document.createElement("style");
@@ -1025,8 +1025,10 @@ export class ImageTranslationController {
   }
 
   private createRecord(image: HTMLImageElement): ImageRecord {
-    const overlay = document.createElement("norixor-image-translation-overlay");
-    overlay.dataset.norixortransUi = "image-translation-overlay";
+    const overlay = document.createElement(
+      "noritrans-image-translation-overlay",
+    );
+    overlay.dataset.noritransUi = "image-translation-overlay";
     overlay.hidden = true;
     const root = overlay.attachShadow({ mode: "open" });
     const style = document.createElement("style");
@@ -1123,16 +1125,16 @@ export class ImageTranslationController {
     if (!focusableAncestor && image.tabIndex < 0) {
       this.originalTabIndexes.set(image, image.tabIndex);
       image.tabIndex = 0;
-      image.dataset.norixortransImageFocusable = "true";
+      image.dataset.noritransImageFocusable = "true";
     }
   }
 
   private restoreImageFocus(image: HTMLImageElement): void {
     this.resizeObserver.unobserve(image);
-    if (image.dataset.norixortransImageFocusable === "true") {
+    if (image.dataset.noritransImageFocusable === "true") {
       const value = this.originalTabIndexes.get(image) ?? -1;
       image.tabIndex = value;
-      delete image.dataset.norixortransImageFocusable;
+      delete image.dataset.noritransImageFocusable;
     }
   }
 
@@ -1142,7 +1144,7 @@ export class ImageTranslationController {
         if (
           this.settings.imageTranslation.enabled &&
           node instanceof Element &&
-          !node.closest("[data-norixortrans-ui]")
+          !node.closest("[data-noritrans-ui]")
         ) {
           this.scan(node);
         }
@@ -1214,7 +1216,7 @@ export class ImageTranslationController {
       !this.settings.imageTranslation.enabled ||
       (event.key !== "Enter" && event.key !== " ") ||
       !(event.target instanceof HTMLImageElement) ||
-      event.target.dataset.norixortransImageFocusable !== "true"
+      event.target.dataset.noritransImageFocusable !== "true"
     ) {
       return;
     }

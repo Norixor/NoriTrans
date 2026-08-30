@@ -293,7 +293,7 @@ function isUpdateStatus(value: unknown): value is ExtensionUpdateStatus {
 }
 
 export class UnifiedFloatingControl {
-  private readonly host = document.createElement("norixor-floating-control");
+  private readonly host = document.createElement("noritrans-floating-control");
   private readonly fullscreenPortal = document.createElement("div");
   private readonly panel = document.createElement("section");
   private readonly panelMenu = document.createElement("details");
@@ -440,9 +440,9 @@ export class UnifiedFloatingControl {
 
   constructor(private readonly options: UnifiedFloatingControlOptions) {
     this.settings = options.settings;
-    this.host.dataset.norixortransUi = "unified-floating-control";
+    this.host.dataset.noritransUi = "unified-floating-control";
     this.host.dataset.quickActionSide = "left";
-    this.fullscreenPortal.dataset.norixortransUi =
+    this.fullscreenPortal.dataset.noritransUi =
       "floating-control-fullscreen-portal";
     this.fullscreenPortal.setAttribute("popover", "manual");
     Object.assign(this.fullscreenPortal.style, {
@@ -466,7 +466,7 @@ export class UnifiedFloatingControl {
     control.className = "control";
     const uiLocale = currentUiLocale();
 
-    this.panel.id = "norixortrans-floating-panel";
+    this.panel.id = "noritrans-floating-panel";
     this.panel.className = "panel";
     this.panel.hidden = true;
     this.panel.setAttribute("aria-label", message("floatingControl"));
@@ -542,25 +542,25 @@ export class UnifiedFloatingControl {
     tablist.setAttribute("aria-label", message("floatingControl"));
     this.configureTab(
       this.pageTab,
-      "norixortrans-page-panel",
+      "noritrans-page-panel",
       message("pageTranslationTab"),
       true,
     );
     this.configureTab(
       this.videoTab,
-      "norixortrans-video-panel",
+      "noritrans-video-panel",
       message("videoTranslationTab"),
       false,
     );
     this.configureTab(
       this.imageTab,
-      "norixortrans-image-panel",
+      "noritrans-image-panel",
       message("imageTranslationTab"),
       false,
     );
     tablist.append(this.pageTab, this.videoTab, this.imageTab);
 
-    this.pagePanel.id = "norixortrans-page-panel";
+    this.pagePanel.id = "noritrans-page-panel";
     this.pagePanel.className = "tab-panel";
     this.pagePanel.setAttribute("role", "tabpanel");
     this.pagePanel.setAttribute("aria-labelledby", this.pageTab.id);
@@ -665,7 +665,7 @@ export class UnifiedFloatingControl {
       pageActions,
     );
 
-    this.videoPanel.id = "norixortrans-video-panel";
+    this.videoPanel.id = "noritrans-video-panel";
     this.videoPanel.className = "tab-panel";
     this.videoPanel.setAttribute("role", "tabpanel");
     this.videoPanel.setAttribute("aria-labelledby", this.videoTab.id);
@@ -835,7 +835,7 @@ export class UnifiedFloatingControl {
       this.ocrDetails,
     );
 
-    this.imagePanel.id = "norixortrans-image-panel";
+    this.imagePanel.id = "noritrans-image-panel";
     this.imagePanel.className = "tab-panel";
     this.imagePanel.setAttribute("role", "tabpanel");
     this.imagePanel.setAttribute("aria-labelledby", this.imageTab.id);
@@ -2927,7 +2927,7 @@ export class UnifiedFloatingControl {
   };
 
   private positionStorageKey(): string {
-    return `norixortrans:unified-control:${location.origin}${location.pathname}`;
+    return `noritrans:unified-control:${location.origin}${location.pathname}`;
   }
 
   private normalizedPosition(): FloatingControlPosition | undefined {

@@ -95,8 +95,8 @@ export function selectOcrMediaTarget(): HTMLElement | null {
     )
       .filter(
         (element) =>
-          !element.closest("[data-norixortrans-ui]") &&
-          !element.closest("norixor-floating-control"),
+          !element.closest("[data-noritrans-ui]") &&
+          !element.closest("noritrans-floating-control"),
       )
       .map((element, index) => ({
         element,

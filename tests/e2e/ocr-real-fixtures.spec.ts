@@ -42,7 +42,7 @@ test("recognizes explicitly supplied real subtitle crops locally", async () => {
     const prepared: unknown = await page.evaluate(
       (id) =>
         chrome.runtime.sendMessage({
-          target: "norixortrans-ocr-background",
+          target: "noritrans-ocr-background",
           type: "OCR_OFFSCREEN_PREPARE",
           sessionId: id,
           requestId: "ocr-request-12345678",
@@ -81,7 +81,7 @@ test("recognizes explicitly supplied real subtitle crops locally", async () => {
           });
           const startedAt = performance.now();
           const response: unknown = await chrome.runtime.sendMessage({
-            target: "norixortrans-ocr-background",
+            target: "noritrans-ocr-background",
             type: "OCR_OFFSCREEN_RECOGNIZE",
             sessionId: id,
             requestId: `ocr-recognize-${String(fixtureIndex).padStart(8, "0")}`,

@@ -38,9 +38,9 @@ export interface OcrCaptureResponse {
     | "capture_too_large";
 }
 
-export const OCR_BACKGROUND_TARGET = "norixortrans-ocr-background";
-export const OCR_OFFSCREEN_TARGET = "norixortrans-ocr-offscreen";
-export const OCR_CLIENT_TARGET = "norixortrans-ocr-client";
+export const OCR_BACKGROUND_TARGET = "noritrans-ocr-background";
+export const OCR_OFFSCREEN_TARGET = "noritrans-ocr-offscreen";
+export const OCR_CLIENT_TARGET = "noritrans-ocr-client";
 /** Content sampling and background capture gate share the same 2 FPS ceiling. */
 export const OCR_SAMPLE_INTERVAL_MS = 500;
 

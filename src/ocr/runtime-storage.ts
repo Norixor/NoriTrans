@@ -11,7 +11,7 @@ import {
 } from "@/src/ocr/runtime-catalog";
 import type { OcrRuntimeInfo } from "@/src/messaging/protocol";
 
-export const OCR_RUNTIME_CACHE_NAME = "norixortrans-ppocr-runtime-v1";
+export const OCR_RUNTIME_CACHE_NAME = "noritrans-ppocr-runtime-v1";
 export const MAX_RUNTIME_ARTIFACT_BYTES = 32 * 1024 * 1024;
 const OCR_RUNTIME_DOWNLOAD_CONNECT_TIMEOUT_MS = 30_000;
 const OCR_RUNTIME_DOWNLOAD_STALL_TIMEOUT_MS = 30_000;
@@ -83,7 +83,7 @@ function runtimeMetadataKey(code: OcrRuntimeLanguageCode): string {
 
 function cacheRequest(key: string): Request {
   return new Request(
-    `https://norixortrans.invalid/ocr-runtime/${encodeURIComponent(key)}`,
+    `https://noritrans.invalid/ocr-runtime/${encodeURIComponent(key)}`,
   );
 }
 

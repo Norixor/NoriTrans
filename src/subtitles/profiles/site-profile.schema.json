@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://norixor.org/schemas/norixortrans-site-profile-v1.json",
+  "$id": "https://norixor.org/schemas/noritrans-site-profile-v1.json",
   "title": "NoriTrans subtitle site profile",
   "type": "object",
   "additionalProperties": false,

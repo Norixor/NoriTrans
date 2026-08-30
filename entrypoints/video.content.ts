@@ -73,7 +73,7 @@ import { injectScript } from "wxt/utils/inject-script";
 
 declare global {
   interface Window {
-    __norixorTransVideoReady?: boolean;
+    __noriTransVideoReady?: boolean;
   }
 }
 
@@ -704,7 +704,7 @@ async function runEmbeddedFrame(
     selectionTranslation.destroy();
     controller.stop();
     nativeSubtitleVisibility.destroy();
-    window.__norixorTransVideoReady = false;
+    window.__noriTransVideoReady = false;
   });
 }
 
@@ -715,7 +715,7 @@ export default defineContentScript({
   matchOriginAsFallback: true,
   runAt: "document_start",
   async main(context) {
-    if (window.__norixorTransVideoReady) return;
+    if (window.__noriTransVideoReady) return;
     removeStaleRuntimeUi();
     // The helper is also ensured after same-document route changes below.
     // Repeated injection is safe because the MAIN-world script owns an
@@ -724,8 +724,8 @@ export default defineContentScript({
 
     let settings = await loadContentSettings();
     configureUiLanguage(settings.uiLanguage);
-    if (window.__norixorTransVideoReady) return;
-    window.__norixorTransVideoReady = true;
+    if (window.__noriTransVideoReady) return;
+    window.__noriTransVideoReady = true;
     if (window.top !== window) {
       await runEmbeddedFrame(settings, (cleanup) =>
         context.onInvalidated(cleanup),
@@ -735,7 +735,7 @@ export default defineContentScript({
     let siteProfiles = await loadSiteProfiles();
     let profileWizard: SubtitleProfileWizard | undefined;
     const floatingHiddenKey = (): string =>
-      `norixortrans.unified-widget-hidden:${location.href.split("#", 1)[0] ?? location.href}`;
+      `noritrans.unified-widget-hidden:${location.href.split("#", 1)[0] ?? location.href}`;
     const floatingHiddenForCurrentPage = (): boolean => {
       try {
         return sessionStorage.getItem(floatingHiddenKey()) === "1";
@@ -1510,7 +1510,7 @@ export default defineContentScript({
       ocrSession.destroy();
       imageController.destroy();
       controller.stop();
-      window.__norixorTransVideoReady = false;
+      window.__noriTransVideoReady = false;
     });
   },
 });

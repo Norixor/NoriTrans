@@ -78,10 +78,9 @@ function isExtensionUi(element: Element): boolean {
   let current: Element | null = element;
   while (current) {
     if (
-      current.tagName.startsWith("NORIXOR-") ||
-      current.hasAttribute("data-norixortrans-ui") ||
-      current.hasAttribute("data-norixor-ui") ||
-      current.hasAttribute("data-norixor-translated")
+      current.tagName.startsWith("NORITRANS-") ||
+      current.hasAttribute("data-noritrans-ui") ||
+      current.hasAttribute("data-noritrans-translated")
     ) {
       return true;
     }
@@ -365,7 +364,7 @@ const STYLE = `
 
 export class SubtitleProfileWizard {
   private readonly host = document.createElement(
-    "norixor-subtitle-profile-wizard",
+    "noritrans-subtitle-profile-wizard",
   );
   private readonly panel = document.createElement("section");
   private readonly step = document.createElement("div");
@@ -402,7 +401,7 @@ export class SubtitleProfileWizard {
       1,
       options.sampleDurationMs ?? DEFAULT_SAMPLE_DURATION_MS,
     );
-    this.host.dataset.norixortransUi = "subtitle-profile-wizard";
+    this.host.dataset.noritransUi = "subtitle-profile-wizard";
     const root = this.host.attachShadow({ mode: "open" });
     const style = document.createElement("style");
     style.textContent = STYLE;
@@ -483,7 +482,7 @@ export class SubtitleProfileWizard {
     if (this.destroyed) return;
     this.returnFocus = deepestActiveElement();
     for (const overlay of document.querySelectorAll<HTMLElement>(
-      '[data-norixortrans-ui="subtitle-overlay"]',
+      '[data-noritrans-ui="subtitle-overlay"]',
     )) {
       this.suppressedOverlays.set(overlay, overlay.hidden);
       overlay.hidden = true;
@@ -984,7 +983,7 @@ export class SubtitleProfileWizard {
       label.className = "candidate";
       const radio = document.createElement("input");
       radio.type = "radio";
-      radio.name = "norixortrans-profile-candidate";
+      radio.name = "noritrans-profile-candidate";
       radio.value = candidate.selector;
       radio.checked = candidate.selector === this.selectedSelector;
       radio.addEventListener("change", () => {

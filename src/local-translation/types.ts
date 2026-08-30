@@ -3,10 +3,10 @@ import type { BergamotLanguagePackId } from "@/src/local-translation/languages";
 import type { LocalTranslationRuntimeInfo } from "@/src/local-translation/runtime-storage";
 
 export const BERGAMOT_BACKGROUND_TARGET =
-  "norixortrans-bergamot-background" as const;
+  "noritrans-bergamot-background" as const;
 export const BERGAMOT_OFFSCREEN_TARGET =
-  "norixortrans-bergamot-offscreen" as const;
-export const BERGAMOT_CLIENT_TARGET = "norixortrans-bergamot-client" as const;
+  "noritrans-bergamot-offscreen" as const;
+export const BERGAMOT_CLIENT_TARGET = "noritrans-bergamot-client" as const;
 
 export const BERGAMOT_PACKAGE_LANGUAGES = [
   "es",

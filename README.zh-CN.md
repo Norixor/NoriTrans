@@ -154,13 +154,3 @@ NoriTrans 基于 [WXT](https://github.com/wxt-dev/wxt)、`idb`、ONNX Runtime We
 除另有说明外，源代码和文档采用 [Apache License 2.0](./LICENSE) 授权。Copyright 2026 Norixor。
 
 NoriTrans 名称、Logo、产品标识和 `assets/branding/` 下的文件不属于 Apache-2.0 授权范围，品牌使用规则见 [`TRADEMARKS.md`](./TRADEMARKS.md)。
-
-<p align="center">
-  <a href="https://www.star-history.com/?type=date&amp;repos=Norixor%2FNoriTrans">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Norixor/NoriTrans&amp;type=Date&amp;theme=dark" />
-      <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Norixor/NoriTrans&amp;type=Date" />
-      <img alt="NoriTrans Star History 趋势图" src="https://api.star-history.com/svg?repos=Norixor/NoriTrans&amp;type=Date" />
-    </picture>
-  </a>
-</p>
