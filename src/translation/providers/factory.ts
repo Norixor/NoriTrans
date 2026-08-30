@@ -1,4 +1,4 @@
-import { NTransError } from "@/src/shared/errors";
+import { NoriTransError } from "@/src/shared/errors";
 import { runtimeErrorToken } from "@/src/shared/runtime-errors";
 import type {
   AiProviderId,
@@ -57,7 +57,7 @@ export function createBackgroundTranslationProvider(
       timeoutMs: settings.provider.timeoutMs,
     });
   }
-  throw new NTransError(
+  throw new NoriTransError(
     runtimeErrorToken("provider_unavailable"),
     "provider_unavailable",
   );

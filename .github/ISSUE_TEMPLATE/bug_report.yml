@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a reproducible nTrans defect.
+description: Report a reproducible NoriTrans defect.
 title: "[Bug]: "
 labels:
   - bug
@@ -7,11 +7,11 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for helping improve nTrans. Do not include API keys, cookies, authentication headers, private text, full subtitles, or unredacted provider responses. Report security issues privately as described in SECURITY.md.
+        Thanks for helping improve NoriTrans. Do not include API keys, cookies, authentication headers, private text, full subtitles, or unredacted provider responses. Report security issues privately as described in SECURITY.md.
   - type: input
     id: version
     attributes:
-      label: nTrans version
+      label: NoriTrans version
       description: Use the version shown in the extension manifest or settings page.
       placeholder: 0.1.x
     validations:

@@ -4,16 +4,16 @@ import process from "node:process";
 const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 const strictEnvironment = {
   ...process.env,
-  NTRANS_OCR_CAPTURE_E2E: "1",
+  NORITRANS_OCR_CAPTURE_E2E: "1",
 };
-if (!process.env.NTRANS_OCR_RUNTIME_DIR?.trim()) {
+if (!process.env.NORITRANS_OCR_RUNTIME_DIR?.trim()) {
   process.stdout.write(
-    "OCR headed E2E skipped: set NTRANS_OCR_RUNTIME_DIR to the directory containing the three pinned English runtime files.\n",
+    "OCR headed E2E skipped: set NORITRANS_OCR_RUNTIME_DIR to the directory containing the three pinned English runtime files.\n",
   );
   process.exit(0);
 }
 const productionEnvironment = { ...process.env };
-delete productionEnvironment.NTRANS_OCR_CAPTURE_E2E;
+delete productionEnvironment.NORITRANS_OCR_CAPTURE_E2E;
 
 function run(args, environment) {
   const result = spawnSync(pnpm, args, {

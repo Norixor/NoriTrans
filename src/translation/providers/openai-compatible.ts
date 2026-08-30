@@ -1,4 +1,4 @@
-import { NTransError } from "@/src/shared/errors";
+import { NoriTransError } from "@/src/shared/errors";
 import { runtimeErrorToken } from "@/src/shared/runtime-errors";
 import type { AiProviderId } from "@/src/shared/settings";
 import {
@@ -666,7 +666,7 @@ async function readStreamingContent(
         isRecord(payload.error) && typeof payload.error.type === "string"
           ? diagnosticId(payload.error.type)
           : "unknown";
-      throw new NTransError(
+      throw new NoriTransError(
         runtimeErrorToken("request_failed"),
         "request_failed",
         errorType === "overloaded_error" ||
@@ -703,12 +703,12 @@ async function readStreamingContent(
     }
     if (buffer.trim()) await consumeEvent(buffer);
   } catch (error) {
-    if (error instanceof NTransError && !error.retryable) throw error;
+    if (error instanceof NoriTransError && !error.retryable) throw error;
     if (parser.emittedResults() > 0) {
       const emittedResults = parser.emittedResults();
       throw new PartialStreamingResponseError(
         parser.results(),
-        error instanceof NTransError && error.details
+        error instanceof NoriTransError && error.details
           ? error.details
           : `The streamed completion became invalid after ${emittedResults} result ${emittedResults === 1 ? "item was" : "items were"} emitted.`,
       );
@@ -716,7 +716,7 @@ async function readStreamingContent(
     throw error;
   }
   if (protocol === "anthropic-messages") {
-    let terminalError: NTransError | undefined;
+    let terminalError: NoriTransError | undefined;
     if (!sawMessageStop) {
       terminalError = invalidResponse(
         "The Anthropic stream ended without a message_stop event.",
@@ -726,7 +726,7 @@ async function readStreamingContent(
         "The Anthropic stream ended without a terminal stop_reason.",
       );
     } else if (stopReason === "refusal") {
-      terminalError = new NTransError(
+      terminalError = new NoriTransError(
         runtimeErrorToken("request_failed"),
         "request_failed",
         false,
@@ -938,8 +938,8 @@ function diagnosticKeys(value: Record<string, unknown>): string {
   return `${shown.join(", ") || "none"}${keys.length > shown.length ? `, ... (${keys.length} total)` : ""}`;
 }
 
-function invalidResponse(details?: string): NTransError {
-  return new NTransError(
+function invalidResponse(details?: string): NoriTransError {
+  return new NoriTransError(
     runtimeErrorToken("invalid_response"),
     "invalid_response",
     true,
@@ -947,7 +947,7 @@ function invalidResponse(details?: string): NTransError {
   );
 }
 
-class NonSplittableInvalidResponseError extends NTransError {
+class NonSplittableInvalidResponseError extends NoriTransError {
   constructor(details?: string) {
     super(
       runtimeErrorToken("invalid_response"),
@@ -962,12 +962,12 @@ class NonSplittableInvalidResponseError extends NTransError {
   }
 }
 
-class PartialStreamingResponseError extends NTransError {
+class PartialStreamingResponseError extends NoriTransError {
   constructor(
     readonly partialResults: TranslationResult[],
     details?: string,
     readonly allowRecovery = true,
-    readonly terminalError?: NTransError,
+    readonly terminalError?: NoriTransError,
   ) {
     super(
       runtimeErrorToken("invalid_response"),
@@ -1033,7 +1033,7 @@ function assessResults(
     } catch (error) {
       if (
         segment.format === "protected-text-v1" &&
-        error instanceof NTransError &&
+        error instanceof NoriTransError &&
         error.code === "invalid_response"
       ) {
         invalidProtectedIds.push(segment.id);
@@ -1086,7 +1086,7 @@ export class OpenAICompatibleProvider implements TranslationProvider {
       !this.config.baseUrl.trim() ||
       !this.config.model.trim()
     ) {
-      throw new NTransError(
+      throw new NoriTransError(
         runtimeErrorToken("invalid_configuration"),
         "invalid_configuration",
       );
@@ -1137,7 +1137,7 @@ export class OpenAICompatibleProvider implements TranslationProvider {
         } catch (recoveryError) {
           if (signal.aborted) throw recoveryError;
           throw invalidResponse(
-            `${error.details ?? "The streamed completion contained invalid result IDs."} Missing-ID recovery failed${recoveryError instanceof NTransError && recoveryError.details ? `: ${recoveryError.details}` : "."}`,
+            `${error.details ?? "The streamed completion contained invalid result IDs."} Missing-ID recovery failed${recoveryError instanceof NoriTransError && recoveryError.details ? `: ${recoveryError.details}` : "."}`,
           );
         }
         const resultsById = new Map(
@@ -1161,7 +1161,7 @@ export class OpenAICompatibleProvider implements TranslationProvider {
         return combined;
       }
       if (
-        error instanceof NTransError &&
+        error instanceof NoriTransError &&
         !(error instanceof NonSplittableInvalidResponseError) &&
         error.code === "invalid_response" &&
         request.segments.length > 1 &&
@@ -1243,7 +1243,7 @@ export class OpenAICompatibleProvider implements TranslationProvider {
     } catch (error) {
       if (!diagnostics || signal.aborted) throw error;
       throw invalidResponse(
-        `${diagnostics} Missing-ID recovery failed${error instanceof NTransError && error.details ? `: ${error.details}` : "."}`,
+        `${diagnostics} Missing-ID recovery failed${error instanceof NoriTransError && error.details ? `: ${error.details}` : "."}`,
       );
     }
     const recoveredById = new Map(
@@ -1534,7 +1534,7 @@ export class OpenAICompatibleProvider implements TranslationProvider {
       }
 
       if (!response.ok) {
-        throw new NTransError(
+        throw new NoriTransError(
           runtimeErrorToken("request_failed"),
           "request_failed",
           response.status === 408 ||
@@ -1579,7 +1579,7 @@ export class OpenAICompatibleProvider implements TranslationProvider {
         } catch (error) {
           if (
             error instanceof PartialStreamingResponseError ||
-            !(error instanceof NTransError) ||
+            !(error instanceof NoriTransError) ||
             error.code !== "invalid_response"
           ) {
             throw error;
@@ -1593,7 +1593,7 @@ export class OpenAICompatibleProvider implements TranslationProvider {
           response = await this.request(requestPayload, controller.signal);
           if (!response.ok) {
             const fallbackErrorBody = await response.text();
-            throw new NTransError(
+            throw new NoriTransError(
               runtimeErrorToken("request_failed"),
               "request_failed",
               response.status === 408 ||
@@ -1612,7 +1612,7 @@ export class OpenAICompatibleProvider implements TranslationProvider {
           response = await this.request(requestPayload, controller.signal);
           if (!response.ok) {
             const fallbackErrorBody = await response.text();
-            throw new NTransError(
+            throw new NoriTransError(
               runtimeErrorToken("request_failed"),
               "request_failed",
               response.status === 408 ||
@@ -1635,7 +1635,7 @@ export class OpenAICompatibleProvider implements TranslationProvider {
             if (streamed.emittedResults.length > 0) {
               throw new PartialStreamingResponseError(
                 streamed.emittedResults,
-                error instanceof NTransError && error.details
+                error instanceof NoriTransError && error.details
                   ? error.details
                   : `The streamed completion ended with incomplete JSON after ${streamed.emittedResults.length} result ${streamed.emittedResults.length === 1 ? "item was" : "items were"} emitted.`,
               );
@@ -1649,7 +1649,7 @@ export class OpenAICompatibleProvider implements TranslationProvider {
             response = await this.request(requestPayload, controller.signal);
             if (!response.ok) {
               const fallbackErrorBody = await response.text();
-              throw new NTransError(
+              throw new NoriTransError(
                 runtimeErrorToken("request_failed"),
                 "request_failed",
                 response.status === 408 ||
@@ -1687,7 +1687,7 @@ export class OpenAICompatibleProvider implements TranslationProvider {
           );
         }
         if (data.stop_reason === "refusal") {
-          throw new NTransError(
+          throw new NoriTransError(
             runtimeErrorToken("request_failed"),
             "request_failed",
             false,
@@ -1732,28 +1732,28 @@ export class OpenAICompatibleProvider implements TranslationProvider {
         );
       }
       if (signal.aborted) {
-        throw new NTransError(
+        throw new NoriTransError(
           runtimeErrorToken("cancelled"),
           "cancelled",
           true,
         );
       }
       if (timedOut) {
-        throw new NTransError(
+        throw new NoriTransError(
           runtimeErrorToken("request_failed"),
           "request_failed",
           true,
         );
       }
       if (controller.signal.aborted) {
-        throw new NTransError(
+        throw new NoriTransError(
           runtimeErrorToken("cancelled"),
           "cancelled",
           true,
         );
       }
-      if (error instanceof NTransError) throw error;
-      throw new NTransError(
+      if (error instanceof NoriTransError) throw error;
+      throw new NoriTransError(
         runtimeErrorToken("request_failed"),
         "request_failed",
         true,

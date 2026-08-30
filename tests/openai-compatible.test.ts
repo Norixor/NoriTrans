@@ -3,7 +3,7 @@ import {
   OpenAICompatibleProvider,
 } from "@/src/translation/providers/openai-compatible";
 import { scheduleTranslation } from "@/src/translation/scheduler";
-import { NTransError } from "@/src/shared/errors";
+import { NoriTransError } from "@/src/shared/errors";
 import { runtimeErrorToken } from "@/src/shared/runtime-errors";
 import { createProtectedText } from "@/src/translation/protected-text";
 import type { TranslationResult } from "@/src/translation/types";
@@ -1037,8 +1037,8 @@ describe("OpenAI-compatible translation responses", () => {
     const error: unknown = await provider()
       .translateBatch(request, new AbortController().signal)
       .catch((reason: unknown) => reason);
-    expect(error).toBeInstanceOf(NTransError);
-    if (!(error instanceof NTransError)) return;
+    expect(error).toBeInstanceOf(NoriTransError);
+    if (!(error instanceof NoriTransError)) return;
     expect(error.code).toBe("invalid_response");
     expect(error.message).toBe(runtimeErrorToken("invalid_response"));
     expect(error.details).toContain("Top-level keys: message");
@@ -1061,8 +1061,8 @@ describe("OpenAI-compatible translation responses", () => {
         new AbortController().signal,
       )
       .catch((reason: unknown) => reason);
-    expect(malformed).toBeInstanceOf(NTransError);
-    if (!(malformed instanceof NTransError)) return;
+    expect(malformed).toBeInstanceOf(NoriTransError);
+    if (!(malformed instanceof NoriTransError)) return;
     expect(malformed.code).toBe("invalid_response");
     expect(malformed.details).toContain("not valid JSON");
     expect(malformed.details).not.toContain("super-secret-token");
@@ -1082,8 +1082,8 @@ describe("OpenAI-compatible translation responses", () => {
         new AbortController().signal,
       )
       .catch((reason: unknown) => reason);
-    expect(unknownId).toBeInstanceOf(NTransError);
-    if (!(unknownId instanceof NTransError)) return;
+    expect(unknownId).toBeInstanceOf(NoriTransError);
+    if (!(unknownId instanceof NoriTransError)) return;
     expect(unknownId.code).toBe("invalid_response");
     expect(unknownId.details).toMatch(
       /Unknown compact result ID.*unexpected-id/u,
@@ -1262,8 +1262,8 @@ describe("OpenAI-compatible translation responses", () => {
         progress.push(result);
       })
       .catch((error: unknown) => error);
-    expect(extraIdError).toBeInstanceOf(NTransError);
-    if (!(extraIdError instanceof NTransError)) return;
+    expect(extraIdError).toBeInstanceOf(NoriTransError);
+    if (!(extraIdError instanceof NoriTransError)) return;
     expect(extraIdError.code).toBe("invalid_response");
     expect(extraIdError.details).toContain("Unknown compact result ID");
     expect(progress).toEqual([]);
@@ -1289,8 +1289,8 @@ describe("OpenAI-compatible translation responses", () => {
     const error: unknown = await provider()
       .translateBatch(multiRequest, new AbortController().signal)
       .catch((reason: unknown) => reason);
-    expect(error).toBeInstanceOf(NTransError);
-    if (!(error instanceof NTransError)) return;
+    expect(error).toBeInstanceOf(NoriTransError);
+    if (!(error instanceof NoriTransError)) return;
     expect(error.code).toBe("invalid_response");
     expect(error.details).toContain("Provider returned no usable IDs");
     expect(error.details).toContain("Expected IDs: segment-1, segment-2");

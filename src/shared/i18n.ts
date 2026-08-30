@@ -68,7 +68,7 @@ function substitute(
     : substitutions === undefined
       ? []
       : [substitutions];
-  const escapedDollar = "\u0000NTRANS_DOLLAR\u0000";
+  const escapedDollar = "\u0000NORITRANS_DOLLAR\u0000";
   const placeholders = entry.placeholders ?? {};
   let output = entry.message.replaceAll("$$", escapedDollar);
   output = output.replace(/\$([A-Za-z0-9_]+)\$/gu, (token, name: string) => {

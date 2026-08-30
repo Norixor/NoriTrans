@@ -37,7 +37,7 @@ import type {
 } from "@/src/translation/types";
 import { browser } from "wxt/browser";
 import { runtimeId } from "@/src/shared/runtime-id";
-import { NTransError } from "@/src/shared/errors";
+import { NoriTransError } from "@/src/shared/errors";
 import {
   translationDiagnostic,
   translationRuntimeDiagnosticContext,
@@ -364,7 +364,7 @@ function isAutomaticLocalUnsupportedSource(
   const provider = pageFastProvider(settings);
   return (
     usesAutomaticLocalPageSource(settings) &&
-    error instanceof NTransError &&
+    error instanceof NoriTransError &&
     error.code === "provider_unavailable" &&
     ((provider === "bergamot-local" &&
       (error.reason === "bergamot_package_missing" ||
@@ -886,7 +886,7 @@ function validatedResultMap(
     expected.size !== segments.length ||
     segments.some((segment) => segment.id.length === 0)
   ) {
-    throw new NTransError(
+    throw new NoriTransError(
       "页面翻译批次包含空白或重复的段落 ID。",
       "invalid_response",
       false,
@@ -901,7 +901,7 @@ function validatedResultMap(
       typeof result.translatedText !== "string" ||
       !result.translatedText.trim()
     ) {
-      throw new NTransError(
+      throw new NoriTransError(
         "翻译服务返回了无效译文。",
         "invalid_response",
         false,
@@ -909,7 +909,7 @@ function validatedResultMap(
       );
     }
     if (!expected.has(result.id) || byId.has(result.id)) {
-      throw new NTransError(
+      throw new NoriTransError(
         "翻译服务返回了未知或重复的段落 ID。",
         "invalid_response",
         false,
@@ -921,7 +921,7 @@ function validatedResultMap(
 
   if (byId.size !== expected.size) {
     const missing = [...expected].filter((id) => !byId.has(id));
-    throw new NTransError(
+    throw new NoriTransError(
       "翻译服务没有返回全部段落。",
       "invalid_response",
       true,
@@ -1108,7 +1108,7 @@ function collapseRequestResults(
       typeof result.translatedText !== "string" ||
       !result.translatedText.trim()
     ) {
-      throw new NTransError(
+      throw new NoriTransError(
         "翻译服务返回了无效译文。",
         "invalid_response",
         false,
@@ -1116,7 +1116,7 @@ function collapseRequestResults(
       );
     }
     if (!expected.has(result.id) || byId.has(result.id)) {
-      throw new NTransError(
+      throw new NoriTransError(
         "翻译服务返回了未知或重复的段落 ID。",
         "invalid_response",
         false,
@@ -1131,7 +1131,7 @@ function collapseRequestResults(
   }
   if (byId.size !== expected.size) {
     const missing = [...expected].filter((id) => !byId.has(id));
-    throw new NTransError(
+    throw new NoriTransError(
       "翻译服务没有返回全部段落。",
       "invalid_response",
       true,
@@ -2042,7 +2042,7 @@ export class PageTranslationSession {
                 settings.page.mode === "ai" &&
                 attempt + 1 < AI_BATCH_MAX_ATTEMPTS &&
                 pendingRequestBatch.length > 0 &&
-                error instanceof NTransError &&
+                error instanceof NoriTransError &&
                 error.retryable;
               if (!canRetry) break;
             }
@@ -2055,7 +2055,7 @@ export class PageTranslationSession {
                 lastError instanceof Error
                   ? lastError.message
                   : "翻译请求失败。";
-              if (lastError instanceof NTransError) {
+              if (lastError instanceof NoriTransError) {
                 const receivedRequestIds = ownedRequestBatch.filter((segment) =>
                   receivedResults.has(segment.id),
                 ).length;
@@ -2338,7 +2338,7 @@ export class PageTranslationSession {
         request,
       });
       if (!response.ok || !response.results) {
-        throw new NTransError(
+        throw new NoriTransError(
           response.error?.message ?? "翻译请求失败。",
           response.error?.code ?? "request_failed",
           response.error?.retryable ?? false,

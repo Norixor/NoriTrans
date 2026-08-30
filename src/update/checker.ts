@@ -1,10 +1,12 @@
 import { browser } from "wxt/browser";
 
 const RELEASES_LATEST_URLS = [
+  "https://api.github.com/repos/Norixor/NoriTrans/releases/latest",
   "https://api.github.com/repos/Norixor/nTrans/releases/latest",
   "https://api.github.com/repos/Norixor/NorixorTrans/releases/latest",
 ] as const;
 const RELEASE_PAGE_PREFIXES = [
+  "https://github.com/Norixor/NoriTrans/releases/tag/",
   "https://github.com/Norixor/nTrans/releases/tag/",
   "https://github.com/Norixor/NorixorTrans/releases/tag/",
 ] as const;

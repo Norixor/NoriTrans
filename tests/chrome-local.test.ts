@@ -2,7 +2,7 @@ import {
   chromeTranslatorLanguage,
   ChromeLocalProvider,
 } from "@/src/translation/providers/chrome-local";
-import { NTransError } from "@/src/shared/errors";
+import { NoriTransError } from "@/src/shared/errors";
 import { createProtectedText } from "@/src/translation/protected-text";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -581,8 +581,8 @@ describe("ChromeLocalProvider readiness", () => {
         code: "provider_unavailable",
         reason: "chrome_pair_unavailable",
       });
-      expect(failure).toBeInstanceOf(NTransError);
-      if (failure instanceof NTransError) {
+      expect(failure).toBeInstanceOf(NoriTransError);
+      if (failure instanceof NoriTransError) {
         expect(failure.details).toContain("ko->de=create-Error");
       }
     },

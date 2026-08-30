@@ -1,4 +1,4 @@
-import { NTransError } from "@/src/shared/errors";
+import { NoriTransError } from "@/src/shared/errors";
 import { assertValidProtectedTranslation } from "@/src/translation/protected-text";
 import type {
   TranslationProvider,
@@ -43,7 +43,7 @@ function validateRequestSegments(segments: TranslationSegment[]): void {
         segment.format !== "plain-text-v1" &&
         segment.format !== "protected-text-v1")
     ) {
-      throw new NTransError(
+      throw new NoriTransError(
         "翻译请求包含空白文本、空白 ID 或重复 ID。",
         "invalid_response",
       );
@@ -92,7 +92,7 @@ function validateResults(
     expected.size !== segments.length ||
     segments.some((segment) => !segment.id)
   ) {
-    throw new NTransError(
+    throw new NoriTransError(
       "翻译请求包含空白或重复的段落 ID。",
       "invalid_response",
       false,
@@ -103,7 +103,7 @@ function validateResults(
 
   for (const result of results) {
     if (!expected.has(result.id) || received.has(result.id)) {
-      throw new NTransError(
+      throw new NoriTransError(
         "翻译服务返回了未知或重复的段落 ID。",
         "invalid_response",
         false,
@@ -114,7 +114,7 @@ function validateResults(
       typeof result.translatedText !== "string" ||
       !result.translatedText.trim()
     ) {
-      throw new NTransError(
+      throw new NoriTransError(
         "翻译服务返回了无效译文。",
         "invalid_response",
         false,
@@ -123,7 +123,7 @@ function validateResults(
     }
     const segment = segments.find((candidate) => candidate.id === result.id);
     if (!segment) {
-      throw new NTransError(
+      throw new NoriTransError(
         "翻译服务返回了未知的段落 ID。",
         "invalid_response",
       );
@@ -134,7 +134,7 @@ function validateResults(
 
   if (received.size !== expected.size) {
     const missing = [...expected].filter((id) => !received.has(id));
-    throw new NTransError(
+    throw new NoriTransError(
       "翻译服务没有返回全部段落。",
       "invalid_response",
       true,
@@ -166,7 +166,7 @@ function createBatches(
   for (const segment of request.segments) {
     const segmentCharacters = characterCount(segment);
     if (segmentCharacters > maxCharacters) {
-      throw new NTransError(
+      throw new NoriTransError(
         "待翻译段落超过当前翻译服务的单批字符限制。",
         "request_failed",
       );
@@ -226,7 +226,7 @@ export async function scheduleTranslation(
         typeof result.translatedText !== "string" ||
         !result.translatedText.trim()
       ) {
-        throw new NTransError(
+        throw new NoriTransError(
           "翻译服务返回了未知、重复或无效的增量结果。",
           "invalid_response",
           false,
@@ -235,7 +235,7 @@ export async function scheduleTranslation(
       }
       const segment = segments.find((candidate) => candidate.id === result.id);
       if (!segment) {
-        throw new NTransError(
+        throw new NoriTransError(
           "翻译服务返回了未知的增量段落 ID。",
           "invalid_response",
         );
@@ -246,7 +246,7 @@ export async function scheduleTranslation(
       receivedProgress.add(result.id);
       const group = groupByProviderId.get(result.id);
       if (!group) {
-        throw new NTransError(
+        throw new NoriTransError(
           "翻译服务返回了未知的归一化段落 ID。",
           "invalid_response",
         );
@@ -287,7 +287,7 @@ export async function scheduleTranslation(
   return request.segments.map((segment) => {
     const result = outputById.get(segment.id);
     if (!result) {
-      throw new NTransError(
+      throw new NoriTransError(
         "翻译服务没有返回全部归一化段落。",
         "invalid_response",
         true,

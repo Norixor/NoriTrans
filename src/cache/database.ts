@@ -22,7 +22,7 @@ export interface TranslationJobRow {
   updatedAt: number;
 }
 
-interface NTransDatabase extends DBSchema {
+interface NoriTransDatabase extends DBSchema {
   translations: {
     key: string;
     value: TranslationCacheRow;
@@ -40,10 +40,10 @@ interface NTransDatabase extends DBSchema {
   };
 }
 
-let databasePromise: Promise<IDBPDatabase<NTransDatabase>> | undefined;
+let databasePromise: Promise<IDBPDatabase<NoriTransDatabase>> | undefined;
 
-export function getDatabase(): Promise<IDBPDatabase<NTransDatabase>> {
-  databasePromise ??= openDB<NTransDatabase>("norixortrans", 1, {
+export function getDatabase(): Promise<IDBPDatabase<NoriTransDatabase>> {
+  databasePromise ??= openDB<NoriTransDatabase>("norixortrans", 1, {
     upgrade(database) {
       const translations = database.createObjectStore("translations", {
         keyPath: "key",

@@ -14,7 +14,7 @@ import {
   type OcrTextBox,
 } from "@/src/ocr/types";
 import type { ContentSettings } from "@/src/shared/settings";
-import { NTransError } from "@/src/shared/errors";
+import { NoriTransError } from "@/src/shared/errors";
 import { message } from "@/src/shared/i18n";
 import { runtimeId } from "@/src/shared/runtime-id";
 import { ChromeLocalProvider } from "@/src/translation/providers/chrome-local";
@@ -747,7 +747,7 @@ export class ImageTranslationController {
         error instanceof Error
           ? error.message.slice(0, 240)
           : "image_translation_failed";
-      const errorCode = error instanceof NTransError ? error.code : detail;
+      const errorCode = error instanceof NoriTransError ? error.code : detail;
       return this.setImageStatus(image, {
         state:
           detail.startsWith("image_source_") ||

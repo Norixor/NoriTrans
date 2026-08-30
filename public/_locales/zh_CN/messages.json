@@ -1,9 +1,9 @@
 {
-  "extensionName": { "message": "nTrans" },
+  "extensionName": { "message": "NoriTrans" },
   "documentLanguage": { "message": "zh-CN" },
   "uiLanguage": { "message": "界面语言" },
   "uiLanguageDescription": {
-    "message": "默认跟随浏览器，也可以为 nTrans 的全部界面指定一种语言。"
+    "message": "默认跟随浏览器，也可以为 NoriTrans 的全部界面指定一种语言。"
   },
   "uiLanguageAuto": { "message": "跟随浏览器" },
   "uiLanguageEnglish": { "message": "English" },
@@ -711,7 +711,7 @@
   "profileWizard": { "message": "字幕采集向导" },
   "profileWizardSampling": { "message": "正在采样字幕变化…" },
   "profileWizardPlayHint": {
-    "message": "请打开网站原字幕并播放视频，nTrans 会在当前页面采样。"
+    "message": "请打开网站原字幕并播放视频，NoriTrans 会在当前页面采样。"
   },
   "profileWizardCandidate": { "message": "字幕候选区域" },
   "profileWizardNoCandidates": {
@@ -739,7 +739,7 @@
       "total": { "content": "$2" }
     }
   },
-  "floatingControl": { "message": "nTrans 快速控制" },
+  "floatingControl": { "message": "NoriTrans 快速控制" },
   "floatingControlEnabled": { "message": "显示浮动控制" },
   "floatingControlDescription": {
     "message": "一个可移动浮窗，统一控制网页翻译、视频字幕和站点采集。"
@@ -810,11 +810,11 @@
     "message": "OCR 已暂停；返回此标签页后会自动继续。"
   },
   "ocrCapturePermissionRequired": {
-    "message": "请在刚打开的 nTrans 授权窗口中允许可选截图权限。"
+    "message": "请在刚打开的 NoriTrans 授权窗口中允许可选截图权限。"
   },
   "ocrPermissionTitle": { "message": "启用本地图像 OCR" },
   "ocrPermissionDescription": {
-    "message": "nTrans 需要 Chrome 的可选全站截图权限，只读取你在当前标签页主动框选的字幕区域。"
+    "message": "NoriTrans 需要 Chrome 的可选全站截图权限，只读取你在当前标签页主动框选的字幕区域。"
   },
   "ocrPermissionInstruction": {
     "message": "点击下方蓝色按钮，随后 Chrome 会显示自己的权限确认。"
@@ -870,7 +870,7 @@
     "message": "当前翻译 Provider 不可用，请检查源语言或更换 Provider。"
   },
   "runtimeErrorPermissionRequired": {
-    "message": "nTrans 尚未获得当前翻译 Provider 的访问权限。"
+    "message": "NoriTrans 尚未获得当前翻译 Provider 的访问权限。"
   },
   "runtimeErrorInvalidConfiguration": {
     "message": "请先配置 Provider Base URL、API Key 和模型。"
@@ -956,7 +956,7 @@
     "message": "图片翻译请求失败，请检查 Provider 设置后重试。"
   },
   "updateAvailableTitle": {
-    "message": "nTrans $VERSION$ 可更新",
+    "message": "NoriTrans $VERSION$ 可更新",
     "placeholders": { "version": { "content": "$1" } }
   },
   "updateAvailableDescription": {
@@ -978,7 +978,7 @@
   "updateCheckNow": { "message": "立即检查" },
   "updateChecking": { "message": "正在检查更新…" },
   "updateCurrent": {
-    "message": "nTrans $VERSION$ 已是最新版本。",
+    "message": "NoriTrans $VERSION$ 已是最新版本。",
     "placeholders": { "version": { "content": "$1" } }
   },
   "updateIgnored": {

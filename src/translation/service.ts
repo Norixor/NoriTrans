@@ -3,7 +3,7 @@ import {
   setCachedTranslation,
 } from "@/src/cache/database";
 import { promptVersion, translationCacheKey } from "@/src/cache/keys";
-import { NTransError } from "@/src/shared/errors";
+import { NoriTransError } from "@/src/shared/errors";
 import type { AppSettings } from "@/src/shared/settings";
 import { list as listLocalTranslationRuntimes } from "@/src/local-translation/runtime-storage";
 import { createBackgroundTranslationProvider } from "@/src/translation/providers/factory";
@@ -71,7 +71,7 @@ function validCachedTranslation(
     assertValidProtectedTranslation(segment, cleaned);
     return cleaned;
   } catch (error) {
-    if (error instanceof NTransError) return undefined;
+    if (error instanceof NoriTransError) return undefined;
     throw error;
   }
 }
@@ -305,7 +305,7 @@ export async function translateInBackground(
       if (!segment) return;
       const translatedText = cleanTranslatedText(result.translatedText).trim();
       if (!translatedText) {
-        throw new NTransError(
+        throw new NoriTransError(
           "翻译服务返回了空译文。",
           "invalid_response",
           false,

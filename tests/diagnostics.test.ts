@@ -11,7 +11,7 @@ describe("site diagnostics", () => {
   });
 
   it("keeps production diagnostics disabled by default", () => {
-    vi.stubEnv("WXT_NTRANS_SITE_DIAGNOSTICS", "");
+    vi.stubEnv("WXT_NORITRANS_SITE_DIAGNOSTICS", "");
     const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
 
     expect(siteDiagnosticsEnabled()).toBe(false);
@@ -21,7 +21,7 @@ describe("site diagnostics", () => {
   });
 
   it("emits diagnostics only after an explicit opt-in", () => {
-    vi.stubEnv("WXT_NTRANS_SITE_DIAGNOSTICS", "1");
+    vi.stubEnv("WXT_NORITRANS_SITE_DIAGNOSTICS", "1");
     const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
     const detail = { cues: 20 };
 
@@ -29,7 +29,7 @@ describe("site diagnostics", () => {
     siteDiagnostic("Netflix", "track-classified", detail);
 
     expect(info).toHaveBeenCalledWith(
-      "[nTrans][Netflix] track-classified",
+      "[NoriTrans][Netflix] track-classified",
       detail,
     );
   });

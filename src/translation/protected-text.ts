@@ -1,4 +1,4 @@
-import { NTransError } from "@/src/shared/errors";
+import { NoriTransError } from "@/src/shared/errors";
 import { runtimeErrorToken } from "@/src/shared/runtime-errors";
 import type { TranslationSegment } from "@/src/translation/types";
 
@@ -34,8 +34,8 @@ function marker(salt: string, index: number, role: "open" | "close"): string {
   return `${markerPrefix(salt)}${index.toString(36)}:${role}${MARKER_END}`;
 }
 
-function invalidProtectedText(details: string): NTransError {
-  return new NTransError(
+function invalidProtectedText(details: string): NoriTransError {
+  return new NoriTransError(
     runtimeErrorToken("invalid_response"),
     "invalid_response",
     true,
@@ -366,7 +366,7 @@ export function parseProtectedText(
   try {
     return validateProtectedTranslation(sourceText, translatedText);
   } catch (error) {
-    if (error instanceof NTransError) return undefined;
+    if (error instanceof NoriTransError) return undefined;
     throw error;
   }
 }

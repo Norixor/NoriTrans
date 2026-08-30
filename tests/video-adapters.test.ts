@@ -818,7 +818,7 @@ describe("video subtitle adapters", () => {
     }
   });
 
-  it("keeps collecting a cue hidden only by nTrans", () => {
+  it("keeps collecting a cue hidden only by NoriTrans", () => {
     const style = document.createElement("style");
     style.textContent = `
       :root[data-norixortrans-hide-native-subtitles] .ytp-caption-segment {

@@ -4,7 +4,7 @@ import {
   normalizeBergamotLanguage,
   type BergamotLanguage,
 } from "@/src/local-translation/types";
-import { NTransError } from "@/src/shared/errors";
+import { NoriTransError } from "@/src/shared/errors";
 import { runtimeErrorToken } from "@/src/shared/runtime-errors";
 import { detectDominantSourceLanguage } from "@/src/translation/language-detection";
 import {
@@ -98,19 +98,23 @@ function createPartGroups(parts: readonly PreparedPart[]): PreparedPart[][] {
   return groups;
 }
 
-function providerError(error: unknown): NTransError {
-  if (error instanceof NTransError) return error;
+function providerError(error: unknown): NoriTransError {
+  if (error instanceof NoriTransError) return error;
   if (
     error instanceof DOMException &&
     (error.name === "AbortError" || error.name === "TimeoutError")
   ) {
-    return new NTransError(runtimeErrorToken("cancelled"), "cancelled", true);
+    return new NoriTransError(
+      runtimeErrorToken("cancelled"),
+      "cancelled",
+      true,
+    );
   }
   if (error instanceof BergamotRuntimeError) {
     const missingOrUnsupported =
       error.code === "bergamot_package_missing" ||
       error.code === "bergamot_unsupported_language";
-    return new NTransError(
+    return new NoriTransError(
       runtimeErrorToken(
         missingOrUnsupported ? "provider_unavailable" : "request_failed",
       ),
@@ -123,7 +127,7 @@ function providerError(error: unknown): NTransError {
       missingOrUnsupported ? error.code : undefined,
     );
   }
-  return new NTransError(
+  return new NoriTransError(
     runtimeErrorToken("request_failed"),
     "request_failed",
     true,
@@ -200,7 +204,7 @@ export class BergamotLocalProvider implements TranslationProvider {
               !result.translatedText.trim(),
           )
         ) {
-          throw new NTransError(
+          throw new NoriTransError(
             runtimeErrorToken("invalid_response"),
             "invalid_response",
             true,
@@ -242,7 +246,7 @@ export class BergamotLocalProvider implements TranslationProvider {
       for (const part of prepared.parts) {
         const translatedText = translatedById.get(part.id);
         if (!translatedText) {
-          throw new NTransError(
+          throw new NoriTransError(
             runtimeErrorToken("invalid_response"),
             "invalid_response",
             true,

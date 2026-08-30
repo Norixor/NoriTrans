@@ -1,4 +1,4 @@
-nTrans Bergamot local translation notices
+NoriTrans Bergamot local translation notices
 ================================================
 
 Bergamot Translator WebAssembly runtime
@@ -21,7 +21,7 @@ Bundled files:
 fzstd
 -----
 
-nTrans uses fzstd 0.1.1 to decompress Zstandard model attachments after
+NoriTrans uses fzstd 0.1.1 to decompress Zstandard model attachments after
 download. fzstd is Copyright (c) 2020 Arjun Barrett and is licensed under the
 MIT License.
 
@@ -31,11 +31,11 @@ License: https://github.com/101arrowz/fzstd/blob/master/LICENSE
 Mozilla translation model attachments
 -------------------------------------
 
-No translation model weights are bundled in nTrans. The extension only
+No translation model weights are bundled in NoriTrans. The extension only
 downloads a selected model after an explicit user action. Catalog metadata is
 read from Mozilla Remote Settings collection `translations-models-v2`, and the
 corresponding compressed attachments are fetched directly from Mozilla's
-attachments CDN. nTrans does not mirror or redistribute those weights.
+attachments CDN. NoriTrans does not mirror or redistribute those weights.
 
 Catalog: https://firefox.settings.services.mozilla.com/v1/buckets/main/collections/translations-models-v2/records
 Attachments: https://firefox-settings-attachments.cdn.mozilla.net/

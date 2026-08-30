@@ -1,4 +1,4 @@
-export class NTransError extends Error {
+export class NoriTransError extends Error {
   constructor(
     message: string,
     readonly code: string,
@@ -7,7 +7,7 @@ export class NTransError extends Error {
     readonly reason?: string,
   ) {
     super(message);
-    this.name = "NTransError";
+    this.name = "NoriTransError";
   }
 }
 

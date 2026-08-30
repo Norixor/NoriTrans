@@ -1,6 +1,6 @@
 import { defineConfig } from "wxt";
 
-const headedOcrCaptureE2e = process.env.NTRANS_OCR_CAPTURE_E2E === "1";
+const headedOcrCaptureE2e = process.env.NORITRANS_OCR_CAPTURE_E2E === "1";
 
 export default defineConfig({
   vite: () => ({
