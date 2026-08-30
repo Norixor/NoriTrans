@@ -152,6 +152,9 @@ export function providerSourceLanguageAvailable(
   sourceLanguage: string,
   capabilities: TranslationCapabilities,
 ): boolean {
+  // Detection does not require a translation model; action readiness still
+  // checks the resolved source and target pair separately.
+  if (sourceLanguage === "auto") return true;
   return TARGET_LANGUAGES.some(({ code: targetLanguage }) =>
     providerLanguagePairAvailable(
       provider,

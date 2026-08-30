@@ -4,7 +4,18 @@ import { browser } from "wxt/browser";
 const popupState = vi.hoisted<{
   pageStatus: unknown;
   subtitleStatus: unknown;
-}>(() => ({ pageStatus: null, subtitleStatus: null }));
+  capabilities: {
+    chromePairs: string[];
+    installedBergamotPackIds: string[];
+  };
+}>(() => ({
+  pageStatus: null,
+  subtitleStatus: null,
+  capabilities: {
+    chromePairs: ["en\u001fzh-CN"],
+    installedBergamotPackIds: [],
+  },
+}));
 
 vi.mock("wxt/browser", () => ({
   browser: {
@@ -27,10 +38,7 @@ vi.mock("wxt/browser", () => ({
               : request.type === "TRANSLATION_CAPABILITIES_GET"
                 ? {
                     ok: true,
-                    capabilities: {
-                      chromePairs: ["en\u001fzh-CN"],
-                      installedBergamotPackIds: [],
-                    },
+                    capabilities: popupState.capabilities,
                   }
                 : { ok: true },
         ),
@@ -101,6 +109,10 @@ describe("popup status UI", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
+    popupState.capabilities = {
+      chromePairs: ["en\u001fzh-CN"],
+      installedBergamotPackIds: [],
+    };
     document.body.replaceChildren();
   });
 
@@ -164,5 +176,18 @@ describe("popup status UI", () => {
     expect(subtitle?.textContent).toBe(
       "subtitleStatusReady · subtitleTrackStream",
     );
+
+    popupState.capabilities = {
+      chromePairs: [],
+      installedBergamotPackIds: [],
+    };
+    await vi.advanceTimersByTimeAsync(1_500);
+    await vi.waitFor(() => expect(translate?.disabled).toBe(true));
+    const source = document.querySelector<HTMLSelectElement>(
+      "#source-language",
+    );
+    expect(source?.value).toBe("auto");
+    expect(source?.selectedOptions[0]?.textContent).toBe("languageAuto");
+    expect(source?.selectedOptions[0]?.disabled).toBe(false);
   });
 });

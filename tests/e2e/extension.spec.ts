@@ -1970,6 +1970,13 @@ test("unified page and selection modes persist independently", async () => {
     await expect(selectionMode).toHaveValue("fast:chrome-local");
     await expect(selectionEnabled).toBeChecked();
     await expect(responseMode).toBeDisabled();
+    await pageMode.selectOption("fast:bergamot-local");
+    await expect(sourceLanguage).toHaveValue("auto");
+    await expect(sourceLanguage.locator('option[value="auto"]')).toBeEnabled();
+    await expect(
+      sourceLanguage.locator('option[value="auto"]'),
+    ).not.toContainText(/current method unavailable|当前方式不可用/iu);
+    await pageMode.selectOption("fast:chrome-local");
     await sourceLanguage.selectOption("en");
     await targetLanguage.selectOption("ja");
     await displayMode.selectOption("translated");

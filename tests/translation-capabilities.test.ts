@@ -122,4 +122,33 @@ describe("translation method and local language capabilities", () => {
       ),
     ).toBe(true);
   });
+
+  it("keeps automatic detection selectable without installed translation models", () => {
+    const capabilities = {
+      chromePairs: [],
+      installedBergamotPackIds: [] as BergamotLanguagePackId[],
+    };
+
+    expect(
+      providerSourceLanguageAvailable("chrome-local", "auto", capabilities),
+    ).toBe(true);
+    expect(
+      providerSourceLanguageAvailable("bergamot-local", "auto", capabilities),
+    ).toBe(true);
+    expect(
+      providerLanguagePairAvailable(
+        "bergamot-local",
+        "auto",
+        "zh-CN",
+        capabilities,
+      ),
+    ).toBe(false);
+    expect(
+      providerTargetLanguageAvailable(
+        "bergamot-local",
+        "zh-CN",
+        capabilities,
+      ),
+    ).toBe(false);
+  });
 });
