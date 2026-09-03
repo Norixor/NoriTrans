@@ -61,6 +61,12 @@ import type {
   OcrRuntimeInfo,
 } from "@/src/messaging/protocol";
 import type { ExtensionUpdateStatus } from "@/src/update/checker";
+import type {
+  NorixorAuthResponse,
+  NorixorAuthState,
+  NorixorModelCatalog,
+  NorixorUsageSummary,
+} from "@/src/norixor/types";
 import {
   installedBergamotPackIds,
   providerSourceLanguageAvailable,
@@ -131,6 +137,77 @@ function isConnectionTestResponse(
     typeof value.ok === "boolean" &&
     (!("message" in value) ||
       (typeof value.message === "string" && value.message.length <= 2_000))
+  );
+}
+
+function isNorixorAuthState(value: unknown): value is NorixorAuthState {
+  if (typeof value !== "object" || value === null || !("state" in value)) {
+    return false;
+  }
+  if (value.state === "signed-out" || value.state === "signed-in") return true;
+  return (
+    value.state === "challenge" &&
+    "challengeType" in value &&
+    (value.challengeType === "emailVerification" ||
+      value.challengeType === "mfa")
+  );
+}
+
+function isNorixorAuthResponse(value: unknown): value is NorixorAuthResponse {
+  if (typeof value !== "object" || value === null || !("ok" in value)) {
+    return false;
+  }
+  return value.ok === true
+    ? "auth" in value && isNorixorAuthState(value.auth)
+    : value.ok === false && "error" in value && typeof value.error === "string";
+}
+
+function isNorixorModelCatalog(value: unknown): value is NorixorModelCatalog {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "defaultModel" in value &&
+    typeof value.defaultModel === "string" &&
+    "models" in value &&
+    Array.isArray(value.models) &&
+    value.models.every(
+      (model: unknown) =>
+        typeof model === "object" &&
+        model !== null &&
+        "id" in model &&
+        typeof model.id === "string" &&
+        "displayName" in model &&
+        typeof model.displayName === "string",
+    )
+  );
+}
+
+function isNorixorUsageSummary(value: unknown): value is NorixorUsageSummary {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("balance" in value) ||
+    typeof value.balance !== "object" ||
+    value.balance === null ||
+    !("periods" in value) ||
+    typeof value.periods !== "object" ||
+    value.periods === null
+  ) {
+    return false;
+  }
+  return (
+    "availableRegularUsd" in value.balance &&
+    typeof value.balance.availableRegularUsd === "string" &&
+    "availableGiftUsd" in value.balance &&
+    typeof value.balance.availableGiftUsd === "string" &&
+    "today" in value.periods &&
+    typeof value.periods.today === "object" &&
+    value.periods.today !== null &&
+    "last30Days" in value.periods &&
+    typeof value.periods.last30Days === "object" &&
+    value.periods.last30Days !== null &&
+    "generatedAt" in value &&
+    typeof value.generatedAt === "string"
   );
 }
 
@@ -383,6 +460,7 @@ async function initialize(): Promise<void> {
   const providerSettingsTab = element<HTMLButtonElement>(
     "provider-settings-tab",
   );
+  const norixorSettingsTab = element<HTMLButtonElement>("norixor-settings-tab");
   const localTranslationSettingsTab = element<HTMLButtonElement>(
     "local-translation-settings-tab",
   );
@@ -398,6 +476,7 @@ async function initialize(): Promise<void> {
   const profilesSettingsPanel = element<HTMLElement>("profiles-settings-panel");
   const imageSettingsPanel = element<HTMLElement>("image-settings-panel");
   const providerSettingsPanel = element<HTMLElement>("provider-settings-panel");
+  const norixorSettingsPanel = element<HTMLElement>("norixor-settings-panel");
   const localTranslationSettingsPanel = element<HTMLElement>(
     "local-translation-settings-panel",
   );
@@ -423,6 +502,38 @@ async function initialize(): Promise<void> {
   const model = element<HTMLInputElement>("model");
   const timeout = element<HTMLInputElement>("timeout");
   const systemPrompt = element<HTMLTextAreaElement>("system-prompt");
+  const norixorAccountStatus = element<HTMLElement>("norixor-account-status");
+  const norixorSignedOut = element<HTMLElement>("norixor-signed-out");
+  const norixorChallenge = element<HTMLElement>("norixor-challenge");
+  const norixorSignedIn = element<HTMLElement>("norixor-signed-in");
+  const norixorUsername = element<HTMLInputElement>("norixor-username");
+  const norixorPassword = element<HTMLInputElement>("norixor-password");
+  const norixorDisplayName = element<HTMLInputElement>("norixor-display-name");
+  const norixorCode = element<HTMLInputElement>("norixor-code");
+  const norixorChallengeDescription = element<HTMLElement>(
+    "norixor-challenge-description",
+  );
+  const norixorLogin = element<HTMLButtonElement>("norixor-login");
+  const norixorRegister = element<HTMLButtonElement>("norixor-register");
+  const norixorVerify = element<HTMLButtonElement>("norixor-verify");
+  const norixorChallengeCancel = element<HTMLButtonElement>(
+    "norixor-challenge-cancel",
+  );
+  const norixorLogout = element<HTMLButtonElement>("norixor-logout");
+  const norixorAccountName = element<HTMLElement>("norixor-account-name");
+  const norixorAccountDetail = element<HTMLElement>("norixor-account-detail");
+  const norixorModel = element<HTMLSelectElement>("norixor-model");
+  const norixorUsage = element<HTMLElement>("norixor-usage");
+  const norixorBalance = element<HTMLElement>("norixor-balance");
+  const norixorGiftBalance = element<HTMLElement>("norixor-gift-balance");
+  const norixorToday = element<HTMLElement>("norixor-today");
+  const norixorTodayDetail = element<HTMLElement>("norixor-today-detail");
+  const norixorLast30Days = element<HTMLElement>("norixor-last-30-days");
+  const norixorLast30DaysDetail = element<HTMLElement>(
+    "norixor-last-30-days-detail",
+  );
+  const norixorUsageUpdated = element<HTMLElement>("norixor-usage-updated");
+  const norixorMessage = element<HTMLElement>("norixor-message");
   const pageSourceLanguage = element<HTMLSelectElement>("page-source-language");
   const pageTargetLanguage = element<HTMLSelectElement>("page-target-language");
   const pageMode = element<HTMLSelectElement>("page-mode");
@@ -710,6 +821,10 @@ async function initialize(): Promise<void> {
   const profileParserGuide = element<HTMLElement>("profile-parser-guide");
   const profileMessage = element<HTMLParagraphElement>("profile-message");
   let settings = await loadSettings();
+  let norixorAuth: NorixorAuthState = { state: "signed-out" };
+  let norixorModels: NorixorModelCatalog | undefined;
+  let norixorUsageSummary: NorixorUsageSummary | undefined;
+  let norixorBusy = false;
   let builtInProfiles: SubtitleSiteProfile[] = [];
   let customProfiles: SubtitleSiteProfile[] = [];
   let profileOverrides: SubtitleSiteProfile[] = [];
@@ -735,6 +850,261 @@ async function initialize(): Promise<void> {
   let chromeTranslationPairs: string[] = [];
   let chromeTranslationPairsLoaded = false;
   const dirtyControls = new DirtyControlTracker();
+
+  const setNorixorFeedback = (
+    key: string,
+    tone: "success" | "error" | "" = "",
+  ): void => {
+    norixorMessage.dataset.tone = tone;
+    norixorMessage.textContent = key ? message(key) : "";
+  };
+
+  const formatNorixorUsd = (value: string): string => {
+    const amount = Number(value);
+    return Number.isFinite(amount)
+      ? new Intl.NumberFormat(currentUiLocale(), {
+          style: "currency",
+          currency: "USD",
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 6,
+        }).format(amount)
+      : value;
+  };
+
+  const formatNorixorCount = (value: number): string =>
+    new Intl.NumberFormat(currentUiLocale()).format(value);
+
+  const renderNorixorOverview = (): void => {
+    const catalog = norixorModels;
+    const selectedModel =
+      settings.norixor.model &&
+      catalog?.models.some(({ id }) => id === settings.norixor.model)
+        ? settings.norixor.model
+        : catalog?.defaultModel;
+    norixorModel.replaceChildren(
+      ...(catalog?.models ?? []).map(
+        ({ id, displayName }) =>
+          new Option(
+            displayName === id ? id : `${displayName} · ${id}`,
+            id,
+            false,
+            id === selectedModel,
+          ),
+      ),
+    );
+    norixorModel.disabled = norixorBusy || !selectedModel;
+
+    const usage = norixorUsageSummary;
+    norixorUsage.setAttribute("aria-busy", usage ? "false" : "true");
+    norixorBalance.textContent = usage
+      ? formatNorixorUsd(usage.balance.availableRegularUsd)
+      : "—";
+    norixorGiftBalance.textContent = usage
+      ? message(
+          "norixorGiftBalance",
+          formatNorixorUsd(usage.balance.availableGiftUsd),
+        )
+      : "";
+    for (const [period, value, detail] of [
+      [usage?.periods.today, norixorToday, norixorTodayDetail],
+      [usage?.periods.last30Days, norixorLast30Days, norixorLast30DaysDetail],
+    ] as const) {
+      value.textContent = period
+        ? message(
+            "norixorUsageRequests",
+            formatNorixorCount(period.successfulRequests),
+          )
+        : "—";
+      detail.textContent = period
+        ? message("norixorUsageDetail", [
+            formatNorixorCount(period.sourceCharacters),
+            formatNorixorUsd(period.costUsd),
+          ])
+        : "";
+    }
+    const generatedAt = usage ? new Date(usage.generatedAt) : undefined;
+    norixorUsageUpdated.textContent =
+      usage && generatedAt && !Number.isNaN(generatedAt.getTime())
+        ? message(
+            "norixorUsageUpdated",
+            new Intl.DateTimeFormat(currentUiLocale(), {
+              month: "short",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+              timeZone: usage.timezone,
+            }).format(generatedAt),
+          )
+        : "";
+  };
+
+  const renderNorixorAuth = (): void => {
+    const signedOut = norixorAuth.state === "signed-out";
+    const challenged = norixorAuth.state === "challenge";
+    const signedIn = norixorAuth.state === "signed-in";
+    norixorSignedOut.hidden = !signedOut;
+    norixorChallenge.hidden = !challenged;
+    norixorSignedIn.hidden = !signedIn;
+    norixorAccountStatus.textContent = message(
+      signedIn
+        ? "norixorStatusSignedIn"
+        : challenged
+          ? "norixorStatusChallenge"
+          : "norixorStatusSignedOut",
+    );
+    norixorAccountStatus.dataset.state = signedIn
+      ? "installed"
+      : challenged
+        ? "downloading"
+        : "missing";
+    if (norixorAuth.state === "challenge") {
+      norixorChallengeDescription.textContent = message(
+        norixorAuth.challengeType === "mfa"
+          ? "norixorMfaChallenge"
+          : "norixorEmailChallenge",
+      );
+    }
+    if (norixorAuth.state === "signed-in") {
+      const account = norixorAuth.account;
+      norixorAccountName.textContent =
+        account?.displayName ||
+        account?.email ||
+        message("norixorStatusSignedIn");
+      const details = [
+        account?.membershipStatus,
+        account?.quota?.remaining !== null &&
+        account?.quota?.remaining !== undefined
+          ? message("norixorQuotaRemaining", String(account.quota.remaining))
+          : "",
+      ].filter(Boolean);
+      norixorAccountDetail.textContent =
+        details.join(" · ") || message("norixorManagedTranslationReady");
+    } else {
+      norixorModels = undefined;
+      norixorUsageSummary = undefined;
+    }
+    for (const control of [
+      norixorUsername,
+      norixorPassword,
+      norixorDisplayName,
+      norixorCode,
+      norixorLogin,
+      norixorRegister,
+      norixorVerify,
+      norixorChallengeCancel,
+      norixorLogout,
+    ]) {
+      control.disabled = norixorBusy;
+    }
+    renderNorixorOverview();
+  };
+
+  const norixorFailureMessage = (error: string): string => {
+    if (error === "invalid_grant") return "norixorInvalidGrant";
+    if (error === "rate_limited") return "norixorRateLimited";
+    if (error === "invalid_request") return "norixorInvalidRequest";
+    return "norixorUnavailable";
+  };
+
+  const adoptNorixorResponse = (response: unknown): boolean => {
+    if (!isNorixorAuthResponse(response)) {
+      setNorixorFeedback("norixorUnavailable", "error");
+      return false;
+    }
+    if (!response.ok) {
+      setNorixorFeedback(norixorFailureMessage(response.error), "error");
+      return false;
+    }
+    norixorAuth = response.auth;
+    renderNorixorAuth();
+    return true;
+  };
+
+  const loadNorixorAuth = async (includeAccount: boolean): Promise<void> => {
+    try {
+      adoptNorixorResponse(
+        await browser.runtime.sendMessage({
+          type: "NORIXOR_AUTH_STATUS_GET",
+          includeAccount,
+        }),
+      );
+    } catch {
+      setNorixorFeedback("norixorUnavailable", "error");
+    }
+  };
+
+  const loadNorixorOverview = async (): Promise<void> => {
+    await loadNorixorAuth(true);
+    if (norixorAuth.state !== "signed-in") return;
+    let modelsResponse: unknown;
+    let usageResponse: unknown;
+    try {
+      const sendOverviewCommand = async (
+        type: "NORIXOR_MODELS_GET" | "NORIXOR_USAGE_GET",
+      ): Promise<unknown> => {
+        const response: unknown = await browser.runtime.sendMessage({ type });
+        return response;
+      };
+      [modelsResponse, usageResponse] = await Promise.all([
+        sendOverviewCommand("NORIXOR_MODELS_GET"),
+        sendOverviewCommand("NORIXOR_USAGE_GET"),
+      ]);
+    } catch {
+      norixorModels = undefined;
+      norixorUsageSummary = undefined;
+      renderNorixorOverview();
+      setNorixorFeedback("norixorUnavailable", "error");
+      return;
+    }
+    norixorModels =
+      typeof modelsResponse === "object" &&
+      modelsResponse !== null &&
+      "ok" in modelsResponse &&
+      modelsResponse.ok === true &&
+      "catalog" in modelsResponse &&
+      isNorixorModelCatalog(modelsResponse.catalog)
+        ? modelsResponse.catalog
+        : undefined;
+    norixorUsageSummary =
+      typeof usageResponse === "object" &&
+      usageResponse !== null &&
+      "ok" in usageResponse &&
+      usageResponse.ok === true &&
+      "usage" in usageResponse &&
+      isNorixorUsageSummary(usageResponse.usage)
+        ? usageResponse.usage
+        : undefined;
+    renderNorixorOverview();
+  };
+
+  const runNorixorAuth = async (
+    command: Record<string, unknown>,
+    pendingKey: string,
+  ): Promise<void> => {
+    if (norixorBusy) return;
+    norixorBusy = true;
+    setNorixorFeedback(pendingKey);
+    renderNorixorAuth();
+    try {
+      const response: unknown = await browser.runtime.sendMessage(command);
+      if (adoptNorixorResponse(response)) {
+        if (norixorAuth.state === "signed-in") {
+          await loadNorixorOverview();
+        }
+        setNorixorFeedback(
+          norixorAuth.state === "signed-in" ? "norixorSignedIn" : "",
+          norixorAuth.state === "signed-in" ? "success" : "",
+        );
+      }
+    } catch {
+      setNorixorFeedback("norixorUnavailable", "error");
+    } finally {
+      norixorPassword.value = "";
+      norixorCode.value = "";
+      norixorBusy = false;
+      renderNorixorAuth();
+    }
+  };
 
   const profileLanguageLabel = (code: string): string =>
     code === "auto"
@@ -774,9 +1144,9 @@ async function initialize(): Promise<void> {
   ] as const;
   for (const select of translationMethodSelects) {
     select.replaceChildren(
-      ...TRANSLATION_METHODS.map(
-        (method) => new Option(message(method.labelKey), method.value),
-      ),
+      ...TRANSLATION_METHODS.filter(
+        (method) => select !== imageMode || method.value !== "norixor",
+      ).map((method) => new Option(message(method.labelKey), method.value)),
     );
   }
 
@@ -1009,6 +1379,7 @@ async function initialize(): Promise<void> {
 
   const tabItems = [
     { tab: providerSettingsTab, panel: providerSettingsPanel },
+    { tab: norixorSettingsTab, panel: norixorSettingsPanel },
     {
       tab: localTranslationSettingsTab,
       panel: localTranslationSettingsPanel,
@@ -1042,6 +1413,7 @@ async function initialize(): Promise<void> {
       if (tab === localTranslationSettingsTab) {
         void loadLocalTranslationRuntimes(!localTranslationRuntimeLoaded);
       }
+      if (tab === norixorSettingsTab) void loadNorixorOverview();
     });
     tab.addEventListener("keydown", (event) => {
       let nextIndex: number | undefined;
@@ -1055,6 +1427,93 @@ async function initialize(): Promise<void> {
       event.preventDefault();
       activateTab(nextIndex, true);
     });
+  });
+  norixorLogin.addEventListener("click", () => {
+    const username = norixorUsername.value.trim();
+    const password = norixorPassword.value;
+    if (!username || !password || !norixorUsername.checkValidity()) {
+      setNorixorFeedback("norixorInvalidRequest", "error");
+      return;
+    }
+    void runNorixorAuth(
+      { type: "NORIXOR_AUTH_LOGIN", username, password },
+      "norixorSigningIn",
+    );
+  });
+  norixorRegister.addEventListener("click", () => {
+    const username = norixorUsername.value.trim();
+    const password = norixorPassword.value;
+    if (!username || password.length < 6 || !norixorUsername.checkValidity()) {
+      setNorixorFeedback("norixorInvalidRequest", "error");
+      return;
+    }
+    void runNorixorAuth(
+      {
+        type: "NORIXOR_AUTH_REGISTER",
+        username,
+        password,
+        ...(norixorDisplayName.value.trim()
+          ? { displayName: norixorDisplayName.value.trim() }
+          : {}),
+      },
+      "norixorRegistering",
+    );
+  });
+  norixorVerify.addEventListener("click", () => {
+    if (!/^\d{6}$/u.test(norixorCode.value)) {
+      setNorixorFeedback("norixorInvalidRequest", "error");
+      return;
+    }
+    void runNorixorAuth(
+      { type: "NORIXOR_AUTH_CHALLENGE", code: norixorCode.value },
+      "norixorVerifying",
+    );
+  });
+  norixorChallengeCancel.addEventListener("click", () => {
+    void runNorixorAuth({ type: "NORIXOR_AUTH_LOGOUT" }, "");
+  });
+  norixorLogout.addEventListener("click", () => {
+    void runNorixorAuth({ type: "NORIXOR_AUTH_LOGOUT" }, "").then(() => {
+      if (norixorAuth.state === "signed-out") {
+        setNorixorFeedback("norixorSignedOut", "success");
+      }
+    });
+  });
+  norixorModel.addEventListener("change", () => {
+    const selected = norixorModel.value;
+    if (
+      norixorBusy ||
+      !norixorModels?.models.some(({ id }) => id === selected)
+    ) {
+      return;
+    }
+    norixorBusy = true;
+    renderNorixorAuth();
+    void browser.runtime
+      .sendMessage({ type: "NORIXOR_MODEL_SET", model: selected })
+      .then((response: unknown) => {
+        if (
+          typeof response !== "object" ||
+          response === null ||
+          !("ok" in response) ||
+          response.ok !== true ||
+          !("model" in response) ||
+          response.model !== selected
+        ) {
+          setNorixorFeedback("norixorUnavailable", "error");
+          return;
+        }
+        settings = {
+          ...settings,
+          norixor: { model: selected },
+        };
+        setNorixorFeedback("norixorModelSaved", "success");
+      })
+      .catch(() => setNorixorFeedback("norixorUnavailable", "error"))
+      .finally(() => {
+        norixorBusy = false;
+        renderNorixorAuth();
+      });
   });
   imageRuntimeOpenSettings.addEventListener("click", () => {
     const runtimeTabIndex = tabItems.findIndex(
@@ -1158,6 +1617,7 @@ async function initialize(): Promise<void> {
     pageMode.value = translationMethodValue(
       settings.page.mode,
       settings.provider.fastProvider,
+      settings.page.aiRoute,
     );
     pageResponseMode.value = settings.page.aiResponseMode;
     pageResponseMode.disabled = settings.page.mode !== "ai";
@@ -1172,6 +1632,7 @@ async function initialize(): Promise<void> {
     selectionTranslationMode.value = translationMethodValue(
       settings.page.selectionTranslationMode,
       settings.provider.fastProvider,
+      settings.page.selectionTranslationAiRoute,
     );
     selectionTranslationResponseMode.value =
       settings.page.selectionTranslationAiResponseMode;
@@ -1195,6 +1656,7 @@ async function initialize(): Promise<void> {
     subtitleMode.value = translationMethodValue(
       settings.subtitles.mode,
       settings.provider.fastProvider,
+      settings.subtitles.aiRoute,
     );
     subtitleResponseMode.value = settings.subtitles.aiResponseMode;
     subtitleResponseMode.disabled = settings.subtitles.mode !== "ai";
@@ -1268,6 +1730,14 @@ async function initialize(): Promise<void> {
   ): AppSettings["page"]["mode"] =>
     parseTranslationMethod(select.value)?.mode ?? fallback;
 
+  const selectedAiRoute = (
+    select: HTMLSelectElement,
+    fallback: AppSettings["page"]["aiRoute"],
+  ): AppSettings["page"]["aiRoute"] => {
+    const method = parseTranslationMethod(select.value);
+    return method?.mode === "ai" ? (method.aiRoute ?? "configured") : fallback;
+  };
+
   const readForm = (): AppSettings => ({
     ...settings,
     uiLanguage:
@@ -1295,6 +1765,7 @@ async function initialize(): Promise<void> {
       sourceLanguage: pageSourceLanguage.value,
       targetLanguage: pageTargetLanguage.value,
       mode: selectedTranslationMode(pageMode, settings.page.mode),
+      aiRoute: selectedAiRoute(pageMode, settings.page.aiRoute),
       aiResponseMode: pageResponseMode.value === "batch" ? "batch" : "stream",
       displayMode:
         pageDisplayMode.value === "translated" ? "translated" : "bilingual",
@@ -1314,6 +1785,10 @@ async function initialize(): Promise<void> {
         selectionTranslationMode,
         settings.page.selectionTranslationMode,
       ),
+      selectionTranslationAiRoute: selectedAiRoute(
+        selectionTranslationMode,
+        settings.page.selectionTranslationAiRoute,
+      ),
       selectionTranslationAiResponseMode:
         selectionTranslationResponseMode.value === "batch" ? "batch" : "stream",
       selectionTranslationModelOverride:
@@ -1329,6 +1804,7 @@ async function initialize(): Promise<void> {
       sourceLanguage: subtitleSourceLanguage.value,
       targetLanguage: subtitleTargetLanguage.value,
       mode: selectedTranslationMode(subtitleMode, settings.subtitles.mode),
+      aiRoute: selectedAiRoute(subtitleMode, settings.subtitles.aiRoute),
       aiResponseMode:
         subtitleResponseMode.value === "batch" ? "batch" : "stream",
       displayMode:
@@ -2198,6 +2674,7 @@ async function initialize(): Promise<void> {
         sourceLanguage: settings.page.selectionTranslationSourceLanguage,
         targetLanguage: settings.page.selectionTranslationTargetLanguage,
         mode: settings.page.selectionTranslationMode,
+        aiRoute: settings.page.selectionTranslationAiRoute,
         fastProvider: settings.provider.fastProvider,
         modelOverride: settings.page.selectionTranslationModelOverride,
         enabled: settings.page.selectionTranslationEnabled,
@@ -2210,6 +2687,7 @@ async function initialize(): Promise<void> {
         sourceLanguage: settings.page.sourceLanguage,
         targetLanguage: settings.page.targetLanguage,
         mode: settings.page.mode,
+        aiRoute: settings.page.aiRoute,
         fastProvider: settings.provider.fastProvider,
         modelOverride: "",
         aiResponseMode: settings.page.aiResponseMode,
@@ -2222,6 +2700,7 @@ async function initialize(): Promise<void> {
       sourceLanguage: settings.subtitles.sourceLanguage,
       targetLanguage: settings.subtitles.targetLanguage,
       mode: settings.subtitles.mode,
+      aiRoute: settings.subtitles.aiRoute,
       fastProvider: settings.provider.fastProvider,
       modelOverride: "",
       enabled: settings.subtitles.enabled,
@@ -2298,6 +2777,7 @@ async function initialize(): Promise<void> {
     controls.method.value = translationMethodValue(
       value.mode,
       value.fastProvider,
+      value.aiRoute,
     );
     controls.model.value = value.modelOverride;
     const enabled = Boolean(override);
@@ -2405,6 +2885,7 @@ async function initialize(): Promise<void> {
       sourceLanguage: controls.source.value,
       targetLanguage: controls.target.value,
       mode: method.mode,
+      aiRoute: method.aiRoute ?? "configured",
       fastProvider:
         method.mode === "fast"
           ? (method.fastProvider ?? settings.provider.fastProvider)
@@ -3493,6 +3974,7 @@ async function initialize(): Promise<void> {
       control instanceof HTMLTextAreaElement
     ) {
       if (control.id === "update-auto-check") return;
+      if (control.id.startsWith("norixor-")) return;
       const id = controlIdentifier(control);
       dirtyControls.mark(id);
     }
@@ -3622,6 +4104,7 @@ async function initialize(): Promise<void> {
   });
   void loadLocalTranslationRuntimes(false);
   void refreshUpdateStatus(false);
+  void loadNorixorAuth(false);
   void loadSiteProfiles();
   void loadOcrRuntimes(true).finally(scheduleOcrRuntimePolling);
 }

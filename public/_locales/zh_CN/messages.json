@@ -29,6 +29,7 @@
   },
   "translationMethodDeepL": { "message": "DeepL" },
   "translationMethodAi": { "message": "AI 翻译" },
+  "translationMethodNorixor": { "message": "Norixor 翻译" },
   "aiResponseMode": { "message": "AI 返回方式" },
   "responseModeStream": { "message": "流式逐段（推荐）" },
   "responseModeBatch": { "message": "完整返回" },
@@ -206,6 +207,74 @@
   "settingsTabVideo": { "message": "视频字幕" },
   "settingsTabProfiles": { "message": "站点专属设置" },
   "settingsTabProvider": { "message": "翻译服务" },
+  "settingsTabNorixor": { "message": "Norixor" },
+  "norixorAccountTitle": { "message": "Norixor 翻译" },
+  "norixorAccountDescription": {
+    "message": "登录后使用由 NoriTrans APP 管理的 AI 翻译服务；你原有的 AI Provider 配置不会被覆盖。"
+  },
+  "norixorPrivacyNotice": {
+    "message": "账号密码和 Token 只保留在扩展后台；只有明确选择 Norixor 翻译的文本会发送到 NoriTrans APP。"
+  },
+  "norixorEmail": { "message": "邮箱" },
+  "norixorPassword": { "message": "密码" },
+  "norixorDisplayName": { "message": "显示名称" },
+  "norixorDisplayNamePlaceholder": { "message": "注册时可选" },
+  "norixorDisplayNameHelp": { "message": "仅在创建新的 Norixor 账户时使用。" },
+  "norixorSignIn": { "message": "登录" },
+  "norixorRegister": { "message": "创建账户" },
+  "norixorSignOut": { "message": "退出登录" },
+  "norixorVerificationCode": { "message": "6 位验证码" },
+  "norixorVerify": { "message": "验证" },
+  "norixorCancelChallenge": { "message": "取消" },
+  "norixorStatusSignedOut": { "message": "未登录" },
+  "norixorStatusSignedIn": { "message": "已登录" },
+  "norixorStatusChallenge": { "message": "需要验证" },
+  "norixorEmailChallenge": { "message": "请输入发送到邮箱的验证码。" },
+  "norixorMfaChallenge": { "message": "请输入身份验证器中的验证码。" },
+  "norixorManagedTranslationReady": {
+    "message": "需要使用托管服务时，请手动选择 Norixor 翻译。"
+  },
+  "norixorModel": { "message": "翻译模型" },
+  "norixorModelHelp": {
+    "message": "这里只显示 NoriTrans APP 当前可用的低价模型。"
+  },
+  "norixorModelSaved": { "message": "Norixor 翻译模型已更新。" },
+  "norixorUsageTitle": { "message": "用量统计" },
+  "norixorAvailableBalance": { "message": "可用余额" },
+  "norixorGiftBalance": {
+    "message": "赠送余额 $AMOUNT$",
+    "placeholders": { "amount": { "content": "$1" } }
+  },
+  "norixorUsageToday": { "message": "今日" },
+  "norixorUsageLast30Days": { "message": "近 30 天" },
+  "norixorUsageRequests": {
+    "message": "$COUNT$ 次成功请求",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "norixorUsageDetail": {
+    "message": "$CHARACTERS$ 个原文字符 · $COST$",
+    "placeholders": {
+      "characters": { "content": "$1" },
+      "cost": { "content": "$2" }
+    }
+  },
+  "norixorUsageUpdated": {
+    "message": "更新于 $TIME$",
+    "placeholders": { "time": { "content": "$1" } }
+  },
+  "norixorQuotaRemaining": {
+    "message": "剩余 $COUNT$",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "norixorSigningIn": { "message": "正在登录…" },
+  "norixorRegistering": { "message": "正在创建账户…" },
+  "norixorVerifying": { "message": "正在验证…" },
+  "norixorSignedIn": { "message": "已登录 Norixor，现有翻译设置未改变。" },
+  "norixorSignedOut": { "message": "已退出 Norixor。" },
+  "norixorInvalidGrant": { "message": "账号、密码或验证码无效。" },
+  "norixorRateLimited": { "message": "尝试次数过多，请稍后再试。" },
+  "norixorUnavailable": { "message": "Norixor 暂时不可用。" },
+  "norixorInvalidRequest": { "message": "请检查输入后重试。" },
   "settingsTabLocalTranslation": { "message": "本地翻译" },
   "settingsTabOcrRuntimes": { "message": "OCR 设置" },
   "ocrSettingsTitle": { "message": "图像字幕 OCR" },

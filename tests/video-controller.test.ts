@@ -124,6 +124,7 @@ const SETTINGS: SubtitleSettings = {
   sourceLanguage: "auto",
   targetLanguage: "zh-CN",
   mode: "ai",
+  aiRoute: "configured",
   aiResponseMode: "stream",
   displayMode: "bilingual",
   hideNativeSubtitles: false,

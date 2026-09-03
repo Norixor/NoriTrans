@@ -210,8 +210,10 @@ describe("unified floating control", () => {
         sourceLanguage: "en",
         targetLanguage: "ja",
         displayMode: "translated",
+        aiRoute: "configured",
         selectionTranslationEnabled: false,
         selectionTranslationMode: "ai",
+        selectionTranslationAiRoute: "configured",
       }),
     );
     expect(pageMode.value).toBe("fast:chrome-local");
@@ -280,6 +282,7 @@ describe("unified floating control", () => {
           sourceLanguage: "en",
           targetLanguage: "ja",
           mode: "fast",
+          aiRoute: "configured",
           aiResponseMode: "batch",
           displayMode: "translated",
           hideNativeSubtitles: true,
@@ -397,8 +400,10 @@ describe("unified floating control", () => {
       sourceLanguage: "fr",
       targetLanguage: "de",
       displayMode: "translated",
+      aiRoute: "configured",
       selectionTranslationEnabled: false,
       selectionTranslationMode: "ai",
+      selectionTranslationAiRoute: "configured",
     });
     expect(sourceLanguage.value).toBe("auto");
     expect(targetLanguage.value).toBe("zh-CN");

@@ -10,17 +10,21 @@ import { DeepLProvider } from "@/src/translation/providers/deepl";
 import { GoogleTranslateProvider } from "@/src/translation/providers/google-translate";
 import { MicrosoftTranslatorProvider } from "@/src/translation/providers/microsoft-translator";
 import { OpenAICompatibleProvider } from "@/src/translation/providers/openai-compatible";
+import { NorixorTranslationProvider } from "@/src/translation/providers/norixor";
 import type {
   TranslationMode,
   TranslationProvider,
 } from "@/src/translation/types";
 
 export function createBackgroundTranslationProvider(
-  providerId: FastProviderId | AiProviderId,
+  providerId: FastProviderId | AiProviderId | "norixor",
   mode: TranslationMode,
   settings: AppSettings,
   model: string,
 ): TranslationProvider {
+  if (providerId === "norixor") {
+    return new NorixorTranslationProvider(settings.norixor.model);
+  }
   if (
     providerId === "openai-compatible" ||
     providerId === "anthropic-messages"

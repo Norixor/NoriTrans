@@ -3935,6 +3935,7 @@ describe("PageTranslationSession", () => {
       texts: string[];
       resolve: () => void;
     }> = [];
+    const requestStartedAt: number[] = [];
     aiRuntime.sendMessage.mockImplementation((message) => {
       if (
         typeof message !== "object" ||
@@ -3947,6 +3948,7 @@ describe("PageTranslationSession", () => {
       ) {
         return Promise.resolve({ ok: true });
       }
+      requestStartedAt.push(performance.now());
       const results = message.request.segments.map((segment: unknown) => {
         if (
           typeof segment !== "object" ||
@@ -3991,6 +3993,9 @@ describe("PageTranslationSession", () => {
         : 0;
     });
     expect(batchSizes).toEqual([12, 48, 48, 13]);
+    expect((requestStartedAt[1] ?? 0) - (requestStartedAt[0] ?? 0)).toBeGreaterThan(
+      100,
+    );
 
     const firstRequest: unknown = aiRuntime.sendMessage.mock.calls[0]?.[0];
     const request = isRecord(firstRequest) ? firstRequest.request : undefined;
@@ -4067,6 +4072,51 @@ describe("PageTranslationSession", () => {
       true,
     );
     session.restore();
+  });
+
+  it("does not launch background AI batches when cancelled during the priority head start", async () => {
+    document.body.innerHTML = `<main>${Array.from(
+      { length: 121 },
+      (_, index) => `<p>Priority cancellation ${index + 1}</p>`,
+    ).join("")}</main>`;
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.page.mode = "ai";
+    settings.page.displayMode = "translated";
+    let translationCalls = 0;
+    let resolveFirst:
+      | ((value: { ok: true; results: Array<{ id: string; translatedText: string }> }) => void)
+      | undefined;
+    aiRuntime.sendMessage.mockImplementation((message) => {
+      if (
+        !isRecord(message) ||
+        message.type !== "TRANSLATE" ||
+        !isRecord(message.request) ||
+        !Array.isArray(message.request.segments)
+      ) {
+        return Promise.resolve({ ok: true });
+      }
+      translationCalls += 1;
+      const segments = message.request.segments as FixtureTranslationSegment[];
+      return new Promise((resolve) => {
+        resolveFirst = resolve;
+      }).then(() => ({
+        ok: true as const,
+        results: segments.map((segment) => ({
+          id: segment.id,
+          translatedText: fixtureTranslation(segment),
+        })),
+      }));
+    });
+    const session = new PageTranslationSession(vi.fn());
+
+    const run = session.translate(settings);
+    await vi.waitFor(() => expect(translationCalls).toBe(1));
+    session.restore();
+    resolveFirst?.({ ok: true, results: [] });
+    await run;
+    await new Promise((resolve) => window.setTimeout(resolve, 220));
+
+    expect(translationCalls).toBe(1);
   });
 
   it("keeps streamed AI results and retries only IDs missing after a request failure", async () => {

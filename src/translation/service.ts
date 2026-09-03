@@ -193,8 +193,10 @@ export async function translateInBackground(
   options: BackgroundTranslationOptions = {},
 ): Promise<TranslationResult[]> {
   const { cacheWriter, onProgress, cachePolicy = "use" } = options;
-  const providerId =
-    request.mode === "ai"
+  const norixor = request.mode === "ai" && request.aiRoute === "norixor";
+  const providerId = norixor
+    ? "norixor"
+    : request.mode === "ai"
       ? settings.provider.aiProvider
       : (request.providerOverride ?? settings.provider.fastProvider);
 
@@ -203,31 +205,37 @@ export async function translateInBackground(
       ? await currentLocalTranslationModelIdentity()
       : "";
 
-  const aiProvider =
+  const configuredAiProvider =
     providerId === "openai-compatible" || providerId === "anthropic-messages";
-  const providerModel = aiProvider
-    ? request.modelOverride?.trim() || settings.provider.model
-    : providerId === "bergamot-local"
-      ? `mozilla-translations-models-v2:${localModelIdentity}`
-      : "official-v2";
+  const providerModel = norixor
+    ? settings.norixor.model || "norixor-server-default"
+    : configuredAiProvider
+      ? request.modelOverride?.trim() || settings.provider.model
+      : providerId === "bergamot-local"
+        ? `mozilla-translations-models-v2:${localModelIdentity}`
+        : "official-v2";
   const provider = createBackgroundTranslationProvider(
     providerId,
     request.mode,
     settings,
     providerModel,
   );
-  const version = aiProvider
-    ? promptVersion(request.prompt ?? settings.provider.systemPrompt)
-    : "machine-translation-v1";
-  const providerScope = aiProvider
-    ? settings.provider.baseUrl.trim().replace(/\/+$/, "")
-    : providerId === "microsoft-translator"
-      ? settings.provider.microsoftRegion.trim().toLowerCase()
-      : providerId === "deepl"
-        ? settings.provider.deeplPlan
-        : providerId === "bergamot-local"
-          ? "local-wasm"
-          : "google-v2";
+  const version = norixor
+    ? `norixor-managed-v3:${providerModel}`
+    : configuredAiProvider
+      ? promptVersion(request.prompt ?? settings.provider.systemPrompt)
+      : "machine-translation-v1";
+  const providerScope = norixor
+    ? "https://api.norixor.org/apps/noritrans/native/translations"
+    : configuredAiProvider
+      ? settings.provider.baseUrl.trim().replace(/\/+$/, "")
+      : providerId === "microsoft-translator"
+        ? settings.provider.microsoftRegion.trim().toLowerCase()
+        : providerId === "deepl"
+          ? settings.provider.deeplPlan
+          : providerId === "bergamot-local"
+            ? "local-wasm"
+            : "google-v2";
   const results: TranslationResult[] = [];
   const cacheEntries: Array<{
     segment: TranslationRequest["segments"][number];

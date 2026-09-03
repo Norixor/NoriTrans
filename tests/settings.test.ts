@@ -67,6 +67,47 @@ describe("settings compatibility", () => {
     ).toBe(false);
   });
 
+  it("adds independent configured AI routes and preserves Norixor choices", () => {
+    expect(mergeSettings({})).toMatchObject({
+      page: {
+        aiRoute: "configured",
+        selectionTranslationAiRoute: "configured",
+      },
+      subtitles: { aiRoute: "configured" },
+    });
+    expect(
+      mergeSettings({
+        page: {
+          aiRoute: "norixor",
+          selectionTranslationAiRoute: "norixor",
+        },
+        subtitles: { aiRoute: "norixor" },
+      }),
+    ).toMatchObject({
+      page: {
+        aiRoute: "norixor",
+        selectionTranslationAiRoute: "norixor",
+      },
+      subtitles: { aiRoute: "norixor" },
+    });
+  });
+
+  it("stores a bounded Norixor model independently from configured AI", () => {
+    expect(mergeSettings({}).norixor.model).toBe("");
+    expect(
+      mergeSettings({
+        norixor: { model: "gpt-5.6-luna" },
+        provider: { model: "configured-ai-model" },
+      }),
+    ).toMatchObject({
+      norixor: { model: "gpt-5.6-luna" },
+      provider: { model: "configured-ai-model" },
+    });
+    expect(
+      mergeSettings({ norixor: { model: "bad model" } }).norixor.model,
+    ).toBe("");
+  });
+
   it("migrates the removed AI fast-provider choice into the single AI translation mode", () => {
     expect(
       mergeSettings({

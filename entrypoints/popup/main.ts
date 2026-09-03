@@ -282,6 +282,7 @@ async function initialize(): Promise<void> {
     translationMethodSelect.value = translationMethodValue(
       settings.page.mode,
       settings.provider.fastProvider,
+      settings.page.aiRoute,
     );
     syncLanguageOptions();
     responseModeSelect.value = settings.page.aiResponseMode;
@@ -308,6 +309,10 @@ async function initialize(): Promise<void> {
         sourceLanguage: sourceSelect.value,
         targetLanguage: targetSelect.value,
         mode: method.mode,
+        aiRoute:
+          method.mode === "ai"
+            ? (method.aiRoute ?? "configured")
+            : settings.page.aiRoute,
         aiResponseMode:
           responseModeSelect.value === "batch" ? "batch" : "stream",
         displayMode:
@@ -325,6 +330,7 @@ async function initialize(): Promise<void> {
       sourceLanguage: draft.page.sourceLanguage,
       targetLanguage: draft.page.targetLanguage,
       mode: draft.page.mode,
+      aiRoute: draft.page.aiRoute,
       fastProvider:
         draft.page.mode === "fast" ? draft.provider.fastProvider : undefined,
       responseMode: draft.page.aiResponseMode,

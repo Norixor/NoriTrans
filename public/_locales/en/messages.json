@@ -33,6 +33,7 @@
   },
   "translationMethodDeepL": { "message": "DeepL" },
   "translationMethodAi": { "message": "AI translation" },
+  "translationMethodNorixor": { "message": "Norixor translation" },
   "aiResponseMode": { "message": "AI response" },
   "responseModeStream": { "message": "Progressive stream (recommended)" },
   "responseModeBatch": { "message": "Complete response" },
@@ -226,6 +227,86 @@
   "settingsTabVideo": { "message": "Video subtitles" },
   "settingsTabProfiles": { "message": "Site settings" },
   "settingsTabProvider": { "message": "Translation service" },
+  "settingsTabNorixor": { "message": "Norixor" },
+  "norixorAccountTitle": { "message": "Norixor translation" },
+  "norixorAccountDescription": {
+    "message": "Sign in to use the AI translation service managed by the NoriTrans APP. Your configured AI provider remains unchanged."
+  },
+  "norixorPrivacyNotice": {
+    "message": "Credentials and tokens stay in the extension background. Only text translated with Norixor translation is sent to the NoriTrans APP."
+  },
+  "norixorEmail": { "message": "Email" },
+  "norixorPassword": { "message": "Password" },
+  "norixorDisplayName": { "message": "Display name" },
+  "norixorDisplayNamePlaceholder": { "message": "Optional when registering" },
+  "norixorDisplayNameHelp": {
+    "message": "Used only when creating a new Norixor account."
+  },
+  "norixorSignIn": { "message": "Sign in" },
+  "norixorRegister": { "message": "Create account" },
+  "norixorSignOut": { "message": "Sign out" },
+  "norixorVerificationCode": { "message": "6-digit verification code" },
+  "norixorVerify": { "message": "Verify" },
+  "norixorCancelChallenge": { "message": "Cancel" },
+  "norixorStatusSignedOut": { "message": "Signed out" },
+  "norixorStatusSignedIn": { "message": "Signed in" },
+  "norixorStatusChallenge": { "message": "Verification required" },
+  "norixorEmailChallenge": {
+    "message": "Enter the verification code sent to your email."
+  },
+  "norixorMfaChallenge": {
+    "message": "Enter the code from your authenticator."
+  },
+  "norixorManagedTranslationReady": {
+    "message": "Choose Norixor translation whenever you want to use the managed service."
+  },
+  "norixorModel": { "message": "Translation model" },
+  "norixorModelHelp": {
+    "message": "Only low-cost models currently available through the NoriTrans APP are listed."
+  },
+  "norixorModelSaved": { "message": "Norixor translation model updated." },
+  "norixorUsageTitle": { "message": "Usage" },
+  "norixorAvailableBalance": { "message": "Available balance" },
+  "norixorGiftBalance": {
+    "message": "$AMOUNT$ gift balance",
+    "placeholders": { "amount": { "content": "$1" } }
+  },
+  "norixorUsageToday": { "message": "Today" },
+  "norixorUsageLast30Days": { "message": "Last 30 days" },
+  "norixorUsageRequests": {
+    "message": "$COUNT$ successful requests",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "norixorUsageDetail": {
+    "message": "$CHARACTERS$ source characters · $COST$",
+    "placeholders": {
+      "characters": { "content": "$1" },
+      "cost": { "content": "$2" }
+    }
+  },
+  "norixorUsageUpdated": {
+    "message": "Updated $TIME$",
+    "placeholders": { "time": { "content": "$1" } }
+  },
+  "norixorQuotaRemaining": {
+    "message": "$COUNT$ remaining",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "norixorSigningIn": { "message": "Signing in…" },
+  "norixorRegistering": { "message": "Creating account…" },
+  "norixorVerifying": { "message": "Verifying…" },
+  "norixorSignedIn": {
+    "message": "Signed in to Norixor. Your translation settings were not changed."
+  },
+  "norixorSignedOut": { "message": "Signed out of Norixor." },
+  "norixorInvalidGrant": {
+    "message": "The credentials or verification code are invalid."
+  },
+  "norixorRateLimited": { "message": "Too many attempts. Try again later." },
+  "norixorUnavailable": { "message": "Norixor is temporarily unavailable." },
+  "norixorInvalidRequest": {
+    "message": "Check the entered information and try again."
+  },
   "settingsTabLocalTranslation": { "message": "Local translation" },
   "settingsTabOcrRuntimes": { "message": "OCR settings" },
   "ocrSettingsTitle": { "message": "Image subtitle OCR" },

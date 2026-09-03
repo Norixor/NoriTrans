@@ -6,6 +6,7 @@ import {
 } from "@/src/shared/settings";
 import { normalizeAutoTranslateSitePattern } from "@/src/shared/auto-translate-sites";
 import type {
+  AiTranslationRoute,
   TranslationFailure,
   TranslationRequest,
   TranslationResult,
@@ -109,11 +110,13 @@ export type BackgroundCommand =
       sourceLanguage: string;
       targetLanguage: string;
       mode: "fast" | "ai";
+      aiRoute?: AiTranslationRoute;
       fastProvider?: AppSettings["provider"]["fastProvider"];
       responseMode?: "stream" | "batch";
       displayMode: "translated" | "bilingual";
       selectionTranslationEnabled?: boolean;
       selectionTranslationMode?: "fast" | "ai";
+      selectionTranslationAiRoute?: AiTranslationRoute;
     }
   | {
       type: "FLOATING_BUTTON_SET";
@@ -128,6 +131,7 @@ export type BackgroundCommand =
       sourceLanguage: string;
       targetLanguage: string;
       mode: "fast" | "ai";
+      aiRoute?: AiTranslationRoute;
       fastProvider?: AppSettings["provider"]["fastProvider"];
       responseMode?: "stream" | "batch";
       displayMode: "original" | "translated" | "bilingual";
@@ -184,6 +188,19 @@ export type BackgroundCommand =
   | { type: "UPDATE_AUTO_CHECK_SET"; enabled: boolean }
   | { type: "UPDATE_IGNORE"; version: string }
   | { type: "SETTINGS_SET"; settings: AppSettings }
+  | { type: "NORIXOR_AUTH_STATUS_GET"; includeAccount?: boolean }
+  | { type: "NORIXOR_AUTH_LOGIN"; username: string; password: string }
+  | {
+      type: "NORIXOR_AUTH_REGISTER";
+      username: string;
+      password: string;
+      displayName?: string;
+    }
+  | { type: "NORIXOR_AUTH_CHALLENGE"; code: string }
+  | { type: "NORIXOR_AUTH_LOGOUT" }
+  | { type: "NORIXOR_MODELS_GET" }
+  | { type: "NORIXOR_USAGE_GET" }
+  | { type: "NORIXOR_MODEL_SET"; model: string }
   | { type: "TEST_CONNECTION" }
   | { type: "CREDENTIALS_CLEAR" }
   | { type: "CACHE_CLEAR" }
@@ -382,12 +399,14 @@ export function isSubtitleStatusValue(value: unknown): value is SubtitleStatus {
 function isAppSettings(value: unknown): value is AppSettings {
   if (!isRecord(value)) return false;
   const provider = value.provider;
+  const norixor = value.norixor;
   const page = value.page;
   const subtitles = value.subtitles;
   const ocr = value.ocr;
   const imageTranslation = value.imageTranslation;
   if (
     !isRecord(provider) ||
+    !isRecord(norixor) ||
     !isRecord(page) ||
     !isRecord(subtitles) ||
     !isRecord(ocr) ||
@@ -427,6 +446,9 @@ function isAppSettings(value: unknown): value is AppSettings {
     Number.isFinite(provider.timeoutMs) &&
     provider.timeoutMs >= 5_000 &&
     provider.timeoutMs <= 180_000 &&
+    typeof norixor.model === "string" &&
+    (norixor.model === "" ||
+      /^[A-Za-z0-9._:/-]{1,128}$/u.test(norixor.model)) &&
     typeof page.sourceLanguage === "string" &&
     page.sourceLanguage.length > 0 &&
     page.sourceLanguage.length <= 64 &&
@@ -434,6 +456,7 @@ function isAppSettings(value: unknown): value is AppSettings {
     page.targetLanguage.length > 0 &&
     page.targetLanguage.length <= 64 &&
     (page.mode === "fast" || page.mode === "ai") &&
+    (page.aiRoute === "configured" || page.aiRoute === "norixor") &&
     (page.aiResponseMode === "stream" || page.aiResponseMode === "batch") &&
     (page.displayMode === "translated" || page.displayMode === "bilingual") &&
     typeof page.autoTranslate === "boolean" &&
@@ -449,6 +472,8 @@ function isAppSettings(value: unknown): value is AppSettings {
     page.selectionTranslationTargetLanguage.length <= 64 &&
     (page.selectionTranslationMode === "fast" ||
       page.selectionTranslationMode === "ai") &&
+    (page.selectionTranslationAiRoute === "configured" ||
+      page.selectionTranslationAiRoute === "norixor") &&
     (page.selectionTranslationAiResponseMode === "stream" ||
       page.selectionTranslationAiResponseMode === "batch") &&
     typeof page.selectionTranslationModelOverride === "string" &&
@@ -464,6 +489,7 @@ function isAppSettings(value: unknown): value is AppSettings {
     subtitles.targetLanguage.length > 0 &&
     subtitles.targetLanguage.length <= 64 &&
     (subtitles.mode === "fast" || subtitles.mode === "ai") &&
+    (subtitles.aiRoute === "configured" || subtitles.aiRoute === "norixor") &&
     (subtitles.aiResponseMode === "stream" ||
       subtitles.aiResponseMode === "batch") &&
     (subtitles.displayMode === "original" ||
@@ -585,6 +611,9 @@ function isTranslationRequest(value: unknown): value is TranslationRequest {
     (value.modelOverride !== undefined &&
       (typeof value.modelOverride !== "string" ||
         value.modelOverride.length > 256)) ||
+    (value.aiRoute !== undefined &&
+      value.aiRoute !== "configured" &&
+      value.aiRoute !== "norixor") ||
     (value.providerOverride !== undefined &&
       !isFastProviderId(value.providerOverride))
   ) {
@@ -712,6 +741,9 @@ export function isBackgroundCommand(
         value.targetLanguage.length > 0 &&
         value.targetLanguage.length <= 64 &&
         (value.mode === "fast" || value.mode === "ai") &&
+        (value.aiRoute === undefined ||
+          value.aiRoute === "configured" ||
+          value.aiRoute === "norixor") &&
         (value.fastProvider === undefined ||
           isFastProviderId(value.fastProvider)) &&
         (value.responseMode === undefined ||
@@ -723,7 +755,10 @@ export function isBackgroundCommand(
           typeof value.selectionTranslationEnabled === "boolean") &&
         (value.selectionTranslationMode === undefined ||
           value.selectionTranslationMode === "fast" ||
-          value.selectionTranslationMode === "ai")
+          value.selectionTranslationMode === "ai") &&
+        (value.selectionTranslationAiRoute === undefined ||
+          value.selectionTranslationAiRoute === "configured" ||
+          value.selectionTranslationAiRoute === "norixor")
       );
     case "FLOATING_BUTTON_SET":
       return (
@@ -756,6 +791,9 @@ export function isBackgroundCommand(
         value.targetLanguage.length > 0 &&
         value.targetLanguage.length <= 64 &&
         (value.mode === "fast" || value.mode === "ai") &&
+        (value.aiRoute === undefined ||
+          value.aiRoute === "configured" ||
+          value.aiRoute === "norixor") &&
         (value.fastProvider === undefined ||
           isFastProviderId(value.fastProvider)) &&
         (value.responseMode === undefined ||
@@ -850,6 +888,46 @@ export function isBackgroundCommand(
       );
     case "SETTINGS_SET":
       return isAppSettings(value.settings);
+    case "NORIXOR_AUTH_STATUS_GET":
+      return (
+        (value.includeAccount === undefined ||
+          typeof value.includeAccount === "boolean") &&
+        Object.keys(value).every(
+          (key) => key === "type" || key === "includeAccount",
+        )
+      );
+    case "NORIXOR_AUTH_LOGIN":
+      return (
+        typeof value.username === "string" &&
+        value.username.trim().length > 0 &&
+        value.username.length <= 254 &&
+        typeof value.password === "string" &&
+        value.password.length > 0 &&
+        value.password.length <= 4_096
+      );
+    case "NORIXOR_AUTH_REGISTER":
+      return (
+        typeof value.username === "string" &&
+        value.username.trim().length > 0 &&
+        value.username.length <= 254 &&
+        typeof value.password === "string" &&
+        value.password.length >= 6 &&
+        value.password.length <= 4_096 &&
+        (value.displayName === undefined ||
+          (typeof value.displayName === "string" &&
+            value.displayName.trim().length > 0 &&
+            value.displayName.length <= 32))
+      );
+    case "NORIXOR_AUTH_CHALLENGE":
+      return typeof value.code === "string" && /^\d{6}$/u.test(value.code);
+    case "NORIXOR_AUTH_LOGOUT":
+      return Object.keys(value).length === 1;
+    case "NORIXOR_MODEL_SET":
+      return (
+        typeof value.model === "string" &&
+        /^[a-z0-9][a-z0-9._-]{0,99}$/u.test(value.model) &&
+        Object.keys(value).length === 2
+      );
     case "UPDATE_AUTO_CHECK_SET":
       return typeof value.enabled === "boolean";
     case "UPDATE_IGNORE":
@@ -866,6 +944,8 @@ export function isBackgroundCommand(
     case "TEST_CONNECTION":
     case "CACHE_CLEAR":
     case "CACHE_STATS":
+    case "NORIXOR_MODELS_GET":
+    case "NORIXOR_USAGE_GET":
     case "OCR_RUNTIME_LIST":
     case "OCR_RUNTIME_DOWNLOAD_ALL":
     case "LOCAL_TRANSLATION_RUNTIME_LIST":

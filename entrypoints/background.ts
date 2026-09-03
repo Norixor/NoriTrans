@@ -56,6 +56,16 @@ import {
   invalidateLocalTranslationModelIdentity,
   translateInBackground,
 } from "@/src/translation/service";
+import {
+  completeNorixorChallenge,
+  fetchNorixorModelCatalog,
+  fetchNorixorUsageSummary,
+  loginToNorixor,
+  logoutFromNorixor,
+  norixorAuthState,
+  NorixorSessionError,
+  registerWithNorixor,
+} from "@/src/norixor/session";
 import type { TranslationResult } from "@/src/translation/types";
 import {
   deleteSiteProfileOverride,
@@ -490,7 +500,11 @@ function providerOriginForMode(
   settings: AppSettings,
   mode: "fast" | "ai",
   providerOverride?: AppSettings["provider"]["fastProvider"],
+  aiRoute?: "configured" | "norixor",
 ): string | undefined {
+  if (mode === "ai" && aiRoute === "norixor") {
+    return "https://api.norixor.org/*";
+  }
   const providerId =
     mode === "ai"
       ? settings.provider.aiProvider
@@ -513,8 +527,14 @@ async function assertProviderPermission(
   settings: AppSettings,
   mode: "fast" | "ai",
   providerOverride?: AppSettings["provider"]["fastProvider"],
+  aiRoute?: "configured" | "norixor",
 ): Promise<void> {
-  const origin = providerOriginForMode(settings, mode, providerOverride);
+  const origin = providerOriginForMode(
+    settings,
+    mode,
+    providerOverride,
+    aiRoute,
+  );
   if (!origin) return;
   if (await browser.permissions.contains({ origins: [origin] })) return;
   throw new NoriTransError(
@@ -1253,6 +1273,7 @@ async function handleBackgroundCommand(
               settings,
               message.request.mode,
               message.request.providerOverride,
+              message.request.aiRoute,
             );
             return translateInBackground(message.request, settings, signal, {
               cacheWriter: {
@@ -1370,6 +1391,10 @@ async function handleBackgroundCommand(
               sourceLanguage: message.sourceLanguage,
               targetLanguage: message.targetLanguage,
               mode: message.mode,
+              aiRoute:
+                message.aiRoute ??
+                current.overrides.page?.aiRoute ??
+                effective.page.aiRoute,
               fastProvider:
                 message.fastProvider ??
                 current.overrides.page?.fastProvider ??
@@ -1384,6 +1409,10 @@ async function handleBackgroundCommand(
                     targetLanguage:
                       effective.page.selectionTranslationTargetLanguage,
                     mode: message.selectionTranslationMode,
+                    aiRoute:
+                      message.selectionTranslationAiRoute ??
+                      current.overrides.selection?.aiRoute ??
+                      effective.page.selectionTranslationAiRoute,
                     fastProvider:
                       current.overrides.selection?.fastProvider ??
                       currentSettings.provider.fastProvider,
@@ -1422,6 +1451,7 @@ async function handleBackgroundCommand(
           sourceLanguage: message.sourceLanguage,
           targetLanguage: message.targetLanguage,
           mode: message.mode,
+          aiRoute: message.aiRoute ?? settings.page.aiRoute,
           aiResponseMode: message.responseMode ?? settings.page.aiResponseMode,
           displayMode: message.displayMode,
           selectionTranslationEnabled:
@@ -1430,6 +1460,9 @@ async function handleBackgroundCommand(
           selectionTranslationMode:
             message.selectionTranslationMode ??
             settings.page.selectionTranslationMode,
+          selectionTranslationAiRoute:
+            message.selectionTranslationAiRoute ??
+            settings.page.selectionTranslationAiRoute,
         },
       }));
       return { ok: true, settings: toContentSettings(updated) };
@@ -1512,6 +1545,10 @@ async function handleBackgroundCommand(
               sourceLanguage: message.sourceLanguage,
               targetLanguage: message.targetLanguage,
               mode: message.mode,
+              aiRoute:
+                message.aiRoute ??
+                current.overrides.subtitles?.aiRoute ??
+                currentSettings.subtitles.aiRoute,
               fastProvider:
                 message.fastProvider ??
                 current.overrides.subtitles?.fastProvider ??
@@ -1548,6 +1585,7 @@ async function handleBackgroundCommand(
           sourceLanguage: message.sourceLanguage,
           targetLanguage: message.targetLanguage,
           mode: message.mode,
+          aiRoute: message.aiRoute ?? settings.subtitles.aiRoute,
           aiResponseMode:
             message.responseMode ?? settings.subtitles.aiResponseMode,
           displayMode: message.displayMode,
@@ -1773,6 +1811,82 @@ async function handleBackgroundCommand(
     case "SETTINGS_SET":
       await mutateSettings(() => mergeSettings(message.settings));
       return { ok: true };
+    case "NORIXOR_AUTH_STATUS_GET":
+      if (!isExtensionPageSender(sender)) {
+        return { ok: false, error: "invalid_request" };
+      }
+      return {
+        ok: true,
+        auth: await norixorAuthState(message.includeAccount === true),
+      };
+    case "NORIXOR_AUTH_LOGIN":
+    case "NORIXOR_AUTH_REGISTER":
+    case "NORIXOR_AUTH_CHALLENGE": {
+      if (!isExtensionPageSender(sender)) {
+        return { ok: false, error: "invalid_request" };
+      }
+      try {
+        const auth =
+          message.type === "NORIXOR_AUTH_LOGIN"
+            ? await loginToNorixor(message.username, message.password)
+            : message.type === "NORIXOR_AUTH_REGISTER"
+              ? await registerWithNorixor(
+                  message.username,
+                  message.password,
+                  message.displayName,
+                )
+              : await completeNorixorChallenge(message.code);
+        return { ok: true, auth };
+      } catch (error) {
+        if (error instanceof NorixorSessionError) {
+          return {
+            ok: false,
+            error: error.code,
+            message: error.message.slice(0, 240),
+          };
+        }
+        return { ok: false, error: "temporarily_unavailable" };
+      }
+    }
+    case "NORIXOR_AUTH_LOGOUT":
+      if (!isExtensionPageSender(sender)) {
+        return { ok: false, error: "invalid_request" };
+      }
+      await logoutFromNorixor();
+      return { ok: true, auth: { state: "signed-out" } };
+    case "NORIXOR_MODELS_GET":
+    case "NORIXOR_USAGE_GET":
+    case "NORIXOR_MODEL_SET": {
+      if (!isExtensionPageSender(sender)) {
+        return { ok: false, error: "invalid_request" };
+      }
+      try {
+        if (message.type === "NORIXOR_USAGE_GET") {
+          return { ok: true, usage: await fetchNorixorUsageSummary() };
+        }
+        const catalog = await fetchNorixorModelCatalog();
+        if (message.type === "NORIXOR_MODELS_GET") {
+          return { ok: true, catalog };
+        }
+        if (!catalog.models.some(({ id }) => id === message.model)) {
+          return { ok: false, error: "invalid_request" };
+        }
+        const updated = await mutateSettings((settings) => ({
+          ...settings,
+          norixor: { model: message.model },
+        }));
+        return { ok: true, model: updated.norixor.model };
+      } catch (error) {
+        if (error instanceof NorixorSessionError) {
+          return {
+            ok: false,
+            error: error.code,
+            message: error.message.slice(0, 240),
+          };
+        }
+        return { ok: false, error: "temporarily_unavailable" };
+      }
+    }
     case "TEST_CONNECTION":
       return testConnection();
     case "CREDENTIALS_CLEAR": {

@@ -68,6 +68,7 @@ const AI_STREAM_BATCH_MAX_CHARACTERS = 10_000;
 const AI_FULL_RESPONSE_BATCH_MAX_SEGMENTS = 48;
 const AI_FULL_RESPONSE_BATCH_MAX_CHARACTERS = 10_000;
 const AI_BATCH_CONCURRENCY = 8;
+const AI_PRIORITY_HEAD_START_MS = 180;
 const AI_BATCH_MAX_ATTEMPTS = 2;
 const MAX_REQUEST_FRAGMENT_CHARACTERS = 3_000;
 const MAX_CONTEXT_FRAGMENT_CHARACTERS = 600;
@@ -506,11 +507,14 @@ function pageTranslationConfigurationIdentity(
 ): string {
   return JSON.stringify({
     mode: settings.page.mode,
+    aiRoute: settings.page.aiRoute,
     sourceLanguage: settings.page.sourceLanguage,
     targetLanguage: settings.page.targetLanguage,
     provider:
       settings.page.mode === "ai"
-        ? settings.provider.aiProvider
+        ? settings.page.aiRoute === "norixor"
+          ? "norixor"
+          : settings.provider.aiProvider
         : pageFastProvider(settings),
     baseUrl: settings.provider.baseUrl,
     microsoftRegion: settings.provider.microsoftRegion,
@@ -2113,7 +2117,9 @@ export class PageTranslationSession {
     };
 
     // Keep both local and remote providers bounded while allowing independent
-    // page batches to make visible progress together.
+    // page batches to make visible progress together. Give the viewport-first
+    // AI batch a short head start so large background requests do not compete
+    // with the first visible result for the same Gateway and upstream pool.
     let nextBatch = 0;
     const worker = async (): Promise<void> => {
       while (!signal.aborted && this.controller === controller) {
@@ -2122,6 +2128,48 @@ export class PageTranslationSession {
         await translateBatch(batch);
       }
     };
+    if (settings.page.mode === "ai" && batches.length > 1) {
+      const firstBatch = batches[0];
+      nextBatch = 1;
+      const firstBatchWork = firstBatch
+        ? translateBatch(firstBatch)
+        : Promise.resolve();
+      const priorityWorker = (async (): Promise<void> => {
+        await firstBatchWork;
+        await worker();
+      })();
+      let headStartTimer: number | undefined;
+      let removeHeadStartAbortListener: (() => void) | undefined;
+      await Promise.race([
+        firstBatchWork,
+        new Promise<void>((resolve) => {
+          headStartTimer = window.setTimeout(resolve, AI_PRIORITY_HEAD_START_MS);
+        }),
+        new Promise<void>((resolve) => {
+          const abort = (): void => resolve();
+          signal.addEventListener("abort", abort, { once: true });
+          removeHeadStartAbortListener = () =>
+            signal.removeEventListener("abort", abort);
+          if (signal.aborted) abort();
+        }),
+      ]).finally(() => {
+        if (headStartTimer !== undefined) window.clearTimeout(headStartTimer);
+        removeHeadStartAbortListener?.();
+      });
+      await Promise.all([
+        priorityWorker,
+        ...Array.from(
+          {
+            length: Math.min(
+              AI_BATCH_CONCURRENCY - 1,
+              Math.max(0, batches.length - 1),
+            ),
+          },
+          () => worker(),
+        ),
+      ]);
+      return;
+    }
     await Promise.all(
       Array.from(
         {
@@ -2191,6 +2239,9 @@ export class PageTranslationSession {
       sourceLanguage,
       targetLanguage: settings.page.targetLanguage,
       mode: settings.page.mode,
+      ...(settings.page.mode === "ai"
+        ? { aiRoute: settings.page.aiRoute }
+        : {}),
       responseMode: settings.page.aiResponseMode,
       segments: expanded.segments,
       prompt: settings.provider.systemPrompt,

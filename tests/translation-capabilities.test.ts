@@ -18,6 +18,7 @@ describe("translation method and local language capabilities", () => {
   it("derives concrete methods without replacing the saved fast provider in AI mode", () => {
     expect(translationMethodValue("fast", "deepl")).toBe("fast:deepl");
     expect(translationMethodValue("ai", "deepl")).toBe("ai");
+    expect(translationMethodValue("ai", "deepl", "norixor")).toBe("norixor");
     expect(parseTranslationMethod("fast:bergamot-local")).toEqual({
       mode: "fast",
       fastProvider: "bergamot-local",
@@ -30,6 +31,10 @@ describe("translation method and local language capabilities", () => {
     });
     expect(parseTranslationMethod("fast:openai-compatible")).toEqual({
       mode: "ai",
+    });
+    expect(parseTranslationMethod("norixor")).toEqual({
+      mode: "ai",
+      aiRoute: "norixor",
     });
   });
 
@@ -144,11 +149,7 @@ describe("translation method and local language capabilities", () => {
       ),
     ).toBe(false);
     expect(
-      providerTargetLanguageAvailable(
-        "bergamot-local",
-        "zh-CN",
-        capabilities,
-      ),
+      providerTargetLanguageAvailable("bergamot-local", "zh-CN", capabilities),
     ).toBe(false);
   });
 });

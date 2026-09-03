@@ -69,17 +69,19 @@ function substitute(
       ? []
       : [substitutions];
   const escapedDollar = "\u0000NORITRANS_DOLLAR\u0000";
+  const substitutionValue = (index: string): string =>
+    (values[Number(index) - 1] ?? "").replaceAll("$", escapedDollar);
   const placeholders = entry.placeholders ?? {};
   let output = entry.message.replaceAll("$$", escapedDollar);
   output = output.replace(/\$([A-Za-z0-9_]+)\$/gu, (token, name: string) => {
     const placeholder = placeholders[name.toLowerCase()];
     if (!placeholder) return token;
     return placeholder.content.replace(/\$(\d+)/gu, (_match, index: string) => {
-      return values[Number(index) - 1] ?? "";
+      return substitutionValue(index);
     });
   });
   output = output.replace(/\$(\d+)/gu, (_match, index: string) => {
-    return values[Number(index) - 1] ?? "";
+    return substitutionValue(index);
   });
   return output.replaceAll(escapedDollar, "$");
 }

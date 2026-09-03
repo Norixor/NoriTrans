@@ -46,8 +46,10 @@ export type PageSettingsPatch = Pick<
   | "sourceLanguage"
   | "targetLanguage"
   | "displayMode"
+  | "aiRoute"
   | "selectionTranslationEnabled"
   | "selectionTranslationMode"
+  | "selectionTranslationAiRoute"
 >;
 
 export type SubtitleSettingsPatch = Pick<
@@ -55,6 +57,7 @@ export type SubtitleSettingsPatch = Pick<
   | "sourceLanguage"
   | "targetLanguage"
   | "mode"
+  | "aiRoute"
   | "aiResponseMode"
   | "displayMode"
   | "hideNativeSubtitles"
@@ -82,6 +85,7 @@ export interface UnifiedFloatingControlOptions {
   onPageModeChange(
     mode: "fast" | "ai",
     fastProvider?: FastProviderId,
+    aiRoute?: PageSettings["aiRoute"],
   ): Promise<void> | void;
   onPageResponseModeChange(mode: "stream" | "batch"): Promise<void> | void;
   onSubtitleSettingsChange(
@@ -257,10 +261,12 @@ function createOption(value: string, messageKey: string): HTMLOptionElement {
   return option;
 }
 
-function createTranslationMethodOptions(): HTMLOptionElement[] {
-  return TRANSLATION_METHODS.map(({ value, labelKey }) =>
-    createOption(value, labelKey),
-  );
+function createTranslationMethodOptions(
+  includeNorixor = true,
+): HTMLOptionElement[] {
+  return TRANSLATION_METHODS.filter(
+    ({ value }) => includeNorixor || value !== "norixor",
+  ).map(({ value, labelKey }) => createOption(value, labelKey));
 }
 
 function createLanguageOption(
@@ -871,7 +877,7 @@ export class UnifiedFloatingControl {
     const imageModeField = this.createSelectField(
       message("translationMode"),
       this.imageModeSelect,
-      createTranslationMethodOptions(),
+      createTranslationMethodOptions(false),
     );
     const imageDisplayField = this.createSelectField(
       message("displayMode"),
@@ -1295,6 +1301,7 @@ export class UnifiedFloatingControl {
     this.pageModeSelect.value = translationMethodValue(
       settings.mode,
       fastProvider,
+      settings.aiRoute,
     );
     this.pageResponseModeSelect.value = settings.aiResponseMode;
     if (this.pageResponseModeField)
@@ -1305,6 +1312,7 @@ export class UnifiedFloatingControl {
     this.selectionTranslationModeSelect.value = translationMethodValue(
       settings.selectionTranslationMode,
       settings.selectionTranslationFastProviderOverride ?? fastProvider,
+      settings.selectionTranslationAiRoute,
     );
     this.setPageSettingsDisabled(this.pendingPageSettings !== undefined);
   }
@@ -1327,7 +1335,11 @@ export class UnifiedFloatingControl {
       settings.targetLanguage,
       provider,
     );
-    this.modeSelect.value = translationMethodValue(settings.mode, fastProvider);
+    this.modeSelect.value = translationMethodValue(
+      settings.mode,
+      fastProvider,
+      settings.aiRoute,
+    );
     this.subtitleResponseModeSelect.value = settings.aiResponseMode;
     if (this.subtitleResponseModeField)
       this.subtitleResponseModeField.hidden = settings.mode !== "ai";
@@ -2092,8 +2104,13 @@ export class UnifiedFloatingControl {
       sourceLanguage,
       targetLanguage,
       displayMode,
+      aiRoute: this.settings.page.aiRoute,
       selectionTranslationEnabled,
       selectionTranslationMode: selectionMethod.mode,
+      selectionTranslationAiRoute:
+        selectionMethod.mode === "ai"
+          ? (selectionMethod.aiRoute ?? "configured")
+          : this.settings.page.selectionTranslationAiRoute,
     };
     const pending = this.beginPageSettingsChange(
       patch,
@@ -2124,7 +2141,13 @@ export class UnifiedFloatingControl {
     const method = parseTranslationMethod(this.pageModeSelect.value);
     if (!method) return;
     const pending = this.beginPageSettingsChange(
-      { mode: method.mode },
+      {
+        mode: method.mode,
+        aiRoute:
+          method.mode === "ai"
+            ? (method.aiRoute ?? "configured")
+            : this.settings.page.aiRoute,
+      },
       method.fastProvider,
     );
     if (!pending) return;
@@ -2132,6 +2155,12 @@ export class UnifiedFloatingControl {
     try {
       if (method.fastProvider) {
         await this.options.onPageModeChange(method.mode, method.fastProvider);
+      } else if (method.aiRoute) {
+        await this.options.onPageModeChange(
+          method.mode,
+          undefined,
+          method.aiRoute,
+        );
       } else {
         await this.options.onPageModeChange(method.mode);
       }
@@ -2199,6 +2228,10 @@ export class UnifiedFloatingControl {
       sourceLanguage,
       targetLanguage,
       mode: method.mode,
+      aiRoute:
+        method.mode === "ai"
+          ? (method.aiRoute ?? "configured")
+          : this.settings.subtitles.aiRoute,
       aiResponseMode,
       displayMode,
       hideNativeSubtitles: this.hideNativeCheckbox.checked,
@@ -2243,6 +2276,7 @@ export class UnifiedFloatingControl {
       sourceLanguage: this.settings.subtitles.sourceLanguage,
       targetLanguage: this.settings.subtitles.targetLanguage,
       mode: this.settings.subtitles.mode,
+      aiRoute: this.settings.subtitles.aiRoute,
       aiResponseMode: this.settings.subtitles.aiResponseMode,
       displayMode: this.settings.subtitles.displayMode,
       hideNativeSubtitles: this.settings.subtitles.hideNativeSubtitles,

@@ -15,6 +15,14 @@ const mocks = vi.hoisted(() => ({
         signal: AbortSignal,
       ) => Promise<Array<{ id: string; translatedText: string }>>
     >(),
+  norixorTranslateBatch:
+    vi.fn<
+      (
+        request: unknown,
+        signal: AbortSignal,
+      ) => Promise<Array<{ id: string; translatedText: string }>>
+    >(),
+  norixorModel: String(),
 }));
 
 vi.mock("@/src/cache/database", () => ({
@@ -42,11 +50,76 @@ vi.mock("@/src/translation/providers/openai-compatible", () => ({
   },
 }));
 
+vi.mock("@/src/translation/providers/norixor", () => ({
+  NorixorTranslationProvider: class {
+    readonly id = "norixor";
+    readonly mode = "ai" as const;
+    readonly capabilities = {
+      maxBatchCharacters: 50_000,
+      maxBatchSegments: 50,
+      supportsContext: true,
+      runtime: "background" as const,
+    };
+
+    constructor(model: string) {
+      mocks.norixorModel = model;
+    }
+
+    translateBatch(
+      request: unknown,
+      signal: AbortSignal,
+    ): Promise<Array<{ id: string; translatedText: string }>> {
+      return mocks.norixorTranslateBatch(request, signal);
+    }
+  },
+}));
+
 describe("background translation cache lifecycle", () => {
   beforeEach(() => {
     mocks.getCachedTranslation.mockReset().mockResolvedValue(undefined);
     mocks.setCachedTranslation.mockReset().mockResolvedValue(undefined);
     mocks.translateBatch.mockReset();
+    mocks.norixorTranslateBatch.mockReset();
+    mocks.norixorModel = "";
+  });
+
+  it("routes the independent Norixor AI method without changing configured AI", async () => {
+    mocks.norixorTranslateBatch.mockResolvedValue([
+      { id: "managed", translatedText: "后端托管译文" },
+    ]);
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.norixor.model = "gpt-5.6-luna";
+    settings.provider.aiProvider = "anthropic-messages";
+    settings.provider.baseUrl = "https://configured.example/v1";
+    settings.provider.apiKey = "configured-key";
+    settings.provider.model = "configured-model";
+
+    await expect(
+      translateInBackground(
+        {
+          sourceLanguage: "en",
+          targetLanguage: "zh-CN",
+          mode: "ai",
+          aiRoute: "norixor",
+          modelOverride: "must-not-select-configured-ai",
+          prompt: "must-not-reach-norixor-provider",
+          segments: [{ id: "managed", text: "Managed translation" }],
+        },
+        settings,
+        new AbortController().signal,
+        { cachePolicy: "bypass" },
+      ),
+    ).resolves.toEqual([{ id: "managed", translatedText: "后端托管译文" }]);
+
+    expect(mocks.norixorTranslateBatch).toHaveBeenCalledOnce();
+    expect(mocks.norixorModel).toBe("gpt-5.6-luna");
+    expect(mocks.translateBatch).not.toHaveBeenCalled();
+    expect(settings.provider).toMatchObject({
+      aiProvider: "anthropic-messages",
+      baseUrl: "https://configured.example/v1",
+      apiKey: "configured-key",
+      model: "configured-model",
+    });
   });
 
   it("does not repopulate cache when a provider resolves after cancellation", async () => {

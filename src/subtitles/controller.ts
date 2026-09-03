@@ -1979,6 +1979,7 @@ export class SubtitleController {
         sourceLanguage: this.runtimeTranslationSourceLanguage(track, cues),
         targetLanguage: this.translationSettings(track).targetLanguage,
         mode,
+        ...(mode === "ai" ? { aiRoute: this.settings.aiRoute } : {}),
         responseMode: this.settings.aiResponseMode,
         segments: translationSegments(track, cues, mode),
         ...(mediaTitle ? { mediaTitle } : {}),
