@@ -3,11 +3,17 @@ import {
   NorixorSessionError,
 } from "@/src/norixor/session";
 import { NoriTransError } from "@/src/shared/errors";
+import {
+  PROTECTED_TEXT_FORMAT,
+  protectedTextParts,
+  rebuildProtectedTranslation,
+} from "@/src/translation/protected-text";
 import type {
   TranslationProgressCallback,
   TranslationProvider,
   TranslationRequest,
   TranslationResult,
+  TranslationSegment,
 } from "@/src/translation/types";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -29,6 +35,46 @@ function wireLanguage(code: string): string {
   if (normalized === "zh-hant") return "zh-tw";
   if (normalized === "zh-hans") return "zh-cn";
   return normalized;
+}
+
+function requestCharacters(segment: TranslationSegment): number {
+  return (
+    segment.text.length +
+    boundedContextValues(segment.contextBefore).reduce(
+      (total, value) => total + value.length,
+      0,
+    ) +
+    boundedContextValues(segment.contextAfter).reduce(
+      (total, value) => total + value.length,
+      0,
+    )
+  );
+}
+
+function createWireBatches(
+  segments: readonly TranslationSegment[],
+  maxSegments: number,
+  maxCharacters: number,
+): TranslationSegment[][] {
+  const batches: TranslationSegment[][] = [];
+  let batch: TranslationSegment[] = [];
+  let characters = 0;
+  for (const segment of segments) {
+    const nextCharacters = requestCharacters(segment);
+    if (
+      batch.length > 0 &&
+      (batch.length >= maxSegments ||
+        characters + nextCharacters > maxCharacters)
+    ) {
+      batches.push(batch);
+      batch = [];
+      characters = 0;
+    }
+    batch.push(segment);
+    characters += nextCharacters;
+  }
+  if (batch.length > 0) batches.push(batch);
+  return batches;
 }
 
 function parseResults(
@@ -140,6 +186,108 @@ export class NorixorTranslationProvider implements TranslationProvider {
   constructor(private readonly model: string) {}
 
   async translateBatch(
+    request: TranslationRequest,
+    signal: AbortSignal,
+    onProgress?: TranslationProgressCallback,
+  ): Promise<TranslationResult[]> {
+    if (
+      request.segments.some(
+        (segment) => segment.format === PROTECTED_TEXT_FORMAT,
+      )
+    ) {
+      return this.translateProtectedBatch(request, signal, onProgress);
+    }
+    return this.translateWireBatch(request, signal, onProgress);
+  }
+
+  private async translateProtectedBatch(
+    request: TranslationRequest,
+    signal: AbortSignal,
+    onProgress?: TranslationProgressCallback,
+  ): Promise<TranslationResult[]> {
+    const states = request.segments.map((segment, segmentIndex) => {
+      const sourceParts =
+        segment.format === PROTECTED_TEXT_FORMAT
+          ? protectedTextParts(segment.text)
+          : [segment.text];
+      return {
+        segment,
+        segmentIndex,
+        sourceParts,
+        translatedParts: [...sourceParts],
+      };
+    });
+    const partLocations = new Map<
+      string,
+      { segmentIndex: number; partIndex: number }
+    >();
+    const partSegments = states.flatMap((state) =>
+      state.sourceParts.flatMap((text, partIndex) => {
+        if (!/[\p{L}\p{N}]/u.test(text)) return [];
+        const id = `protected-part-${state.segmentIndex.toString(36)}-${partIndex.toString(36)}`;
+        partLocations.set(id, {
+          segmentIndex: state.segmentIndex,
+          partIndex,
+        });
+        return [
+          {
+            id,
+            text,
+            format: "plain-text-v1" as const,
+            contextBefore: [
+              ...(state.segment.contextBefore ?? []),
+              ...state.sourceParts
+                .slice(Math.max(0, partIndex - 2), partIndex)
+                .filter((value) => value.trim()),
+            ],
+            contextAfter: [
+              ...state.sourceParts
+                .slice(partIndex + 1, partIndex + 3)
+                .filter((value) => value.trim()),
+              ...(state.segment.contextAfter ?? []),
+            ],
+          },
+        ];
+      }),
+    );
+
+    for (const batch of createWireBatches(
+      partSegments,
+      this.capabilities.maxBatchSegments,
+      this.capabilities.maxBatchCharacters,
+    )) {
+      const translated = await this.translateWireBatch(
+        { ...request, responseMode: "batch", segments: batch },
+        signal,
+      );
+      for (const result of translated) {
+        const location = partLocations.get(result.id);
+        const state =
+          location === undefined ? undefined : states[location.segmentIndex];
+        if (!location || !state) {
+          throw new NoriTransError(
+            "Norixor translation response is incomplete.",
+            "invalid_response",
+            false,
+            "Protected-part translation returned an unknown result ID.",
+          );
+        }
+        state.translatedParts[location.partIndex] = result.translatedText;
+      }
+    }
+
+    const results = states.map(({ segment, translatedParts }) => ({
+      id: segment.id,
+      translatedText:
+        segment.format === PROTECTED_TEXT_FORMAT
+          ? rebuildProtectedTranslation(segment.text, translatedParts)
+          : translatedParts[0]!,
+    }));
+    for (const result of results) await onProgress?.(result);
+    return results;
+  }
+
+  private async translateWireBatch(
     request: TranslationRequest,
     signal: AbortSignal,
     onProgress?: TranslationProgressCallback,

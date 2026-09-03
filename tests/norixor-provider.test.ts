@@ -1,4 +1,8 @@
 import { NorixorTranslationProvider } from "@/src/translation/providers/norixor";
+import {
+  createProtectedText,
+  validateProtectedTranslation,
+} from "@/src/translation/protected-text";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { authorizedNorixorFetch } = vi.hoisted(() => ({
@@ -11,7 +15,9 @@ vi.mock("@/src/norixor/session", () => ({
 }));
 
 describe("Norixor translation provider", () => {
-  beforeEach(() => authorizedNorixorFetch.mockReset());
+  beforeEach(() => {
+    authorizedNorixorFetch.mockReset();
+  });
 
   it("uses bounded wire IDs and sends only the selected Norixor model", async () => {
     authorizedNorixorFetch.mockResolvedValue(
@@ -157,6 +163,111 @@ describe("Norixor translation provider", () => {
         },
       ],
     });
+  });
+
+  it("translates protected parts without exposing marker syntax to the model", async () => {
+    const source = createProtectedText(["Read ", "the documentation", "."]);
+    authorizedNorixorFetch.mockImplementation((...args) => {
+      const init = args[1];
+      if (typeof init?.body !== "string") {
+        throw new Error("expected JSON request body");
+      }
+      const body = JSON.parse(init.body) as {
+        text_catalog: Record<string, string>;
+        segments: Array<{ id: string; text_id: string }>;
+      };
+      expect(Object.values(body.text_catalog).join(" ")).not.toContain(
+        "NT1:",
+      );
+      return Promise.resolve(new Response(
+        JSON.stringify({
+          data: {
+            results: body.segments.map((segment) => ({
+              id: segment.id,
+              translated_text: `译:${body.text_catalog[segment.text_id]}`,
+            })),
+          },
+        }),
+        { status: 200 },
+      ));
+    });
+
+    const progress = vi.fn();
+    const results = await new NorixorTranslationProvider(
+      "deepseek-v4-flash",
+    ).translateBatch(
+      {
+        sourceLanguage: "en",
+        targetLanguage: "zh-CN",
+        mode: "ai",
+        aiRoute: "norixor",
+        segments: [
+          {
+            id: "protected",
+            text: source,
+            format: "protected-text-v1",
+          },
+        ],
+      },
+      new AbortController().signal,
+      progress,
+    );
+
+    expect(validateProtectedTranslation(source, results[0]!.translatedText))
+      .toEqual(["译:Read ", "译:the documentation", "."]);
+    expect(progress).toHaveBeenCalledOnce();
+    expect(progress).toHaveBeenCalledWith(results[0]);
+  });
+
+  it("keeps protected-part wire batches within the APP limit", async () => {
+    const source = createProtectedText(
+      Array.from({ length: 55 }, (_, index) => `word-${index}`),
+    );
+    authorizedNorixorFetch.mockImplementation((...args) => {
+      const init = args[1];
+      if (typeof init?.body !== "string") {
+        throw new Error("expected JSON request body");
+      }
+      const body = JSON.parse(init.body) as {
+        text_catalog: Record<string, string>;
+        segments: Array<{ id: string; text_id: string }>;
+      };
+      expect(body.segments.length).toBeLessThanOrEqual(50);
+      return Promise.resolve(new Response(
+        JSON.stringify({
+          data: {
+            results: body.segments.map((segment) => ({
+              id: segment.id,
+              translated_text: body.text_catalog[segment.text_id],
+            })),
+          },
+        }),
+        { status: 200 },
+      ));
+    });
+
+    const [result] = await new NorixorTranslationProvider(
+      "deepseek-v4-flash",
+    ).translateBatch(
+      {
+        sourceLanguage: "en",
+        targetLanguage: "zh-CN",
+        mode: "ai",
+        aiRoute: "norixor",
+        segments: [
+          {
+            id: "many-parts",
+            text: source,
+            format: "protected-text-v1",
+          },
+        ],
+      },
+      new AbortController().signal,
+    );
+
+    expect(authorizedNorixorFetch).toHaveBeenCalledTimes(2);
+    expect(validateProtectedTranslation(source, result!.translatedText))
+      .toHaveLength(55);
   });
 
   it("rejects missing, duplicate, and unknown result IDs", async () => {
