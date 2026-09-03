@@ -176,20 +176,20 @@ describe("Norixor translation provider", () => {
         text_catalog: Record<string, string>;
         segments: Array<{ id: string; text_id: string }>;
       };
-      expect(Object.values(body.text_catalog).join(" ")).not.toContain(
-        "NT1:",
+      expect(Object.values(body.text_catalog).join(" ")).not.toContain("NT1:");
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              results: body.segments.map((segment) => ({
+                id: segment.id,
+                translated_text: `译:${body.text_catalog[segment.text_id]}`,
+              })),
+            },
+          }),
+          { status: 200 },
+        ),
       );
-      return Promise.resolve(new Response(
-        JSON.stringify({
-          data: {
-            results: body.segments.map((segment) => ({
-              id: segment.id,
-              translated_text: `译:${body.text_catalog[segment.text_id]}`,
-            })),
-          },
-        }),
-        { status: 200 },
-      ));
     });
 
     const progress = vi.fn();
@@ -213,8 +213,9 @@ describe("Norixor translation provider", () => {
       progress,
     );
 
-    expect(validateProtectedTranslation(source, results[0]!.translatedText))
-      .toEqual(["译:Read ", "译:the documentation", "."]);
+    expect(
+      validateProtectedTranslation(source, results[0]!.translatedText),
+    ).toEqual(["译:Read ", "译:the documentation", "."]);
     expect(progress).toHaveBeenCalledOnce();
     expect(progress).toHaveBeenCalledWith(results[0]);
   });
@@ -233,17 +234,19 @@ describe("Norixor translation provider", () => {
         segments: Array<{ id: string; text_id: string }>;
       };
       expect(body.segments.length).toBeLessThanOrEqual(50);
-      return Promise.resolve(new Response(
-        JSON.stringify({
-          data: {
-            results: body.segments.map((segment) => ({
-              id: segment.id,
-              translated_text: body.text_catalog[segment.text_id],
-            })),
-          },
-        }),
-        { status: 200 },
-      ));
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              results: body.segments.map((segment) => ({
+                id: segment.id,
+                translated_text: body.text_catalog[segment.text_id],
+              })),
+            },
+          }),
+          { status: 200 },
+        ),
+      );
     });
 
     const [result] = await new NorixorTranslationProvider(
@@ -266,8 +269,9 @@ describe("Norixor translation provider", () => {
     );
 
     expect(authorizedNorixorFetch).toHaveBeenCalledTimes(2);
-    expect(validateProtectedTranslation(source, result!.translatedText))
-      .toHaveLength(55);
+    expect(
+      validateProtectedTranslation(source, result!.translatedText),
+    ).toHaveLength(55);
   });
 
   it("rejects missing, duplicate, and unknown result IDs", async () => {

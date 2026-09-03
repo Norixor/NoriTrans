@@ -135,9 +135,8 @@ async function responseError(response: Response): Promise<NoriTransError> {
   } catch {
     payload = undefined;
   }
-  const envelope = isRecord(payload) && isRecord(payload.error)
-    ? payload.error
-    : undefined;
+  const envelope =
+    isRecord(payload) && isRecord(payload.error) ? payload.error : undefined;
   const stableCode =
     typeof envelope?.code === "string" &&
     /^[a-z][a-z0-9_]{2,79}$/u.test(envelope.code)
@@ -325,10 +324,7 @@ export class NorixorTranslationProvider implements TranslationProvider {
       const id = `s:${index}`;
       wireToOriginal.set(id, segment.id);
       const mainTextId = textId(segment.text);
-      const contextBeforeIds = contextIds(
-        segment.contextBefore,
-        mainTextId,
-      );
+      const contextBeforeIds = contextIds(segment.contextBefore, mainTextId);
       const contextAfterIds = contextIds(segment.contextAfter, mainTextId);
       return {
         id,
