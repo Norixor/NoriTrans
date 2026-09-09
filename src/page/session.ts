@@ -1575,6 +1575,9 @@ export class PageTranslationSession {
       (left, right) => left.documentOrder - right.documentOrder,
     );
     const automaticLocalSource = usesAutomaticLocalPageSource(settings);
+    const automaticSegmentSource =
+      automaticLocalSource ||
+      (settings.page.mode === "ai" && settings.page.sourceLanguage === "auto");
     const skippedSegments = automaticLocalSource
       ? segments.filter(
           (segment) =>
@@ -1615,7 +1618,7 @@ export class PageTranslationSession {
     );
     const sourceLanguage =
       settings.page.sourceLanguage === "auto"
-        ? automaticLocalSource
+        ? automaticSegmentSource
           ? "auto"
           : ((await detectDominantSourceLanguage(
               detectionSegments.map((segment) => segment.text),
@@ -1623,18 +1626,22 @@ export class PageTranslationSession {
             )) ?? "auto")
         : settings.page.sourceLanguage;
     const sourceDetectionConfiguration = [
+      settings.page.mode,
+      settings.page.aiRoute,
       pageFastProvider(settings),
       settings.page.sourceLanguage,
       settings.page.targetLanguage,
     ].join("\u001f");
     if (
-      automaticLocalSource &&
+      automaticSegmentSource &&
       this.sourceDetectionConfiguration !== sourceDetectionConfiguration
     ) {
       this.sourceDetectionConfiguration = sourceDetectionConfiguration;
       this.resolvedSourceLanguagesByScript.clear();
     }
-    const sourceLanguageById = automaticLocalSource
+    // Localized navigation must not assign its language to foreign-language
+    // list entries. Share per-segment detection and bounded language batches.
+    const sourceLanguageById = automaticSegmentSource
       ? await detectSegmentSourceLanguages(
           translatableSegments,
           declaredSourceLanguage,
