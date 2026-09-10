@@ -85,9 +85,10 @@ const STYLE = `
     left: var(--noritrans-anchor-x, 50vw);
     top: var(--noritrans-anchor-y, 82vh);
     transform: translate(-50%, -100%);
-    width: max-content;
+    width: var(--noritrans-max-width, 80vw);
     max-width: var(--noritrans-max-width, 80vw);
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     justify-items: center;
     gap: 6px;
     pointer-events: none;
@@ -127,6 +128,7 @@ const STYLE = `
   }
   .cue-card {
     width: max-content;
+    min-width: 0;
     max-width: 100%;
     box-sizing: border-box;
     padding: 8px 14px;
@@ -137,7 +139,7 @@ const STYLE = `
     font-size: calc(18px * var(--noritrans-scale, 1));
     line-height: 1.42;
     max-height: min(45vh, 320px);
-    overflow: auto;
+    overflow: hidden;
     overflow-wrap: anywhere;
     pointer-events: auto;
     cursor: grab;
@@ -153,13 +155,20 @@ const STYLE = `
     outline-offset: 2px;
   }
   .cue {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
     color: inherit;
     font: inherit;
     line-height: inherit;
-    white-space: normal;
+    white-space: nowrap;
     overflow-wrap: normal;
     word-break: normal;
     hyphens: none;
+  }
+  .cue-text { display: inline-block; width: max-content; min-width: 100%; }
+  @media (prefers-reduced-motion: reduce) {
+    .cue[data-overflow="true"] { overflow-x: auto; touch-action: pan-x; }
   }
   .cue + .cue:not([hidden]) { margin-top: 3px; }
   .original { color: #f4f6f8; }
@@ -240,6 +249,19 @@ export class SubtitleOverlay {
   private readonly original: HTMLDivElement;
   private readonly translated: HTMLDivElement;
   private readonly cueCard: HTMLDivElement;
+  private readonly cueScrolls = new Map<
+    HTMLElement,
+    { key: string; animation?: Animation }
+  >();
+  private readonly reducedMotion = window.matchMedia?.(
+    "(prefers-reduced-motion: reduce)",
+  );
+  private scrollFrame: number | undefined;
+  private disposed = false;
+  private readonly cueResizeObserver =
+    typeof ResizeObserver === "undefined"
+      ? undefined
+      : new ResizeObserver(() => this.scheduleCueScroll());
   private readonly ocrRegionGuide: HTMLDivElement;
   private readonly status: HTMLDivElement;
   private readonly notice: HTMLDivElement;
@@ -336,6 +358,18 @@ export class SubtitleOverlay {
     this.notice.setAttribute("aria-live", "assertive");
 
     this.cueCard.append(this.original, this.translated);
+    for (const cue of [this.original, this.translated]) {
+      this.cueResizeObserver?.observe(cue);
+      cue.addEventListener("keydown", (event) => {
+        if (this.reducedMotion?.matches && cue.dataset.overflow === "true")
+          event.stopPropagation();
+      });
+      cue.addEventListener("pointerdown", (event) => {
+        if (this.reducedMotion?.matches && cue.dataset.overflow === "true")
+          event.stopPropagation();
+      });
+    }
+    this.reducedMotion?.addEventListener("change", this.scheduleCueScroll);
 
     this.container.append(this.cueCard, this.status, this.notice);
     root.append(style, this.ocrRegionGuide, this.container);
@@ -573,13 +607,25 @@ export class SubtitleOverlay {
       return;
     }
     this.showOriginalFallback = options.showOriginalFallback === true;
-    this.original.textContent = originalText.slice(
-      0,
-      MAX_OVERLAY_CUE_CHARACTERS,
+    if (
+      this.original.textContent !==
+      originalText.slice(0, MAX_OVERLAY_CUE_CHARACTERS)
+    ) {
+      this.stopCueScrolls();
+    }
+    this.setCueText(
+      this.original,
+      originalText.slice(0, MAX_OVERLAY_CUE_CHARACTERS),
     );
-    this.translated.textContent = translatedText
-      ? cleanTranslatedText(translatedText).slice(0, MAX_OVERLAY_CUE_CHARACTERS)
-      : "";
+    this.setCueText(
+      this.translated,
+      translatedText
+        ? cleanTranslatedText(translatedText).slice(
+            0,
+            MAX_OVERLAY_CUE_CHARACTERS,
+          )
+        : "",
+    );
     this.container.hidden = false;
     this.renderVisibility();
     requestAnimationFrame(() => this.updateAnchor());
@@ -650,9 +696,14 @@ export class SubtitleOverlay {
 
   hide(): void {
     this.container.hidden = this.notice.hidden;
+    this.stopCueScrolls();
   }
 
   destroy(): void {
+    this.disposed = true;
+    this.stopCueScrolls();
+    this.cueResizeObserver?.disconnect();
+    this.reducedMotion?.removeEventListener("change", this.scheduleCueScroll);
     this.clearNotice();
     document.removeEventListener("fullscreenchange", this.mount);
     window.removeEventListener("resize", this.updateAnchor);
@@ -1094,6 +1145,64 @@ export class SubtitleOverlay {
       "--noritrans-max-width",
       `${Math.max(1, Math.min(window.innerWidth * 0.8, bounds.width * 0.8))}px`,
     );
+    this.scheduleCueScroll();
+  };
+
+  private setCueText(cue: HTMLElement, text: string): void {
+    // Playback ticks often render the same cue; do not restart its animation.
+    if (cue.textContent === text && cue.firstElementChild) return;
+    this.cueScrolls.get(cue)?.animation?.cancel();
+    this.cueScrolls.delete(cue);
+    const span = document.createElement("span");
+    span.className = "cue-text";
+    span.textContent = text;
+    cue.replaceChildren(span);
+    cue.scrollLeft = 0;
+  }
+
+  private stopCueScrolls(): void {
+    if (this.scrollFrame !== undefined) cancelAnimationFrame(this.scrollFrame);
+    this.scrollFrame = undefined;
+    for (const state of this.cueScrolls.values()) state.animation?.cancel();
+    this.cueScrolls.clear();
+  }
+
+  private readonly scheduleCueScroll = (): void => {
+    if (this.disposed || this.scrollFrame !== undefined) return;
+    this.scrollFrame = requestAnimationFrame(() => {
+      this.scrollFrame = undefined;
+      for (const cue of [this.original, this.translated]) {
+        const span = cue.firstElementChild as HTMLElement | null;
+        const visible = !this.container.hidden && !cue.hidden && Boolean(span);
+        const distance =
+          visible && span ? Math.max(0, span.scrollWidth - cue.clientWidth) : 0;
+        const reduced = this.reducedMotion?.matches === true;
+        const key = `${visible}:${distance}:${cue.clientWidth}:${reduced}`;
+        if (this.cueScrolls.get(cue)?.key === key) continue;
+        this.cueScrolls.get(cue)?.animation?.cancel();
+        cue.scrollLeft = 0;
+        cue.dataset.overflow = String(distance > 1);
+        cue.tabIndex = reduced && distance > 1 ? 0 : -1;
+        // One pass at a bounded reading speed, with a pause at the beginning.
+        const animation =
+          distance > 1 && !reduced && span?.animate
+            ? span.animate(
+                [
+                  { transform: "translateX(0)" },
+                  { transform: `translateX(-${distance}px)` },
+                ],
+                {
+                  delay: 800,
+                  duration: (distance / 35) * 1000,
+                  iterations: 1,
+                  fill: "both",
+                  easing: "linear",
+                },
+              )
+            : undefined;
+        this.cueScrolls.set(cue, { key, ...(animation ? { animation } : {}) });
+      }
+    });
   };
 
   private renderVisibility(): void {
@@ -1118,5 +1227,6 @@ export class SubtitleOverlay {
     this.container.hidden =
       nativePictureInPictureActive ||
       (!visibility.original && !visibility.translated && this.notice.hidden);
+    this.scheduleCueScroll();
   }
 }

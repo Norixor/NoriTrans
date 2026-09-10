@@ -4753,6 +4753,84 @@ test("uses YouTube rendered captions when a full timedtext body is unavailable",
   }
 });
 
+test("keeps long subtitles scrolling inside the player width", async () => {
+  const pageUrl = "https://www.youtube.com/watch?v=subtitle-scroll-e2e";
+  const previous = await updateSubtitlePreferences({
+    displayMode: "bilingual",
+    position: "bottom",
+  });
+  const longCaption =
+    "A long subtitle should stay inside the player window. ".repeat(12);
+  await context.route(pageUrl, (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: `<!doctype html><style>video{position:fixed;left:80px;top:80px;width:480px;height:270px}</style><button id="fullscreen" onclick="document.querySelector('video').requestFullscreen()">Fullscreen</button><video></video><div class="ytp-caption-window-container"><div class="ytp-caption-segment">${longCaption}</div></div>`,
+    }),
+  );
+  const page = await context.newPage();
+  try {
+    await page.goto(pageUrl);
+    await waitForReadyTrack(pageUrl, { source: "dom", completeness: "stream" });
+    const overlay = page.locator('[data-noritrans-ui="subtitle-overlay"]');
+    const card = overlay.locator(".cue-card");
+    const original = overlay.locator(".cue.original");
+    await expect(original).toBeVisible();
+    const assertContained = async (): Promise<void> => {
+      const bounds = await card.boundingBox();
+      const video = await page.locator("video").boundingBox();
+      if (!bounds || !video) throw new Error("Missing subtitle geometry");
+      expect(bounds.x).toBeGreaterThanOrEqual(Math.max(0, video.x));
+      expect(bounds.x + bounds.width).toBeLessThanOrEqual(
+        video.x + video.width + 1,
+      );
+      expect(bounds.height).toBeLessThan(100);
+    };
+    await assertContained();
+    await page.screenshot({ path: test.info().outputPath("subtitle-scroll.png") });
+    await expect
+      .poll(() =>
+        original.evaluate((el) =>
+          el
+            .getAnimations({ subtree: true })
+            .some((animation) => Number(animation.currentTime) > 900),
+        ),
+      )
+      .toBe(true);
+    await page.locator("#fullscreen").click();
+    await expect
+      .poll(() => page.evaluate(() => Boolean(document.fullscreenElement)))
+      .toBe(true);
+    await expect(card).toBeVisible();
+    await assertContained();
+    await page.evaluate(() => document.exitFullscreen());
+    await page.evaluate(() => {
+      document.querySelector(".ytp-caption-segment")!.textContent =
+        "Short caption";
+    });
+    await expect(original).toHaveText("Short caption");
+    await expect
+      .poll(() =>
+        original.evaluate((el) => el.getAnimations({ subtree: true }).length),
+      )
+      .toBe(0);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.evaluate((caption) => {
+      document.querySelector(".ytp-caption-segment")!.textContent = caption;
+    }, longCaption);
+    await expect(original).toHaveText(longCaption.trim());
+    await assertContained();
+    await expect
+      .poll(() =>
+        original.evaluate((el) => el.getAnimations({ subtree: true }).length),
+      )
+      .toBe(0);
+  } finally {
+    await updateSubtitlePreferences(previous);
+    await page.close();
+    await context.unroute(pageUrl);
+  }
+});
+
 test("applies native caption visibility and overlay position at runtime", async () => {
   const pageUrl = "https://www.youtube.com/watch?v=subtitle-display-e2e";
   const previous = await updateSubtitlePreferences({
