@@ -146,22 +146,31 @@ async function responseError(response: Response): Promise<NoriTransError> {
     typeof envelope?.message === "string"
       ? envelope.message.replace(/\s+/gu, " ").trim().slice(0, 240)
       : undefined;
+  const invalidResult = stableCode === "noritrans_translation_invalid_response";
   const message =
     response.status === 401
       ? "Sign in to Norixor again."
-      : stableCode === "noritrans_translation_model_unavailable"
-        ? "The selected Norixor translation model is unavailable."
-        : stableCode === "noritrans_translation_quota_exceeded"
-          ? "Norixor translation balance or quota is unavailable."
-          : stableCode === "noritrans_translation_policy_rejected"
-            ? "Norixor rejected this translation batch."
-            : response.status === 400
-              ? "Norixor rejected an invalid translation batch."
-              : "Norixor translation request failed.";
+      : invalidResult
+        ? "Norixor returned an invalid translation result."
+        : stableCode === "noritrans_translation_model_unavailable"
+          ? "The selected Norixor translation model is unavailable."
+          : stableCode === "noritrans_translation_quota_exceeded"
+            ? "Norixor translation balance or quota is unavailable."
+            : stableCode === "noritrans_translation_policy_rejected"
+              ? "Norixor rejected this translation batch."
+              : response.status === 400
+                ? "Norixor rejected an invalid translation batch."
+                : "Norixor translation request failed.";
   return new NoriTransError(
     message,
-    response.status === 401 ? "invalid_configuration" : "request_failed",
-    response.status === 429 || response.status >= 500,
+    response.status === 401
+      ? "invalid_configuration"
+      : invalidResult
+        ? "invalid_response"
+        : "request_failed",
+    // A completed upstream generation may already be billable. Keep retries
+    // explicit when its result fails validation instead of resending the batch.
+    !invalidResult && (response.status === 429 || response.status >= 500),
     [
       `HTTP ${response.status}`,
       stableCode ? `code=${stableCode}` : undefined,

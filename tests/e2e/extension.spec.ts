@@ -1295,6 +1295,49 @@ test("Norixor APP login keeps managed translation separate from configured AI", 
       segments: [{ id: "s:0", text_id: "t:0" }],
     });
 
+    let rejectedRequests = 0;
+    const rejectInvalidResult = async (route: Route): Promise<void> => {
+      rejectedRequests += 1;
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: {
+            code: "noritrans_translation_invalid_response",
+            message: "Translation provider returned invalid segment results",
+          },
+        }),
+      });
+    };
+    const translationUrl =
+      "https://api.norixor.org/apps/noritrans/native/translations";
+    await context.route(translationUrl, rejectInvalidResult);
+    try {
+      const failure = await page.evaluate(async () => {
+        const response: unknown = await chrome.runtime.sendMessage({
+          type: "TRANSLATE",
+          requestId: "norixor-e2e-invalid-result",
+          request: {
+            sourceLanguage: "en",
+            targetLanguage: "zh-CN",
+            mode: "ai",
+            aiRoute: "norixor",
+            segments: [
+              { id: "failed-segment", text: "Invalid result fixture" },
+            ],
+          },
+        });
+        return response;
+      });
+      expect(failure).toMatchObject({
+        ok: false,
+        error: { code: "invalid_response", retryable: false },
+      });
+      expect(rejectedRequests).toBe(1);
+    } finally {
+      await context.unroute(translationUrl, rejectInvalidResult);
+    }
+
     await page.locator("#norixor-settings-tab").click();
     await page.locator("#norixor-logout").click();
     await expect(page.locator("#norixor-signed-out")).toBeVisible();

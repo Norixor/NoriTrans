@@ -339,4 +339,41 @@ describe("Norixor translation provider", () => {
         "HTTP 400; code=noritrans_translation_invalid_request; message=A segment contains duplicate context references",
     });
   });
+
+  it.each([
+    ["noritrans_translation_invalid_response", "invalid_response", false],
+    ["gateway_unavailable", "request_failed", true],
+  ])(
+    "classifies a 503 with stable code %s",
+    async (code, expectedCode, retryable) => {
+      authorizedNorixorFetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({ error: { code, message: "Result rejected" } }),
+          {
+            status: 503,
+          },
+        ),
+      );
+      const progress = vi.fn();
+      await expect(
+        new NorixorTranslationProvider("deepseek-v4-flash").translateBatch(
+          {
+            sourceLanguage: "en",
+            targetLanguage: "zh-CN",
+            mode: "ai",
+            aiRoute: "norixor",
+            segments: [{ id: "one", text: "One" }],
+          },
+          new AbortController().signal,
+          progress,
+        ),
+      ).rejects.toMatchObject({
+        code: expectedCode,
+        retryable,
+        details: `HTTP 503; code=${code}; message=Result rejected`,
+      });
+      expect(authorizedNorixorFetch).toHaveBeenCalledOnce();
+      expect(progress).not.toHaveBeenCalled();
+    },
+  );
 });
