@@ -155,3 +155,13 @@ NoriTrans is built with [WXT](https://github.com/wxt-dev/wxt), `idb`, ONNX Runti
 Unless otherwise noted, source code and documentation are licensed under the [Apache License 2.0](./LICENSE). Copyright 2026 Norixor.
 
 The NoriTrans name, logo, product identity, and files under `assets/branding/` are not licensed under Apache-2.0. See [`TRADEMARKS.md`](./TRADEMARKS.md) for the brand-use policy.
+
+## Star History
+
+<a href="https://www.star-history.com/?repos=norixor%2Fnoritrans&type=date&legend=top-left">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=norixor/noritrans&type=date&theme=dark&legend=top-left" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=norixor/noritrans&type=date&legend=top-left" />
+    <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=norixor/noritrans&type=date&legend=top-left" />
+  </picture>
+</a>
