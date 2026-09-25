@@ -63,12 +63,6 @@ const protectedPageRequests: Array<{
   text: string;
   format?: unknown;
 }> = [];
-const norixorApiRequests: Array<{
-  path: string;
-  authorization: string | null;
-  body: string | null;
-}> = [];
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -393,159 +387,6 @@ test.beforeAll(async () => {
       }),
     );
   }
-  await context.route(
-    "https://api.norixor.org/apps/noritrans/**",
-    async (route) => {
-      const request = route.request();
-      const path = new URL(request.url()).pathname;
-      norixorApiRequests.push({
-        path,
-        authorization: request.headers()["authorization"] ?? null,
-        body: request.postData(),
-      });
-      if (path.endsWith("/auth/login")) {
-        await route.fulfill({
-          contentType: "application/json",
-          headers: { "Cache-Control": "no-store" },
-          body: JSON.stringify({
-            access_token: "e2e-access-token",
-            refresh_token: "e2e-refresh-token",
-            token_type: "Bearer",
-            expires_in: 7_200,
-            scope: "account:read translation:use",
-          }),
-        });
-        return;
-      }
-      if (path.endsWith("/auth/revoke")) {
-        await route.fulfill({
-          contentType: "application/json",
-          headers: { "Cache-Control": "no-store" },
-          body: "{}",
-        });
-        return;
-      }
-      if (path.endsWith("/native/account")) {
-        await route.fulfill({
-          contentType: "application/json",
-          headers: { "Cache-Control": "no-store" },
-          body: JSON.stringify({
-            data: {
-              account: {
-                username: "member@example.com",
-                email: "member@example.com",
-                email_verified: true,
-              },
-              membership: { status: "active" },
-              translation: {
-                available: true,
-                quota: {
-                  unit: "requests",
-                  limits: [],
-                },
-              },
-            },
-          }),
-        });
-        return;
-      }
-      if (path.endsWith("/native/models")) {
-        await route.fulfill({
-          contentType: "application/json",
-          headers: { "Cache-Control": "no-store" },
-          body: JSON.stringify({
-            data: {
-              default_model: "deepseek-v4-flash",
-              models: [
-                {
-                  id: "deepseek-v4-flash",
-                  display_name: "DeepSeek V4 Flash",
-                },
-                {
-                  id: "gemini-3.7-flash",
-                  display_name: "Gemini 3.7 Flash",
-                },
-                { id: "gpt-5.6-luna", display_name: "GPT-5.6 Luna" },
-                {
-                  id: "deepseek-v4-pro",
-                  display_name: "DeepSeek V4 Pro",
-                },
-              ],
-            },
-          }),
-        });
-        return;
-      }
-      if (path.endsWith("/native/usage")) {
-        await route.fulfill({
-          contentType: "application/json",
-          headers: { "Cache-Control": "no-store" },
-          body: JSON.stringify({
-            data: {
-              currency: "USD",
-              precision: 8,
-              timezone: "Asia/Shanghai",
-              generated_at: "2026-09-03T12:00:00+08:00",
-              balance: {
-                available_regular_usd: "12.50000000",
-                available_gift_usd: "1.25000000",
-              },
-              periods: {
-                today: {
-                  start_at: "2026-09-03T00:00:00+08:00",
-                  end_at: "2026-09-03T12:00:00+08:00",
-                  successful_requests: 3,
-                  source_characters: 420,
-                  cost_usd: "0.00420000",
-                },
-                last_30_days: {
-                  start_at: "2026-08-05T00:00:00+08:00",
-                  end_at: "2026-09-03T12:00:00+08:00",
-                  successful_requests: 18,
-                  source_characters: 9_400,
-                  cost_usd: "0.09400000",
-                },
-              },
-            },
-          }),
-        });
-        return;
-      }
-      if (path.endsWith("/native/translations")) {
-        const payload: unknown = JSON.parse(request.postData() ?? "null");
-        if (
-          !isRecord(payload) ||
-          !isRecord(payload.text_catalog) ||
-          !Array.isArray(payload.segments)
-        ) {
-          await route.fulfill({ status: 400, body: "{}" });
-          return;
-        }
-        const textCatalog = payload.text_catalog;
-        const segments = payload.segments.filter(
-          (segment): segment is { id: string; text_id: string } =>
-            isRecord(segment) &&
-            typeof segment.id === "string" &&
-            typeof segment.text_id === "string" &&
-            typeof textCatalog[segment.text_id] === "string",
-        );
-        await route.fulfill({
-          contentType: "application/json",
-          body: JSON.stringify({
-            data: {
-              results: segments.map((segment) => ({
-                id: segment.id,
-                translated_text: `托管:${String(textCatalog[segment.text_id])}`,
-              })),
-              trace_id: "inv_e2e_norixor",
-            },
-          }),
-        });
-        return;
-      }
-      await route.fulfill({ status: 404, body: "{}" });
-    },
-  );
   await context.route(
     "https://translation.googleapis.com/**",
     async (route) => {
@@ -949,7 +790,7 @@ test("popup and options honor dark mode, reduced motion, and narrow widths", asy
       ),
     ).toHaveCount(0);
     await expect(page.locator('meta[name="theme-color"]')).toHaveCount(2);
-    await expect(page.locator(".settings-tab")).toHaveCount(10);
+    await expect(page.locator(".settings-tab")).toHaveCount(9);
     await page.locator("#visibility-settings-tab").click();
     await expect(
       page.locator("#floating-control-enabled"),
@@ -1114,249 +955,6 @@ test("popup and options honor dark mode, reduced motion, and narrow widths", asy
       optionColor: "rgb(245, 239, 229)",
     });
   } finally {
-    await page.close();
-  }
-});
-
-test("Norixor APP login keeps managed translation separate from configured AI", async () => {
-  norixorApiRequests.length = 0;
-  const extensionId = new URL(controlPage.url()).host;
-  const page = await context.newPage();
-  let settingsBeforeLogin: unknown;
-  try {
-    await page.setViewportSize({ width: 380, height: 900 });
-    await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
-    await page.goto(`chrome-extension://${extensionId}/options.html`);
-    settingsBeforeLogin = await page.evaluate(() =>
-      chrome.runtime.sendMessage({ type: "SETTINGS_GET" }),
-    );
-    await page.locator("#norixor-settings-tab").click();
-    await expect(page.locator("#norixor-signed-out")).toBeVisible();
-    await expect(page.locator(".save-bar")).toBeHidden();
-    const signedOutGeometry = await page.evaluate(() => ({
-      overflow:
-        document.documentElement.scrollWidth >
-        document.documentElement.clientWidth,
-      usernameHeight: document
-        .querySelector<HTMLInputElement>("#norixor-username")!
-        .getBoundingClientRect().height,
-      loginHeight: document
-        .querySelector<HTMLButtonElement>("#norixor-login")!
-        .getBoundingClientRect().height,
-      transitionDuration: getComputedStyle(
-        document.querySelector<HTMLButtonElement>("#norixor-login")!,
-      ).transitionDuration,
-    }));
-    expect(signedOutGeometry.overflow).toBe(false);
-    expect(signedOutGeometry.usernameHeight).toBeGreaterThanOrEqual(44);
-    expect(signedOutGeometry.loginHeight).toBeGreaterThanOrEqual(44);
-    expect(
-      Number.parseFloat(signedOutGeometry.transitionDuration),
-    ).toBeLessThanOrEqual(0.001);
-    await page.locator("#norixor-username").fill("member@example.com");
-    await page.locator("#norixor-password").fill("e2e-password");
-    await page.locator("#norixor-login").click();
-
-    await expect(page.locator("#norixor-signed-in")).toBeVisible();
-    await expect(page.locator("#norixor-account-name")).toHaveText(
-      "member@example.com",
-    );
-    await expect(page.locator("#norixor-account-detail")).toContainText(
-      "active",
-    );
-    await expect(page.locator("#norixor-model")).toHaveValue(
-      "deepseek-v4-flash",
-    );
-    await expect(
-      page.locator('#norixor-model option[value="gpt-5.6-luna"]'),
-    ).toHaveCount(1);
-    await expect(
-      page.locator('#norixor-model option[value="gemini-3.7-flash"]'),
-    ).toHaveCount(1);
-    await expect(page.locator("#norixor-balance")).toContainText("12.50");
-    await expect(page.locator("#norixor-gift-balance")).toContainText("$1.25");
-    await expect(page.locator("#norixor-today")).toContainText("3");
-    await expect(page.locator("#norixor-today-detail")).toContainText(
-      "$0.0042",
-    );
-    await expect(page.locator("#norixor-last-30-days")).toContainText("18");
-
-    const state = await page.evaluate(async () => {
-      const settings: unknown = await chrome.runtime.sendMessage({
-        type: "SETTINGS_GET",
-      });
-      const stored = await chrome.storage.local.get("norixorAuthSession");
-      return { settings, stored };
-    });
-    expect(state.settings).toEqual(settingsBeforeLogin);
-    expect(state.settings).toMatchObject({
-      provider: {
-        aiProvider: "openai-compatible",
-        baseUrl: providerBaseUrl,
-        apiKey: "e2e-only-key",
-        model: "e2e-model",
-      },
-    });
-    expect(JSON.stringify(state.stored)).not.toContain("e2e-password");
-
-    await page.locator("#norixor-model").selectOption("gpt-5.6-luna");
-    await expect
-      .poll(async () =>
-        page.evaluate(async () => {
-          const current: unknown = await chrome.runtime.sendMessage({
-            type: "SETTINGS_GET",
-          });
-          if (
-            typeof current !== "object" ||
-            current === null ||
-            !("norixor" in current) ||
-            typeof current.norixor !== "object" ||
-            current.norixor === null ||
-            !("model" in current.norixor)
-          ) {
-            return undefined;
-          }
-          return current.norixor.model;
-        }),
-      )
-      .toBe("gpt-5.6-luna");
-
-    await page.locator("#page-settings-tab").click();
-    await expect(page.locator("#page-mode")).not.toHaveValue("norixor");
-    await page.locator("#page-mode").selectOption("norixor");
-    await page.locator("#save-settings").click();
-    await expect
-      .poll(async () =>
-        page.evaluate(async () => {
-          const current: unknown = await chrome.runtime.sendMessage({
-            type: "SETTINGS_GET",
-          });
-          if (
-            typeof current !== "object" ||
-            current === null ||
-            !("page" in current) ||
-            typeof current.page !== "object" ||
-            current.page === null ||
-            !("aiRoute" in current.page)
-          ) {
-            return undefined;
-          }
-          return current.page.aiRoute;
-        }),
-      )
-      .toBe("norixor");
-    await page.locator("#image-settings-tab").click();
-    await expect(
-      page.locator('#image-mode option[value="norixor"]'),
-    ).toHaveCount(0);
-
-    const translationResponse = await page.evaluate(async () => {
-      const response: unknown = await chrome.runtime.sendMessage({
-        type: "TRANSLATE",
-        requestId: "norixor-e2e-translation",
-        request: {
-          sourceLanguage: "zh-Hant",
-          targetLanguage: "zh-CN",
-          mode: "ai",
-          aiRoute: "norixor",
-          modelOverride: "configured-model-must-not-leak",
-          prompt: "configured-prompt-must-not-leak",
-          segments: [{ id: "page-original-id", text: "受管理的翻译" }],
-        },
-      });
-      return response;
-    });
-    expect(translationResponse).toEqual({
-      ok: true,
-      results: [
-        { id: "page-original-id", translatedText: "托管:受管理的翻译" },
-      ],
-    });
-
-    const loginRequest = norixorApiRequests.find((request) =>
-      request.path.endsWith("/auth/login"),
-    );
-    const accountRequest = norixorApiRequests.find((request) =>
-      request.path.endsWith("/native/account"),
-    );
-    const translationRequest = norixorApiRequests.find((request) =>
-      request.path.endsWith("/native/translations"),
-    );
-    expect(loginRequest?.body).toBe(
-      "username=member%40example.com&password=e2e-password",
-    );
-    expect(accountRequest?.authorization).toBe("Bearer e2e-access-token");
-    expect(translationRequest?.authorization).toBe("Bearer e2e-access-token");
-    expect(JSON.parse(translationRequest?.body ?? "null")).toEqual({
-      source_language: "zh-tw",
-      target_language: "zh-cn",
-      model: "gpt-5.6-luna",
-      text_catalog: { "t:0": "受管理的翻译" },
-      segments: [{ id: "s:0", text_id: "t:0" }],
-    });
-
-    let rejectedRequests = 0;
-    const rejectInvalidResult = async (route: Route): Promise<void> => {
-      rejectedRequests += 1;
-      await route.fulfill({
-        status: 503,
-        contentType: "application/json",
-        body: JSON.stringify({
-          error: {
-            code: "noritrans_translation_invalid_response",
-            message: "Translation provider returned invalid segment results",
-          },
-        }),
-      });
-    };
-    const translationUrl =
-      "https://api.norixor.org/apps/noritrans/native/translations";
-    await context.route(translationUrl, rejectInvalidResult);
-    try {
-      const failure = await page.evaluate(async () => {
-        const response: unknown = await chrome.runtime.sendMessage({
-          type: "TRANSLATE",
-          requestId: "norixor-e2e-invalid-result",
-          request: {
-            sourceLanguage: "en",
-            targetLanguage: "zh-CN",
-            mode: "ai",
-            aiRoute: "norixor",
-            segments: [
-              { id: "failed-segment", text: "Invalid result fixture" },
-            ],
-          },
-        });
-        return response;
-      });
-      expect(failure).toMatchObject({
-        ok: false,
-        error: { code: "invalid_response", retryable: false },
-      });
-      expect(rejectedRequests).toBe(1);
-    } finally {
-      await context.unroute(translationUrl, rejectInvalidResult);
-    }
-
-    await page.locator("#norixor-settings-tab").click();
-    await page.locator("#norixor-logout").click();
-    await expect(page.locator("#norixor-signed-out")).toBeVisible();
-    await expect
-      .poll(async () =>
-        page.evaluate(
-          async () =>
-            (await chrome.storage.local.get("norixorAuthSession"))
-              .norixorAuthSession,
-        ),
-      )
-      .toBeUndefined();
-  } finally {
-    if (settingsBeforeLogin !== undefined) {
-      await page.evaluate(async (settings) => {
-        await chrome.runtime.sendMessage({ type: "SETTINGS_SET", settings });
-        await chrome.storage.local.remove("norixorAuthSession");
-      }, settingsBeforeLogin);
-    }
     await page.close();
   }
 });
@@ -1612,6 +1210,8 @@ test("options saves a valid provider through the background settings boundary", 
   const translationMethodValues = TRANSLATION_METHODS.map(
     (method) => method.value,
   );
+  expect(translationMethodValues).not.toContain("norixor");
+  await expect(controlPage.locator("#norixor-settings-tab")).toHaveCount(0);
   for (const selector of [
     "#page-mode",
     "#selection-translation-mode",
@@ -1635,11 +1235,7 @@ test("options saves a valid provider through the background settings boundary", 
           options.map((option) => (option as HTMLOptionElement).value),
         ),
     )
-    .toEqual(
-      TRANSLATION_METHODS.filter(
-        (method) => method.value !== "norixor",
-      ).map((method) => method.value),
-    );
+    .toEqual(translationMethodValues);
   await controlPage.locator("#page-settings-tab").click();
   await controlPage.locator("#page-mode").selectOption("ai");
   await controlPage.locator("#page-response-mode").selectOption("batch");
@@ -4786,7 +4382,9 @@ test("keeps long subtitles scrolling inside the player width", async () => {
       expect(bounds.height).toBeLessThan(100);
     };
     await assertContained();
-    await page.screenshot({ path: test.info().outputPath("subtitle-scroll.png") });
+    await page.screenshot({
+      path: test.info().outputPath("subtitle-scroll.png"),
+    });
     await expect
       .poll(() =>
         original.evaluate((el) =>

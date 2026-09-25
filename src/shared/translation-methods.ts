@@ -1,16 +1,11 @@
 import type { FastProviderId } from "@/src/shared/settings";
-import type {
-  AiTranslationRoute,
-  TranslationMode,
-} from "@/src/translation/types";
+import type { TranslationMode } from "@/src/translation/types";
 
-export type TranslationMethodValue =
-  `fast:${FastProviderId}` | "ai" | "norixor";
+export type TranslationMethodValue = `fast:${FastProviderId}` | "ai";
 
 export interface TranslationMethodSelection {
   mode: TranslationMode;
   fastProvider?: FastProviderId;
-  aiRoute?: AiTranslationRoute;
 }
 
 export const TRANSLATION_METHODS: readonly {
@@ -35,22 +30,13 @@ export const TRANSLATION_METHODS: readonly {
     value: "ai",
     labelKey: "translationMethodAi",
   },
-  {
-    value: "norixor",
-    labelKey: "translationMethodNorixor",
-  },
 ] as const;
 
 export function translationMethodValue(
   mode: TranslationMode,
   fastProvider: FastProviderId,
-  aiRoute: AiTranslationRoute = "configured",
 ): TranslationMethodValue {
-  return mode === "ai"
-    ? aiRoute === "norixor"
-      ? "norixor"
-      : "ai"
-    : `fast:${fastProvider}`;
+  return mode === "ai" ? "ai" : `fast:${fastProvider}`;
 }
 
 export function parseTranslationMethod(
@@ -63,7 +49,6 @@ export function parseTranslationMethod(
   ) {
     return { mode: "ai" };
   }
-  if (value === "norixor") return { mode: "ai", aiRoute: "norixor" };
   const provider = value.startsWith("fast:") ? value.slice(5) : "";
   if (
     provider === "chrome-local" ||

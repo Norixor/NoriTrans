@@ -507,14 +507,11 @@ function pageTranslationConfigurationIdentity(
 ): string {
   return JSON.stringify({
     mode: settings.page.mode,
-    aiRoute: settings.page.aiRoute,
     sourceLanguage: settings.page.sourceLanguage,
     targetLanguage: settings.page.targetLanguage,
     provider:
       settings.page.mode === "ai"
-        ? settings.page.aiRoute === "norixor"
-          ? "norixor"
-          : settings.provider.aiProvider
+        ? settings.provider.aiProvider
         : pageFastProvider(settings),
     baseUrl: settings.provider.baseUrl,
     microsoftRegion: settings.provider.microsoftRegion,
@@ -1627,7 +1624,6 @@ export class PageTranslationSession {
         : settings.page.sourceLanguage;
     const sourceDetectionConfiguration = [
       settings.page.mode,
-      settings.page.aiRoute,
       pageFastProvider(settings),
       settings.page.sourceLanguage,
       settings.page.targetLanguage,
@@ -2150,7 +2146,10 @@ export class PageTranslationSession {
       await Promise.race([
         firstBatchWork,
         new Promise<void>((resolve) => {
-          headStartTimer = window.setTimeout(resolve, AI_PRIORITY_HEAD_START_MS);
+          headStartTimer = window.setTimeout(
+            resolve,
+            AI_PRIORITY_HEAD_START_MS,
+          );
         }),
         new Promise<void>((resolve) => {
           const abort = (): void => resolve();
@@ -2246,9 +2245,6 @@ export class PageTranslationSession {
       sourceLanguage,
       targetLanguage: settings.page.targetLanguage,
       mode: settings.page.mode,
-      ...(settings.page.mode === "ai"
-        ? { aiRoute: settings.page.aiRoute }
-        : {}),
       responseMode: settings.page.aiResponseMode,
       segments: expanded.segments,
       prompt: settings.provider.systemPrompt,

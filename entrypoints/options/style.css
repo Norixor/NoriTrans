@@ -1540,62 +1540,6 @@ textarea {
   background: transparent;
 }
 
-.norixor-model-settings {
-  margin-top: 22px;
-}
-
-.norixor-usage-section {
-  margin: 24px 8px 0;
-  padding-top: 18px;
-  border-top: 1px solid var(--border);
-}
-
-.norixor-usage-heading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.norixor-usage-heading h3 {
-  margin: 0;
-  font-size: 15px;
-}
-
-.norixor-usage-heading span,
-.norixor-usage-grid span,
-.norixor-usage-grid small {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.norixor-usage-grid {
-  display: grid;
-  margin-top: 12px;
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.norixor-usage-grid article {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 4px;
-  padding: 14px 16px;
-  border-right: 1px solid var(--border);
-}
-
-.norixor-usage-grid article:last-child {
-  border-right: 0;
-}
-
-.norixor-usage-grid strong {
-  overflow-wrap: anywhere;
-  font-size: 20px;
-  font-variant-numeric: tabular-nums;
-}
-
 .button {
   border-radius: 5px;
 }
@@ -1808,11 +1752,6 @@ textarea {
     margin-left: 0;
   }
 
-  .norixor-usage-section {
-    margin-right: 0;
-    margin-left: 0;
-  }
-
   .save-bar {
     left: 0;
     padding: 10px 16px;
@@ -1858,26 +1797,9 @@ textarea {
   #settings-form {
     padding-bottom: 148px;
   }
-
-  .norixor-usage-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .norixor-usage-grid article {
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .norixor-usage-grid article:last-child {
-    border-bottom: 0;
-  }
 }
 
 /* Site-specific translation Profile editor */
-.settings-shell:has(#norixor-settings-panel:not([hidden])) .save-bar {
-  display: none;
-}
-
 .settings-shell:has(#profiles-settings-panel:not([hidden])) {
   width: 100%;
 }

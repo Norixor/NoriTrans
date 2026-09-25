@@ -1,4 +1,5 @@
 import type { SiteTranslationProfile } from "@/src/site-profiles/types";
+import { migrateRemovedAiRoute } from "@/src/site-profiles/migrate";
 import { parseSiteTranslationProfile } from "@/src/site-profiles/validation";
 import { parseSiteProfile } from "@/src/subtitles/profiles/registry";
 import type {
@@ -78,13 +79,15 @@ export function parseSiteProfileDocument(value: unknown): {
     throw new Error("invalid_site_profile_document");
   }
 
-  const translation = parseSiteTranslationProfile({
-    id: value.id,
-    version: value.version,
-    name: value.name,
-    match: value.match,
-    overrides: value.overrides,
-  });
+  const translation = parseSiteTranslationProfile(
+    migrateRemovedAiRoute({
+      id: value.id,
+      version: value.version,
+      name: value.name,
+      match: value.match,
+      overrides: value.overrides,
+    }),
+  );
   const capture = parseSiteProfile({
     id: translation.id,
     version: translation.version,
@@ -96,7 +99,10 @@ export function parseSiteProfileDocument(value: unknown): {
     capture: subtitleCapture.capture,
   });
   return {
-    document: value as unknown as SiteProfileDocument,
+    document: {
+      ...translation,
+      subtitleCapture: value.subtitleCapture,
+    } as SiteProfileDocument,
     translation,
     capture,
   };

@@ -183,9 +183,8 @@ describe("popup status UI", () => {
     };
     await vi.advanceTimersByTimeAsync(1_500);
     await vi.waitFor(() => expect(translate?.disabled).toBe(true));
-    const source = document.querySelector<HTMLSelectElement>(
-      "#source-language",
-    );
+    const source =
+      document.querySelector<HTMLSelectElement>("#source-language");
     expect(source?.value).toBe("auto");
     expect(source?.selectedOptions[0]?.textContent).toBe("languageAuto");
     expect(source?.selectedOptions[0]?.disabled).toBe(false);

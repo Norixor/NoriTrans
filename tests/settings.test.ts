@@ -67,45 +67,79 @@ describe("settings compatibility", () => {
     ).toBe(false);
   });
 
-  it("adds independent configured AI routes and preserves Norixor choices", () => {
-    expect(mergeSettings({})).toMatchObject({
-      page: {
-        aiRoute: "configured",
-        selectionTranslationAiRoute: "configured",
-      },
-      subtitles: { aiRoute: "configured" },
-    });
-    expect(
-      mergeSettings({
-        page: {
-          aiRoute: "norixor",
-          selectionTranslationAiRoute: "norixor",
-        },
-        subtitles: { aiRoute: "norixor" },
-      }),
-    ).toMatchObject({
+  it("disables legacy Norixor routes without forwarding them to configured AI", () => {
+    const legacy = {
+      norixor: { model: "gpt-5.6-luna" },
       page: {
         aiRoute: "norixor",
         selectionTranslationAiRoute: "norixor",
+        mode: "ai",
+        autoTranslate: true,
+        modelOverride: "old-page-model",
+        sourceLanguage: "ja",
+        selectionTranslationMode: "ai",
+        selectionTranslationEnabled: true,
+        selectionTranslationModelOverride: "old-selection-model",
+        selectionTranslationTargetLanguage: "ko",
       },
-      subtitles: { aiRoute: "norixor" },
+      subtitles: {
+        aiRoute: "norixor",
+        mode: "ai",
+        enabled: true,
+        modelOverride: "old-subtitle-model",
+        targetLanguage: "fr",
+      },
+    };
+    const settings = mergeSettings(legacy);
+    expect("norixor" in settings).toBe(false);
+    expect("aiRoute" in settings.page).toBe(false);
+    expect("selectionTranslationAiRoute" in settings.page).toBe(false);
+    expect("aiRoute" in settings.subtitles).toBe(false);
+    expect(settings.page).toMatchObject({
+      mode: "fast",
+      autoTranslate: false,
+      sourceLanguage: "ja",
+      selectionTranslationMode: "fast",
+      selectionTranslationEnabled: false,
+      selectionTranslationModelOverride: "",
+      selectionTranslationTargetLanguage: "ko",
     });
+    expect(settings.page.modelOverride).toBeUndefined();
+    expect(settings.subtitles).toMatchObject({
+      mode: "fast",
+      enabled: false,
+      targetLanguage: "fr",
+    });
+    expect(settings.subtitles.modelOverride).toBeUndefined();
+    const inheritedSelection = mergeSettings({
+      page: {
+        mode: "ai",
+        selectionTranslationAiRoute: "norixor",
+      },
+    });
+    expect(inheritedSelection.page.selectionTranslationMode).toBe("fast");
+    expect(inheritedSelection.page.selectionTranslationEnabled).toBe(false);
   });
 
-  it("stores a bounded Norixor model independently from configured AI", () => {
-    expect(mergeSettings({}).norixor.model).toBe("");
+  it("migrates the unused Norixor default without replacing a configured endpoint", () => {
+    const legacyProvider = {
+      baseUrl: "https://api.norixor.org/v1",
+      model: "gpt-5.6-luna",
+    };
     expect(
-      mergeSettings({
-        norixor: { model: "gpt-5.6-luna" },
-        provider: { model: "configured-ai-model" },
-      }),
+      mergeSettings({ provider: { ...legacyProvider, apiKey: "" } }).provider,
     ).toMatchObject({
-      norixor: { model: "gpt-5.6-luna" },
-      provider: { model: "configured-ai-model" },
+      baseUrl: DEFAULT_SETTINGS.provider.baseUrl,
+      model: DEFAULT_SETTINGS.provider.model,
     });
     expect(
-      mergeSettings({ norixor: { model: "bad model" } }).norixor.model,
-    ).toBe("");
+      mergeSettings({
+        provider: { ...legacyProvider, apiKey: "configured-key" },
+      }).provider,
+    ).toMatchObject({
+      ...legacyProvider,
+      apiKey: "configured-key",
+    });
   });
 
   it("migrates the removed AI fast-provider choice into the single AI translation mode", () => {

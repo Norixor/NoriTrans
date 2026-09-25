@@ -86,7 +86,6 @@ export function applySiteProfileSettings(
             sourceLanguage: pageOverride.sourceLanguage,
             targetLanguage: pageOverride.targetLanguage,
             mode: pageOverride.mode,
-            aiRoute: pageOverride.aiRoute ?? "configured",
             fastProviderOverride: pageOverride.fastProvider,
             modelOverride: pageOverride.modelOverride,
             ...(pageOverride.aiResponseMode !== undefined
@@ -114,8 +113,6 @@ export function applySiteProfileSettings(
             selectionTranslationTargetLanguage:
               selectionOverride.targetLanguage,
             selectionTranslationMode: selectionOverride.mode,
-            selectionTranslationAiRoute:
-              selectionOverride.aiRoute ?? "configured",
             selectionTranslationModelOverride: selectionOverride.modelOverride,
             selectionTranslationFastProviderOverride:
               selectionOverride.fastProvider,
@@ -146,7 +143,6 @@ export function applySiteProfileSettings(
             sourceLanguage: subtitleOverride.sourceLanguage,
             targetLanguage: subtitleOverride.targetLanguage,
             mode: subtitleOverride.mode,
-            aiRoute: subtitleOverride.aiRoute ?? "configured",
             fastProviderOverride: subtitleOverride.fastProvider,
             modelOverride: subtitleOverride.modelOverride,
             ...(subtitleOverride.enabled !== undefined

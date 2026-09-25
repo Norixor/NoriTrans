@@ -102,10 +102,7 @@ function providerCacheContext(settings: ContentSettings) {
   return {
     fastProviderId:
       settings.subtitles.fastProviderOverride ?? settings.provider.fastProvider,
-    aiProviderId:
-      settings.subtitles.aiRoute === "norixor"
-        ? "norixor"
-        : settings.provider.aiProvider,
+    aiProviderId: settings.provider.aiProvider,
     baseUrl: [
       settings.provider.baseUrl,
       settings.provider.microsoftRegion,
@@ -252,7 +249,6 @@ function pageTranslationConfigurationChanged(
     previous.page.sourceLanguage !== next.page.sourceLanguage ||
     previous.page.targetLanguage !== next.page.targetLanguage ||
     previous.page.mode !== next.page.mode ||
-    previous.page.aiRoute !== next.page.aiRoute ||
     previous.page.aiResponseMode !== next.page.aiResponseMode ||
     previous.page.displayMode !== next.page.displayMode ||
     previous.page.fastProviderOverride !== next.page.fastProviderOverride ||
@@ -947,31 +943,26 @@ export default defineContentScript({
           sourceLanguage: patch.sourceLanguage,
           targetLanguage: patch.targetLanguage,
           mode: settings.page.mode,
-          aiRoute: patch.aiRoute,
           fastProvider,
           responseMode: settings.page.aiResponseMode,
           displayMode: patch.displayMode,
           selectionTranslationEnabled: patch.selectionTranslationEnabled,
           selectionTranslationMode: patch.selectionTranslationMode,
-          selectionTranslationAiRoute: patch.selectionTranslationAiRoute,
         });
         await adoptQuickSettingsResponse(response);
       },
-      onPageModeChange: async (mode, fastProvider, aiRoute) => {
+      onPageModeChange: async (mode, fastProvider) => {
         const response: unknown = await browser.runtime.sendMessage({
           type: "PAGE_QUICK_SETTINGS_SET",
           sourceLanguage: settings.page.sourceLanguage,
           targetLanguage: settings.page.targetLanguage,
           mode,
-          aiRoute,
           fastProvider,
           responseMode: settings.page.aiResponseMode,
           displayMode: settings.page.displayMode,
           selectionTranslationEnabled:
             settings.page.selectionTranslationEnabled,
           selectionTranslationMode: settings.page.selectionTranslationMode,
-          selectionTranslationAiRoute:
-            settings.page.selectionTranslationAiRoute,
         });
         await adoptQuickSettingsResponse(response);
       },
@@ -981,14 +972,11 @@ export default defineContentScript({
           sourceLanguage: settings.page.sourceLanguage,
           targetLanguage: settings.page.targetLanguage,
           mode: settings.page.mode,
-          aiRoute: settings.page.aiRoute,
           responseMode,
           displayMode: settings.page.displayMode,
           selectionTranslationEnabled:
             settings.page.selectionTranslationEnabled,
           selectionTranslationMode: settings.page.selectionTranslationMode,
-          selectionTranslationAiRoute:
-            settings.page.selectionTranslationAiRoute,
         });
         if (!successfulResponse(response)) {
           throw new Error(runtimeErrorToken("settings_save_failed"));
@@ -1006,7 +994,6 @@ export default defineContentScript({
           sourceLanguage: patch.sourceLanguage,
           targetLanguage: patch.targetLanguage,
           mode: patch.mode,
-          aiRoute: patch.aiRoute,
           fastProvider,
           responseMode: patch.aiResponseMode,
           displayMode: patch.displayMode,

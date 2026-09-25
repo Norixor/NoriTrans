@@ -6,7 +6,6 @@ import type {
   SubtitlePosition,
 } from "@/src/shared/settings";
 import type {
-  AiTranslationRoute,
   TranslationMode,
   TranslationResponseMode,
 } from "@/src/translation/types";
@@ -15,8 +14,6 @@ export interface SiteSurfaceTranslationOverride {
   sourceLanguage: string;
   targetLanguage: string;
   mode: TranslationMode;
-  /** Omitted legacy profiles use the configured AI Provider. */
-  aiRoute?: AiTranslationRoute;
   fastProvider: FastProviderId;
   /** Empty inherits the global AI model. */
   modelOverride: string;

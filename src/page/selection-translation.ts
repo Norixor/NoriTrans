@@ -321,8 +321,6 @@ function selectionConfigurationChanged(
       next.page.selectionTranslationTargetLanguage ||
     previous.page.selectionTranslationMode !==
       next.page.selectionTranslationMode ||
-    previous.page.selectionTranslationAiRoute !==
-      next.page.selectionTranslationAiRoute ||
     previous.page.selectionTranslationAiResponseMode !==
       next.page.selectionTranslationAiResponseMode ||
     previous.page.selectionTranslationModelOverride !==
@@ -798,9 +796,6 @@ export class SelectionTranslation {
       sourceLanguage: this.settings.page.selectionTranslationSourceLanguage,
       targetLanguage: this.settings.page.selectionTranslationTargetLanguage,
       mode: this.settings.page.selectionTranslationMode,
-      ...(this.settings.page.selectionTranslationMode === "ai"
-        ? { aiRoute: this.settings.page.selectionTranslationAiRoute }
-        : {}),
       responseMode: this.settings.page.selectionTranslationAiResponseMode,
       scope: `selection:${location.origin}${location.pathname}`,
       segments: [{ id: SELECTION_SEGMENT_ID, text: snapshot.text }],

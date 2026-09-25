@@ -165,84 +165,79 @@ describe("PageTranslationSession", () => {
     vi.unstubAllGlobals();
   });
 
-  it.each(["norixor", "configured"] as const)(
-    "detects workshop title languages independently of Chinese navigation for %s AI",
-    async (aiRoute) => {
-      const detectLanguage = vi.fn((text: string) =>
-        Promise.resolve({
-          isReliable: true,
-          languages: [
-            {
-              language: text.includes("创意工坊")
-                ? "zh-CN"
-                : text.includes("夜空")
-                  ? "ja"
-                  : "en",
-              percentage: 100,
-            },
-          ],
-        }),
-      );
-      vi.stubGlobal("chrome", { i18n: { detectLanguage } });
-      document.documentElement.lang = "zh-CN";
-      document.body.innerHTML = `<nav><p>创意工坊：正在浏览所有条目</p></nav>
+  it("detects workshop title languages independently of Chinese navigation for AI", async () => {
+    const detectLanguage = vi.fn((text: string) =>
+      Promise.resolve({
+        isReliable: true,
+        languages: [
+          {
+            language: text.includes("创意工坊")
+              ? "zh-CN"
+              : text.includes("夜空")
+                ? "ja"
+                : "en",
+            percentage: 100,
+          },
+        ],
+      }),
+    );
+    vi.stubGlobal("chrome", { i18n: { detectLanguage } });
+    document.documentElement.lang = "zh-CN";
+    document.body.innerHTML = `<nav><p>创意工坊：正在浏览所有条目</p></nav>
         <main style="display:contents"><div style="display:grid">
           <div><a id="english-title" href="/sharedfiles/filedetails/?id=1">Pressure Damage Notification</a></div>
           <div><a id="japanese-title" href="/sharedfiles/filedetails/?id=2">夜空の壁紙</a></div>
         </div></main>`;
-      const settings = structuredClone(DEFAULT_SETTINGS);
-      settings.page.mode = "ai";
-      settings.page.aiRoute = aiRoute;
-      settings.page.sourceLanguage = "auto";
-      settings.page.targetLanguage = "zh-CN";
-      settings.page.displayMode = "translated";
-      const session = new PageTranslationSession(vi.fn());
-      await session.translate(settings);
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.page.mode = "ai";
+    settings.page.sourceLanguage = "auto";
+    settings.page.targetLanguage = "zh-CN";
+    settings.page.displayMode = "translated";
+    const session = new PageTranslationSession(vi.fn());
+    await session.translate(settings);
 
-      const requests = aiRuntime.sendMessage.mock.calls.flatMap(([message]) =>
-        isRecord(message) &&
-        message.type === "TRANSLATE" &&
-        isRecord(message.request)
-          ? [message.request]
-          : [],
+    const requests = aiRuntime.sendMessage.mock.calls.flatMap(([message]) =>
+      isRecord(message) &&
+      message.type === "TRANSLATE" &&
+      isRecord(message.request)
+        ? [message.request]
+        : [],
+    );
+    for (const [text, language] of [
+      ["Pressure Damage Notification", "en"],
+      ["夜空の壁紙", "ja"],
+    ]) {
+      const request = requests.find(
+        (request) =>
+          Array.isArray(request.segments) &&
+          request.segments.some(
+            (segment: unknown) => isRecord(segment) && segment.text === text,
+          ),
       );
-      for (const [text, language] of [
-        ["Pressure Damage Notification", "en"],
-        ["夜空の壁紙", "ja"],
-      ]) {
-        const request = requests.find(
-          (request) =>
-            Array.isArray(request.segments) &&
-            request.segments.some(
-              (segment: unknown) => isRecord(segment) && segment.text === text,
-            ),
-        );
-        expect(request).toMatchObject({
-          sourceLanguage: language,
-          targetLanguage: "zh-CN",
-          aiRoute,
-        });
-      }
-      expect(document.querySelector("#english-title")?.textContent).toBe(
-        "T:Pressure Damage Notification",
-      );
-      expect(session.getStatus()).toMatchObject({
-        state: "translated",
-        completed: 3,
-        failed: 0,
+      expect(request).toMatchObject({
+        sourceLanguage: language,
+        targetLanguage: "zh-CN",
       });
-      session.restore();
-      expect(document.querySelector("#english-title")?.textContent).toBe(
-        "Pressure Damage Notification",
-      );
+    }
+    expect(document.querySelector("#english-title")?.textContent).toBe(
+      "T:Pressure Damage Notification",
+    );
+    expect(session.getStatus()).toMatchObject({
+      state: "translated",
+      completed: 3,
+      failed: 0,
+    });
+    session.restore();
+    expect(document.querySelector("#english-title")?.textContent).toBe(
+      "Pressure Damage Notification",
+    );
 
-      detectLanguage.mockClear();
-      settings.page.sourceLanguage = "en";
-      await session.translate(settings);
-      expect(detectLanguage).not.toHaveBeenCalled();
-      session.restore();
-    },
-  );
+    detectLanguage.mockClear();
+    settings.page.sourceLanguage = "en";
+    await session.translate(settings);
+    expect(detectLanguage).not.toHaveBeenCalled();
+    session.restore();
+  });
 
   it("applies an AI segment progress event before the batch finishes", async () => {
     document.body.innerHTML = `<main>${Array.from(
@@ -4072,9 +4067,9 @@ describe("PageTranslationSession", () => {
         : 0;
     });
     expect(batchSizes).toEqual([12, 48, 48, 13]);
-    expect((requestStartedAt[1] ?? 0) - (requestStartedAt[0] ?? 0)).toBeGreaterThan(
-      100,
-    );
+    expect(
+      (requestStartedAt[1] ?? 0) - (requestStartedAt[0] ?? 0),
+    ).toBeGreaterThan(100);
 
     const firstRequest: unknown = aiRuntime.sendMessage.mock.calls[0]?.[0];
     const request = isRecord(firstRequest) ? firstRequest.request : undefined;
@@ -4163,7 +4158,10 @@ describe("PageTranslationSession", () => {
     settings.page.displayMode = "translated";
     let translationCalls = 0;
     let resolveFirst:
-      | ((value: { ok: true; results: Array<{ id: string; translatedText: string }> }) => void)
+      | ((value: {
+          ok: true;
+          results: Array<{ id: string; translatedText: string }>;
+        }) => void)
       | undefined;
     aiRuntime.sendMessage.mockImplementation((message) => {
       if (

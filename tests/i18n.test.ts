@@ -1,6 +1,5 @@
 import en from "@/public/_locales/en/messages.json";
 import zhCn from "@/public/_locales/zh_CN/messages.json";
-import { configureUiLanguage, message } from "@/src/shared/i18n";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -70,24 +69,6 @@ describe("Chrome locale catalogs", () => {
         total: { content: "$2" },
       },
     });
-  });
-
-  it("preserves dollar signs inside positional substitutions", () => {
-    configureUiLanguage("en");
-    expect(message("norixorGiftBalance", "US$1,023.26758")).toBe(
-      "US$1,023.26758 gift balance",
-    );
-    expect(message("norixorUsageDetail", ["30,526", "US$0.13988"])).toBe(
-      "30,526 source characters · US$0.13988",
-    );
-
-    configureUiLanguage("zh-CN");
-    expect(message("norixorGiftBalance", "US$1,023.26758")).toBe(
-      "赠送余额 US$1,023.26758",
-    );
-    expect(message("norixorUsageDetail", ["30,526", "US$0.13988"])).toBe(
-      "30,526 个原文字符 · US$0.13988",
-    );
   });
 
   it("localizes every selection translation surface", () => {

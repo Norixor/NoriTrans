@@ -1,4 +1,5 @@
 import type { SiteTranslationProfile } from "@/src/site-profiles/types";
+import { migrateRemovedAiRoute } from "@/src/site-profiles/migrate";
 import {
   isSiteTranslationProfile,
   parseSiteTranslationProfile,
@@ -13,10 +14,9 @@ export async function loadSiteTranslationProfiles(): Promise<
 > {
   const stored = await browser.storage.local.get(STORAGE_KEY);
   if (!Array.isArray(stored[STORAGE_KEY])) return [];
-  return stored[STORAGE_KEY].filter(isSiteTranslationProfile).slice(
-    0,
-    MAX_PROFILES,
-  );
+  return stored[STORAGE_KEY].map(migrateRemovedAiRoute)
+    .filter(isSiteTranslationProfile)
+    .slice(0, MAX_PROFILES);
 }
 
 export async function saveSiteTranslationProfile(

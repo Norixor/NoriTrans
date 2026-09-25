@@ -1,7 +1,6 @@
 import type { FastProviderId } from "@/src/shared/settings";
 
 export type TranslationMode = "fast" | "ai";
-export type AiTranslationRoute = "configured" | "norixor";
 export type TranslationResponseMode = "stream" | "batch";
 export type TranslationTextFormat = "plain-text-v1" | "protected-text-v1";
 
@@ -31,8 +30,6 @@ export interface TranslationRequest {
   scope?: string;
   /** Optional per-surface AI model; omitted or blank inherits global settings. */
   modelOverride?: string;
-  /** Selects the user-configured AI Provider or the authenticated Norixor APP. */
-  aiRoute?: AiTranslationRoute;
   /** Local fast provider selected by a surface with its own provider setting. */
   providerOverride?: FastProviderId;
 }

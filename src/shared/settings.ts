@@ -1,5 +1,4 @@
 import type {
-  AiTranslationRoute,
   TranslationMode,
   TranslationResponseMode,
 } from "@/src/translation/types";
@@ -57,16 +56,10 @@ export interface ProviderSettings {
   timeoutMs: number;
 }
 
-export interface NorixorSettings {
-  /** Empty uses the current server default until the catalog is loaded. */
-  model: string;
-}
-
 export interface PageSettings {
   sourceLanguage: string;
   targetLanguage: string;
   mode: TranslationMode;
-  aiRoute: AiTranslationRoute;
   aiResponseMode: TranslationResponseMode;
   displayMode: DisplayMode;
   /** Runtime-only per-site fast Provider; omitted inherits provider.fastProvider. */
@@ -81,7 +74,6 @@ export interface PageSettings {
   selectionTranslationSourceLanguage: string;
   selectionTranslationTargetLanguage: string;
   selectionTranslationMode: TranslationMode;
-  selectionTranslationAiRoute: AiTranslationRoute;
   selectionTranslationAiResponseMode: TranslationResponseMode;
   /** Empty inherits provider.model. */
   selectionTranslationModelOverride: string;
@@ -96,7 +88,6 @@ export interface SubtitleSettings {
   sourceLanguage: string;
   targetLanguage: string;
   mode: TranslationMode;
-  aiRoute: AiTranslationRoute;
   aiResponseMode: TranslationResponseMode;
   displayMode: SubtitleDisplayMode;
   hideNativeSubtitles: boolean;
@@ -130,7 +121,6 @@ export interface ImageTranslationSettings {
 export interface AppSettings {
   uiLanguage: UiLanguage;
   provider: ProviderSettings;
-  norixor: NorixorSettings;
   page: PageSettings;
   subtitles: SubtitleSettings;
   ocr: OcrSettings;
@@ -145,7 +135,6 @@ export type ContentProviderSettings = Omit<
 export interface ContentSettings {
   uiLanguage: UiLanguage;
   provider: ContentProviderSettings;
-  norixor: NorixorSettings;
   page: PageSettings;
   subtitles: SubtitleSettings;
   ocr: OcrSettings;
@@ -168,14 +157,16 @@ export const DEFAULT_SYSTEM_PROMPT =
   "Translate every segment faithfully into the target language. Preserve meaning, tone, names, terminology, punctuation, and formatting. Keep code, URLs, and non-language tokens unchanged. Use context only for consistency. Never omit, merge, summarize, explain, or add content. Do not leave translatable source text unchanged. Follow the required output format exactly. If uncertain, return the best faithful translation.";
 
 const PREVIOUS_DEFAULT_MODEL = "gpt-5.5";
-const DEFAULT_AI_MODEL = "gpt-5.6-luna";
+const DEFAULT_AI_MODEL = "gpt-4.1-mini";
+const REMOVED_DEFAULT_BASE_URL = "https://api.norixor.org/v1";
+const REMOVED_DEFAULT_MODEL = "gpt-5.6-luna";
 
 export const DEFAULT_SETTINGS: AppSettings = {
   uiLanguage: "auto",
   provider: {
     fastProvider: "chrome-local",
     aiProvider: "openai-compatible",
-    baseUrl: "https://api.norixor.org/v1",
+    baseUrl: "https://api.openai.com/v1",
     apiKey: "",
     googleApiKey: "",
     microsoftApiKey: "",
@@ -186,14 +177,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
     systemPrompt: DEFAULT_SYSTEM_PROMPT,
     timeoutMs: 60_000,
   },
-  norixor: {
-    model: "",
-  },
   page: {
     sourceLanguage: "auto",
     targetLanguage: "zh-CN",
     mode: "fast",
-    aiRoute: "configured",
     aiResponseMode: "stream",
     displayMode: "translated",
     autoTranslate: false,
@@ -204,7 +191,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
     selectionTranslationSourceLanguage: "auto",
     selectionTranslationTargetLanguage: "zh-CN",
     selectionTranslationMode: "fast",
-    selectionTranslationAiRoute: "configured",
     selectionTranslationAiResponseMode: "stream",
     selectionTranslationModelOverride: "",
     selectionTranslationDisplayMode: "bilingual",
@@ -215,7 +201,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
     sourceLanguage: "auto",
     targetLanguage: "zh-CN",
     mode: "ai",
-    aiRoute: "configured",
     aiResponseMode: "stream",
     displayMode: "bilingual",
     hideNativeSubtitles: false,
@@ -268,7 +253,6 @@ export function toContentSettings(settings: AppSettings): ContentSettings {
       systemPrompt: settings.provider.systemPrompt,
       timeoutMs: settings.provider.timeoutMs,
     },
-    norixor: { ...settings.norixor },
     page: { ...settings.page },
     subtitles: { ...settings.subtitles },
     ocr: { ...settings.ocr },
@@ -284,7 +268,6 @@ export function mergeSettings(value: unknown): AppSettings {
   if (!isRecord(value)) return structuredClone(DEFAULT_SETTINGS);
 
   const provider = isRecord(value.provider) ? value.provider : {};
-  const norixor = isRecord(value.norixor) ? value.norixor : {};
   const page = isRecord(value.page) ? value.page : {};
   const subtitles = isRecord(value.subtitles) ? value.subtitles : {};
   const ocr = isRecord(value.ocr) ? value.ocr : {};
@@ -301,10 +284,21 @@ export function mergeSettings(value: unknown): AppSettings {
       ? provider.fastProvider
       : "chrome-local";
   const pageMode = legacyAiFastProvider || page.mode === "ai" ? "ai" : "fast";
+  const removedPageRoute = pageMode === "ai" && page.aiRoute === "norixor";
   const pageDisplayMode =
     page.displayMode === "bilingual" ? "bilingual" : "translated";
   const subtitleMode =
     legacyAiFastProvider || subtitles.mode !== "fast" ? "ai" : "fast";
+  const selectionMode = legacyAiFastProvider
+    ? "ai"
+    : page.selectionTranslationMode === "fast" ||
+        page.selectionTranslationMode === "ai"
+      ? page.selectionTranslationMode
+      : pageMode;
+  const removedSubtitleRoute =
+    subtitleMode === "ai" && subtitles.aiRoute === "norixor";
+  const removedSelectionRoute =
+    selectionMode === "ai" && page.selectionTranslationAiRoute === "norixor";
   const subtitleDisplayMode =
     subtitles.displayMode === "translated" ||
     subtitles.displayMode === "original"
@@ -319,6 +313,8 @@ export function mergeSettings(value: unknown): AppSettings {
   const customPosition = isRecord(subtitles.customPosition)
     ? subtitles.customPosition
     : {};
+  const removedDefaultProvider =
+    provider.baseUrl === REMOVED_DEFAULT_BASE_URL && !provider.apiKey;
 
   return {
     uiLanguage: normalizeUiLanguage(value.uiLanguage),
@@ -329,6 +325,7 @@ export function mergeSettings(value: unknown): AppSettings {
           ? "anthropic-messages"
           : "openai-compatible",
       baseUrl:
+        !removedDefaultProvider &&
         typeof provider.baseUrl === "string" &&
         isAllowedProviderBaseUrl(provider.baseUrl)
           ? provider.baseUrl
@@ -356,7 +353,8 @@ export function mergeSettings(value: unknown): AppSettings {
       deeplPlan: provider.deeplPlan === "pro" ? "pro" : "free",
       model:
         typeof provider.model === "string"
-          ? provider.model === PREVIOUS_DEFAULT_MODEL
+          ? provider.model === PREVIOUS_DEFAULT_MODEL ||
+            (removedDefaultProvider && provider.model === REMOVED_DEFAULT_MODEL)
             ? DEFAULT_AI_MODEL
             : provider.model
           : DEFAULT_SETTINGS.provider.model,
@@ -373,13 +371,6 @@ export function mergeSettings(value: unknown): AppSettings {
           ? Math.min(180_000, Math.max(5_000, provider.timeoutMs))
           : DEFAULT_SETTINGS.provider.timeoutMs,
     },
-    norixor: {
-      model:
-        typeof norixor.model === "string" &&
-        /^[A-Za-z0-9._:/-]{1,128}$/u.test(norixor.model.trim())
-          ? norixor.model.trim()
-          : "",
-    },
     page: {
       sourceLanguage:
         typeof page.sourceLanguage === "string"
@@ -389,14 +380,13 @@ export function mergeSettings(value: unknown): AppSettings {
         typeof page.targetLanguage === "string"
           ? page.targetLanguage
           : DEFAULT_SETTINGS.page.targetLanguage,
-      mode: pageMode,
-      aiRoute: page.aiRoute === "norixor" ? "norixor" : "configured",
+      mode: removedPageRoute ? "fast" : pageMode,
       aiResponseMode: page.aiResponseMode === "batch" ? "batch" : "stream",
       displayMode: pageDisplayMode,
       autoTranslate:
-        typeof page.autoTranslate === "boolean"
-          ? page.autoTranslate
-          : DEFAULT_SETTINGS.page.autoTranslate,
+        removedPageRoute || typeof page.autoTranslate !== "boolean"
+          ? false
+          : page.autoTranslate,
       autoTranslateSitePatterns: normalizeAutoTranslateSitePatterns(
         page.autoTranslateSitePatterns,
       ),
@@ -407,8 +397,9 @@ export function mergeSettings(value: unknown): AppSettings {
         typeof page.floatingButtonEnabled === "boolean"
           ? page.floatingButtonEnabled
           : DEFAULT_SETTINGS.page.floatingButtonEnabled,
-      selectionTranslationEnabled:
-        typeof page.selectionTranslationEnabled === "boolean"
+      selectionTranslationEnabled: removedSelectionRoute
+        ? false
+        : typeof page.selectionTranslationEnabled === "boolean"
           ? page.selectionTranslationEnabled
           : DEFAULT_SETTINGS.page.selectionTranslationEnabled,
       selectionTranslationSourceLanguage:
@@ -423,16 +414,7 @@ export function mergeSettings(value: unknown): AppSettings {
           : typeof page.targetLanguage === "string"
             ? page.targetLanguage
             : DEFAULT_SETTINGS.page.selectionTranslationTargetLanguage,
-      selectionTranslationMode: legacyAiFastProvider
-        ? "ai"
-        : page.selectionTranslationMode === "fast" ||
-            page.selectionTranslationMode === "ai"
-          ? page.selectionTranslationMode
-          : pageMode,
-      selectionTranslationAiRoute:
-        page.selectionTranslationAiRoute === "norixor"
-          ? "norixor"
-          : "configured",
+      selectionTranslationMode: removedSelectionRoute ? "fast" : selectionMode,
       selectionTranslationAiResponseMode:
         page.selectionTranslationAiResponseMode === "batch"
           ? "batch"
@@ -441,8 +423,9 @@ export function mergeSettings(value: unknown): AppSettings {
             : page.aiResponseMode === "batch"
               ? "batch"
               : "stream",
-      selectionTranslationModelOverride:
-        typeof page.selectionTranslationModelOverride === "string"
+      selectionTranslationModelOverride: removedSelectionRoute
+        ? ""
+        : typeof page.selectionTranslationModelOverride === "string"
           ? page.selectionTranslationModelOverride.trim().slice(0, 256)
           : DEFAULT_SETTINGS.page.selectionTranslationModelOverride,
       selectionTranslationDisplayMode:
@@ -451,8 +434,9 @@ export function mergeSettings(value: unknown): AppSettings {
           : "bilingual",
     },
     subtitles: {
-      enabled:
-        typeof subtitles.enabled === "boolean"
+      enabled: removedSubtitleRoute
+        ? false
+        : typeof subtitles.enabled === "boolean"
           ? subtitles.enabled
           : DEFAULT_SETTINGS.subtitles.enabled,
       floatingButtonEnabled:
@@ -467,8 +451,7 @@ export function mergeSettings(value: unknown): AppSettings {
         typeof subtitles.targetLanguage === "string"
           ? subtitles.targetLanguage
           : DEFAULT_SETTINGS.subtitles.targetLanguage,
-      mode: subtitleMode,
-      aiRoute: subtitles.aiRoute === "norixor" ? "norixor" : "configured",
+      mode: removedSubtitleRoute ? "fast" : subtitleMode,
       aiResponseMode: subtitles.aiResponseMode === "batch" ? "batch" : "stream",
       displayMode: subtitleDisplayMode,
       hideNativeSubtitles:

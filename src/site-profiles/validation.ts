@@ -114,7 +114,6 @@ function validateSurface(
       "sourceLanguage",
       "targetLanguage",
       "mode",
-      "aiRoute",
       "fastProvider",
       "modelOverride",
       ...surfaceKeys,
@@ -128,12 +127,6 @@ function validateSurface(
   }
   if (value.mode !== "fast" && value.mode !== "ai")
     invalid(`${path}.mode`, "format");
-  if (
-    value.aiRoute !== undefined &&
-    value.aiRoute !== "configured" &&
-    value.aiRoute !== "norixor"
-  )
-    invalid(`${path}.aiRoute`, "format");
   if (!isFastProviderId(value.fastProvider))
     invalid(`${path}.fastProvider`, "format");
   if (

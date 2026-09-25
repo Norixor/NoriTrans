@@ -92,40 +92,16 @@ describe("runtime message validation", () => {
       }),
     ).toBe(false);
     expect(isBackgroundCommand({ type: "CONTENT_SETTINGS_GET" })).toBe(true);
-    expect(
-      isBackgroundCommand({
-        type: "NORIXOR_AUTH_LOGIN",
-        username: "person@example.com",
-        password: "private-password",
-      }),
-    ).toBe(true);
-    expect(
-      isBackgroundCommand({
-        type: "NORIXOR_AUTH_CHALLENGE",
-        code: "123456",
-      }),
-    ).toBe(true);
-    expect(
-      isBackgroundCommand({
-        type: "NORIXOR_AUTH_CHALLENGE",
-        code: "12345x",
-      }),
-    ).toBe(false);
-    expect(isBackgroundCommand({ type: "NORIXOR_AUTH_LOGOUT" })).toBe(true);
-    expect(isBackgroundCommand({ type: "NORIXOR_MODELS_GET" })).toBe(true);
-    expect(isBackgroundCommand({ type: "NORIXOR_USAGE_GET" })).toBe(true);
-    expect(
-      isBackgroundCommand({
-        type: "NORIXOR_MODEL_SET",
-        model: "gpt-5.6-luna",
-      }),
-    ).toBe(true);
-    expect(
-      isBackgroundCommand({
-        type: "NORIXOR_MODEL_SET",
-        model: "arbitrary model",
-      }),
-    ).toBe(false);
+    for (const type of [
+      "NORIXOR_AUTH_LOGIN",
+      "NORIXOR_AUTH_CHALLENGE",
+      "NORIXOR_AUTH_LOGOUT",
+      "NORIXOR_MODELS_GET",
+      "NORIXOR_USAGE_GET",
+      "NORIXOR_MODEL_SET",
+    ]) {
+      expect(isBackgroundCommand({ type })).toBe(false);
+    }
     expect(
       isBackgroundCommand({
         type: "OCR_SETTINGS_SET",
