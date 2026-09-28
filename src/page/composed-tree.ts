@@ -14,12 +14,21 @@ export function composedParentNode(node: Node): Node | null {
   return root instanceof ShadowRoot ? root.host : null;
 }
 
+// Composed trees cannot form cycles; the bound only guards against a
+// pathological page instead of allocating a visited set on this hot path.
+const MAX_COMPOSED_DEPTH = 4_096;
+
 export function composedContains(container: Node, node: Node): boolean {
+  // A light-tree ancestor is always a composed ancestor too: slot assignment
+  // only reroutes a host's direct children, whose light parent is the host.
+  if (container.contains(node)) return true;
+  // Leaving the node's tree through an assigned slot always re-enters it at a
+  // host that is also a light-tree ancestor of the node, so within one tree
+  // `contains()` is already conclusive.
+  if (container.getRootNode() === node.getRootNode()) return false;
   let current: Node | null = node;
-  const visited = new Set<Node>();
-  while (current && !visited.has(current)) {
+  for (let depth = 0; current && depth < MAX_COMPOSED_DEPTH; depth += 1) {
     if (current === container) return true;
-    visited.add(current);
     current = composedParentNode(current);
   }
   return false;

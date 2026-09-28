@@ -53,28 +53,54 @@ export function visibleCaptionText(element: HTMLElement): string {
   return (element.innerText || element.textContent || "").trim();
 }
 
+const selectorValidity = new Map<string, boolean>();
+
+function isValidSelector(selector: string): boolean {
+  const known = selectorValidity.get(selector);
+  if (known !== undefined) return known;
+  let valid = true;
+  try {
+    // An empty fragment validates syntax without scanning the document.
+    document.createDocumentFragment().querySelector(selector);
+  } catch {
+    valid = false;
+  }
+  selectorValidity.set(selector, valid);
+  return valid;
+}
+
+/**
+ * Decides whether a mutation batch can affect a caption. Runs for every page
+ * mutation batch, so it avoids subtree queries except where a change can
+ * genuinely reach a caption: nodes entering or leaving the tree, and
+ * visibility attributes on an ancestor of a caption.
+ */
 export function mutationTouchesCaptionSelector(
   records: readonly MutationRecord[],
   selector: string,
 ): boolean {
-  const touches = (node: Node): boolean => {
+  if (!isValidSelector(selector)) return false;
+  const insideCaption = (node: Node): boolean => {
     const element = node instanceof Element ? node : node.parentElement;
-    if (!element) return false;
-    return (
-      element.matches(selector) ||
-      element.closest(selector) !== null ||
-      element.querySelector(selector) !== null
-    );
+    return element?.closest(selector) != null;
   };
-  try {
-    document.querySelector(selector);
-  } catch {
-    return false;
-  }
+  const containsCaption = (node: Node): boolean =>
+    node instanceof Element &&
+    (node.matches(selector) || node.querySelector(selector) !== null);
+  const checkedTargets = new Set<Node>();
+  const checkedAttributeTargets = new Set<Node>();
   return records.some((record) => {
-    return (
-      touches(record.target) ||
-      [...record.addedNodes, ...record.removedNodes].some(touches)
+    const { target } = record;
+    if (!checkedTargets.has(target)) {
+      checkedTargets.add(target);
+      if (insideCaption(target)) return true;
+    }
+    if (record.type === "attributes" && !checkedAttributeTargets.has(target)) {
+      checkedAttributeTargets.add(target);
+      if (containsCaption(target)) return true;
+    }
+    return [...record.addedNodes, ...record.removedNodes].some(
+      (node) => insideCaption(node) || containsCaption(node),
     );
   });
 }

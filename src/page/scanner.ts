@@ -244,7 +244,63 @@ function shouldSkipElement(element: Element): boolean {
   );
 }
 
-export function shouldSkipTextNode(node: Text, root: ScanRoot): boolean {
+/**
+ * Per-pass memo of "this element or a composed ancestor up to the scan root is
+ * excluded". A full-document scan otherwise re-reads computed style for every
+ * ancestor of every text node. It must be discarded after any DOM write.
+ */
+export type SkipCache = Map<ScanRoot, Map<Element, boolean>>;
+
+export function createSkipCache(): SkipCache {
+  return new Map();
+}
+
+function composedParentForSkip(current: Element | Text): Element | null {
+  if (current.assignedSlot) return current.assignedSlot;
+  if (current.parentElement) return current.parentElement;
+  const currentRoot = current.getRootNode();
+  return currentRoot instanceof ShadowRoot ? currentRoot.host : null;
+}
+
+function isSkippedFrom(
+  start: Element | null,
+  root: ScanRoot,
+  cache: SkipCache | undefined,
+): boolean {
+  let memo = cache?.get(root);
+  if (cache && !memo) {
+    memo = new Map();
+    cache.set(root, memo);
+  }
+  const chain: Element[] = [];
+  const visited = new Set<Element>();
+  let element = start;
+  let skipped = false;
+  while (element) {
+    const known = memo?.get(element);
+    if (known !== undefined) {
+      skipped = known;
+      break;
+    }
+    if (visited.has(element)) break;
+    visited.add(element);
+    chain.push(element);
+    if (shouldSkipElement(element)) {
+      skipped = true;
+      break;
+    }
+    if (element === root) break;
+    element = composedParentForSkip(element);
+  }
+  if (memo) for (const entry of chain) memo.set(entry, skipped);
+  return skipped;
+}
+
+export function shouldSkipTextNode(
+  node: Text,
+  root: ScanRoot,
+  cache?: SkipCache,
+): boolean {
   const text = node.textContent?.trim() ?? "";
   if (text.length === 0) return true;
   const nodeRoot = node.getRootNode();
@@ -267,22 +323,7 @@ export function shouldSkipTextNode(node: Text, root: ScanRoot): boolean {
     return true;
   }
 
-  const composedParent = (current: Element | Text): Element | null => {
-    if (current.assignedSlot) return current.assignedSlot;
-    if (current.parentElement) return current.parentElement;
-    const currentRoot = current.getRootNode();
-    return currentRoot instanceof ShadowRoot ? currentRoot.host : null;
-  };
-  let element: Element | null = composedParent(node);
-  const visited = new WeakSet<Element>();
-  while (element) {
-    if (visited.has(element)) break;
-    visited.add(element);
-    if (shouldSkipElement(element)) return true;
-    if (element === root) break;
-    element = composedParent(element);
-  }
-  return false;
+  return isSkippedFrom(composedParentForSkip(node), root, cache);
 }
 
 function blockAncestor(node: Text, root: ScanRoot): Element {
@@ -343,6 +384,7 @@ export function scanPageSegments(
   const indexedParents = new WeakSet<Node>();
   const groups = new Map<Element, Map<HTMLSlotElement | null, Text[]>>();
   const processed = new WeakSet<Text>();
+  const skipCache = createSkipCache();
   let nextComposedOrder = 0;
   for (const node of composedTextNodes(root)) {
     composedOrder.set(node, nextComposedOrder++);
@@ -358,7 +400,7 @@ export function scanPageSegments(
     if (
       processed.has(node) ||
       seen.has(node) ||
-      shouldSkipTextNode(node, scanRoot)
+      shouldSkipTextNode(node, scanRoot, skipCache)
     ) {
       continue;
     }
@@ -470,9 +512,21 @@ export function scanPageSegments(
     }
   }
 
+  // Measure each anchor once; a comparator that reads layout runs
+  // O(n log n) times.
+  const distanceByAnchor = new Map<Element, number>();
+  for (const segment of segments) {
+    if (!distanceByAnchor.has(segment.anchor)) {
+      distanceByAnchor.set(
+        segment.anchor,
+        distanceFromViewport(segment.anchor),
+      );
+    }
+  }
   return segments.sort(
     (left, right) =>
-      distanceFromViewport(left.anchor) - distanceFromViewport(right.anchor),
+      (distanceByAnchor.get(left.anchor) ?? 0) -
+      (distanceByAnchor.get(right.anchor) ?? 0),
   );
 }
 
@@ -501,11 +555,19 @@ function composedTextNodes(root: Element | ShadowRoot): Text[] {
       visit(node.shadowRoot);
       return;
     }
-    for (const child of node.childNodes) visit(child);
+    // Sibling links avoid allocating a NodeList iterator per element on this
+    // whole-document path.
+    for (let child = node.firstChild; child; child = child.nextSibling) {
+      visit(child);
+    }
   };
 
   if (root instanceof Element && root.shadowRoot) visit(root.shadowRoot);
-  else for (const child of root.childNodes) visit(child);
+  else {
+    for (let child = root.firstChild; child; child = child.nextSibling) {
+      visit(child);
+    }
+  }
   return texts;
 }
 
