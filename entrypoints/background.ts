@@ -1,3 +1,4 @@
+import { syncProviderOriginRule } from "@/src/shared/provider-request-headers";
 import {
   cacheStats,
   clearCache,
@@ -1898,6 +1899,17 @@ function isExtensionPageSender(sender: Browser.runtime.MessageSender): boolean {
 }
 
 export default defineBackground(() => {
+  // Session rules survive service-worker restarts but not browser restarts,
+  // so resync on every start and whenever the stored settings change.
+  void loadSettings()
+    .then((settings) => syncProviderOriginRule(settings))
+    .catch(() => undefined);
+  browser.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== "local" || !("settings" in changes)) return;
+    void loadSettings()
+      .then((settings) => syncProviderOriginRule(settings))
+      .catch(() => undefined);
+  });
   void refreshOpenPageContentScripts().catch(() => undefined);
   void initializeUpdateChecker().catch(() => undefined);
   browser.runtime.onInstalled.addListener(() => {

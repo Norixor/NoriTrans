@@ -669,6 +669,7 @@ test("popup keeps icons and custom select arrows geometrically aligned", async (
       "activeTab",
       "scripting",
       "offscreen",
+      "declarativeNetRequestWithHostAccess",
     ]);
     expect(manifest.host_permissions).toEqual(["https://*/*"]);
     expect(manifest.host_permissions).not.toContain("<all_urls>");
@@ -1175,6 +1176,97 @@ test("site Profile synchronizes visual and developer management", async () => {
     "data-kind",
     "builtin",
   );
+});
+
+test("strips the browser Origin from extension Provider requests only", async () => {
+  // Playwright's request interception runs before declarativeNetRequest
+  // header edits, so it still reports the Origin. Chrome's own matcher is the
+  // reliable in-browser check; a live echo server confirmed that the header
+  // is absent on the wire when this rule matches.
+  const extensionId = new URL(controlPage.url()).host;
+  const setBaseUrl = (baseUrl: string) =>
+    controlPage.evaluate(async (url) => {
+      const stored: unknown = await chrome.runtime.sendMessage({
+        type: "SETTINGS_GET",
+      });
+      if (
+        typeof stored !== "object" ||
+        stored === null ||
+        !("provider" in stored) ||
+        typeof stored.provider !== "object" ||
+        stored.provider === null ||
+        !("baseUrl" in stored.provider) ||
+        typeof stored.provider.baseUrl !== "string"
+      ) {
+        throw new Error("Missing Provider settings");
+      }
+      const previous = stored.provider.baseUrl;
+      await chrome.runtime.sendMessage({
+        type: "SETTINGS_SET",
+        settings: { ...stored, provider: { ...stored.provider, baseUrl: url } },
+      });
+      return previous;
+    }, baseUrl);
+  const matchedRuleIds = (url: string, initiator: string) =>
+    controlPage.evaluate(
+      async ({ requestUrl, requestInitiator }) => {
+        const outcome = await chrome.declarativeNetRequest.testMatchOutcome({
+          url: requestUrl,
+          type: "xmlhttprequest",
+          method: "post",
+          initiator: requestInitiator,
+        });
+        return outcome.matchedRules.map((rule) => rule.ruleId);
+      },
+      { requestUrl: url, requestInitiator: initiator },
+    );
+  const extensionOrigin = `chrome-extension://${extensionId}`;
+  const previousBaseUrl = await setBaseUrl("https://origin-gateway.example/v1");
+  try {
+    await expect
+      .poll(() =>
+        matchedRuleIds(
+          "https://origin-gateway.example/v1/chat/completions",
+          extensionOrigin,
+        ),
+      )
+      .toEqual([1]);
+    expect(
+      await matchedRuleIds(
+        "https://translation.googleapis.com/language/translate/v2",
+        extensionOrigin,
+      ),
+    ).toEqual([1]);
+    // Pages calling the same host keep their Origin.
+    expect(
+      await matchedRuleIds(
+        "https://origin-gateway.example/v1/chat/completions",
+        "https://origin-page.example",
+      ),
+    ).toEqual([]);
+    // Unrelated hosts are untouched.
+    expect(
+      await matchedRuleIds("https://unrelated.example/api", extensionOrigin),
+    ).toEqual([]);
+
+    await setBaseUrl("https://moved-gateway.example/v1");
+    await expect
+      .poll(() =>
+        matchedRuleIds(
+          "https://moved-gateway.example/v1/chat/completions",
+          extensionOrigin,
+        ),
+      )
+      .toEqual([1]);
+    expect(
+      await matchedRuleIds(
+        "https://origin-gateway.example/v1/chat/completions",
+        extensionOrigin,
+      ),
+    ).toEqual([]);
+  } finally {
+    await setBaseUrl(previousBaseUrl);
+  }
 });
 
 test("options saves a valid provider through the background settings boundary", async () => {

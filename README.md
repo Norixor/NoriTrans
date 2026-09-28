@@ -98,6 +98,8 @@ Additional guarantees:
 
 NoriTrans declares `https://*/*` because the floating control and webpage/video translation must work on HTTPS pages without requiring a toolbar click first. It does not request cookie, browsing-history, or audio-capture permissions.
 
+`declarativeNetRequestWithHostAccess` lets NoriTrans remove the browser's automatic `Origin` header from its own requests to the configured translation Provider, so gateways that reject browser-origin requests with an API key accept them like any server client. It applies only to requests the extension itself sends to Provider hosts already covered by host permissions; web pages' own requests are never modified.
+
 Optional host permissions are requested only for the related action:
 
 - `<all_urls>` for user-initiated visible-tab OCR capture;

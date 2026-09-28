@@ -97,6 +97,8 @@ pnpm build
 
 NoriTrans 声明 `https://*/*`，因为统一浮窗以及网页、视频翻译需要在用户未先点击工具栏图标时也能在 HTTPS 页面工作。项目不申请 Cookie、浏览历史或音频捕获权限。
 
+`declarativeNetRequestWithHostAccess` 用于在 NoriTrans 自己发往已配置翻译 Provider 的请求中移除浏览器自动附加的 `Origin` 请求头，使拒绝“浏览器来源 + API Key”请求的网关能像对待普通服务端客户端一样接受请求。它只作用于扩展自身发往已有主机权限覆盖的 Provider 主机的请求，从不修改网页自身的请求。
+
 以下可选主机权限只会在对应操作中请求：
 
 - `<all_urls>`：用户主动启动可见标签页 OCR 截图；
