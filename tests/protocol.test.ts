@@ -179,6 +179,25 @@ describe("runtime message validation", () => {
         },
       }),
     ).toBe(true);
+    for (const [priority, valid] of [
+      ["urgent", true],
+      ["normal", true],
+      ["immediate", false],
+    ] as const) {
+      expect(
+        isBackgroundCommand({
+          type: "TRANSLATE",
+          requestId: `request-priority-${priority}`,
+          priority,
+          request: {
+            sourceLanguage: "en",
+            targetLanguage: "zh-CN",
+            mode: "fast",
+            segments: [{ id: "cue", text: "Cue" }],
+          },
+        }),
+      ).toBe(valid);
+    }
     expect(
       isBackgroundCommand({
         type: "TRANSLATE",
@@ -481,6 +500,30 @@ describe("runtime message validation", () => {
         command: "PAGE_AUTO_TRANSLATE_CURRENT",
       }),
     ).toBe(true);
+    for (const command of ["PAGE_RETRY_FAILED", "PAGE_CANCEL"] as const) {
+      expect(
+        isBackgroundCommand({ type: "CONTENT_COMMAND_BROADCAST", command }),
+      ).toBe(true);
+      expect(isContentCommand({ type: command })).toBe(true);
+    }
+    for (const state of ["cancelled", "unavailable"] as const) {
+      expect(
+        isBackgroundCommand({
+          type: "FRAME_STATUS_UPDATE",
+          frameInstanceId: "frame-instance-1",
+          pageStatus: { ...pageStatus, state },
+          subtitleStatus,
+        }),
+      ).toBe(true);
+    }
+    expect(
+      isBackgroundCommand({
+        type: "FRAME_STATUS_UPDATE",
+        frameInstanceId: "frame-instance-1",
+        pageStatus: { ...pageStatus, state: "paused" },
+        subtitleStatus,
+      }),
+    ).toBe(false);
     expect(isContentCommand({ type: "PAGE_AUTO_TRANSLATE_CURRENT" })).toBe(
       true,
     );

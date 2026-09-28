@@ -658,7 +658,7 @@ describe("unified floating control", () => {
     const videoPanel = root.querySelector<HTMLElement>(
       "#noritrans-video-panel",
     );
-    expect(videoPanel?.children[1]).toBe(start.parentElement);
+    expect(videoPanel?.children[2]).toBe(start.parentElement);
 
     control.updateSubtitleStatus({
       state: "waiting",
@@ -976,6 +976,111 @@ describe("unified floating control", () => {
     });
     control.updateOcrStatus({ state: "idle", recognized: 0 });
     expect(subtitleStatus.hidden).toBe(false);
+    control.destroy();
+  });
+
+  it("offers retry-failed and cancel actions with layered failure text", async () => {
+    const onPageRetryFailed = vi.fn();
+    const onPageCancel = vi.fn();
+    const { control, root, host, onPageTranslate, onPageRestore } =
+      createControl({ onPageRetryFailed, onPageCancel });
+    const pagePanel = root.querySelector<HTMLElement>("#noritrans-page-panel");
+    const buttons = pagePanel?.querySelectorAll<HTMLButtonElement>("button");
+    const translateButton = buttons?.[0];
+    const restoreButton = buttons?.[1];
+    const status = pagePanel?.querySelector<HTMLElement>(".status");
+    const detail = pagePanel?.querySelector<HTMLElement>(".status-detail");
+    const liveRegion = root.querySelector<HTMLElement>(".sr-only");
+    const launcher = root.querySelector<HTMLButtonElement>(".launcher");
+    const badge = root.querySelector<HTMLElement>(".quick-progress");
+    if (
+      !translateButton ||
+      !restoreButton ||
+      !status ||
+      !detail ||
+      !liveRegion ||
+      !launcher ||
+      !badge
+    ) {
+      throw new Error("missing page controls");
+    }
+    // Actions sit directly under the status row, ahead of the settings grid.
+    expect(pagePanel?.children[2]).toBe(translateButton.parentElement);
+    expect(liveRegion.getAttribute("role")).toBe("status");
+    expect(liveRegion.closest(".panel")).toBeNull();
+
+    control.updatePageStatus({
+      state: "translating",
+      total: 40,
+      completed: 10,
+      failed: 0,
+    });
+    expect(launcher.title).toContain("10/40");
+    expect(badge.hidden).toBe(false);
+    expect(badge.textContent).toBe("10/40");
+    expect(liveRegion.textContent).toBe("pageStatusTranslating");
+    expect(restoreButton.textContent).toBe("cancelPageTranslation");
+    restoreButton.click();
+    await vi.waitFor(() => expect(onPageCancel).toHaveBeenCalledOnce());
+    expect(onPageRestore).not.toHaveBeenCalled();
+
+    control.updatePageStatus({
+      state: "translating",
+      total: 40,
+      completed: 20,
+      failed: 0,
+    });
+    // Progress updates within the same state do not re-announce.
+    expect(liveRegion.textContent).toBe("pageStatusTranslating");
+
+    control.updatePageStatus({
+      state: "cancelled",
+      total: 40,
+      completed: 20,
+      failed: 20,
+    });
+    expect(status.textContent).toBe("pageStatusCancelled");
+    expect(detail.hidden).toBe(true);
+    expect(badge.hidden).toBe(true);
+    expect(host.dataset.attention).toBe("partial");
+    expect(liveRegion.textContent).toBe("translationCancelledAnnouncement");
+    expect(translateButton.textContent).toBe("retryFailedBlocks");
+    expect(restoreButton.disabled).toBe(false);
+    expect(restoreButton.textContent).toBe("widgetRestore");
+    translateButton.click();
+    await vi.waitFor(() => expect(onPageRetryFailed).toHaveBeenCalledOnce());
+    expect(onPageTranslate).not.toHaveBeenCalled();
+
+    control.updatePageStatus({
+      state: "error",
+      total: 2,
+      completed: 0,
+      failed: 2,
+      message: "The provider is rate limiting requests.",
+      details: "Provider=google-translate; HTTP status=429.",
+    });
+    expect(status.textContent).toBe("pageStatusError");
+    expect(detail.hidden).toBe(false);
+    expect(detail.textContent).toBe("The provider is rate limiting requests.");
+    expect(status.title).toContain("rate limiting");
+    expect(host.dataset.attention).toBe("error");
+    const settingsLink = pagePanel?.querySelector<HTMLAnchorElement>(
+      ".diagnostic .diagnostic-link",
+    );
+    expect(settingsLink?.getAttribute("href")).toContain(
+      "options.html#providers",
+    );
+    expect(settingsLink?.textContent).toBe("openProviderSettings");
+
+    control.updatePageStatus({
+      state: "translated",
+      total: 2,
+      completed: 2,
+      failed: 0,
+    });
+    expect(host.dataset.attention).toBeUndefined();
+    expect(translateButton.textContent).toBe("widgetTranslate");
+    expect(detail.hidden).toBe(true);
     control.destroy();
   });
 

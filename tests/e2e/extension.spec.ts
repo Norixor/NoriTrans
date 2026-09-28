@@ -58,6 +58,7 @@ const partialStreamRequestSegmentCounts: number[] = [];
 const selectionProviderTexts: string[] = [];
 const dynamicDuplicateProviderTexts: string[] = [];
 const emptyStreamFallbackModes: boolean[] = [];
+let retryBlockFailuresRemaining = 0;
 const protectedPageRequests: Array<{
   id: string;
   text: string;
@@ -316,7 +317,8 @@ async function waitForReadyTrack(
 
 async function sendContentCommand(
   pageUrl: string,
-  command: "PAGE_TRANSLATE" | "PAGE_RESTORE",
+  command:
+    "PAGE_TRANSLATE" | "PAGE_RESTORE" | "PAGE_RETRY_FAILED" | "PAGE_CANCEL",
 ): Promise<void> {
   const result = await controlPage.evaluate(
     async ({ targetUrl, contentCommand }) => {
@@ -408,6 +410,17 @@ test.beforeAll(async () => {
           if (text.includes("CACHE_DUPLICATE_E2E")) {
             dynamicDuplicateProviderTexts.push(text);
           }
+        }
+        if (texts.some((text) => text.includes("SLOW_BLOCK_E2E"))) {
+          await new Promise((resolve) => setTimeout(resolve, 1_500));
+        }
+        if (
+          retryBlockFailuresRemaining > 0 &&
+          texts.some((text) => text.includes("RETRY_BLOCK_E2E"))
+        ) {
+          retryBlockFailuresRemaining -= 1;
+          await route.fulfill({ status: 503, body: '{"error":"upstream"}' });
+          return;
         }
         await route.fulfill({
           contentType: "application/json",
@@ -3698,6 +3711,164 @@ test("cancels a slow page translation without applying the late response", async
   }
 });
 
+test("marks a failed block in-page and retries only that block from the marker", async () => {
+  const pageUrl = "https://www.youtube.com/page-retry-block";
+  await context.route(pageUrl, (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: `<!doctype html><main style="max-width:600px;margin:40px auto">${Array.from(
+        { length: 21 },
+        (_, index) =>
+          `<p id="block-${index + 1}">${index === 20 ? "RETRY_BLOCK_E2E" : "Stable"} paragraph ${index + 1}.</p>`,
+      ).join("")}</main>`,
+    }),
+  );
+  const previousSettings = await controlPage.evaluate(async () => {
+    const settings: unknown = await chrome.runtime.sendMessage({
+      type: "SETTINGS_GET",
+    });
+    if (!isRecordLike(settings) || !isRecordLike(settings.page)) {
+      throw new Error("Missing page settings");
+    }
+    await chrome.runtime.sendMessage({
+      type: "SETTINGS_SET",
+      settings: {
+        ...settings,
+        page: { ...settings.page, mode: "fast", displayMode: "bilingual" },
+      },
+    });
+    return settings;
+    function isRecordLike(value: unknown): value is Record<string, unknown> {
+      return typeof value === "object" && value !== null;
+    }
+  });
+  retryBlockFailuresRemaining = 1;
+  const page = await context.newPage();
+  try {
+    await page.goto(pageUrl);
+    await sendContentCommand(pageUrl, "PAGE_TRANSLATE");
+    await expect
+      .poll(async () => await pageStatus(pageUrl))
+      .toMatchObject({ state: "partial", total: 21, completed: 20, failed: 1 });
+    // Server errors carry their own reason and message, not "check settings".
+    expect((await pageStatus(pageUrl))?.message).toMatch(/server error/iu);
+    const overlay = page.locator("noritrans-translation-pending");
+    await expect(overlay).toHaveCount(1);
+    await expect(page.locator("noritrans-translation")).toHaveCount(20);
+
+    // The retry marker sits just outside the failed block's right edge.
+    const failedBlock = page.locator("#block-21");
+    await failedBlock.scrollIntoViewIfNeeded();
+    // Marker positions are re-measured on the next animation frame.
+    await page.evaluate(
+      () =>
+        new Promise((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(resolve)),
+        ),
+    );
+    const box = await failedBlock.boundingBox();
+    if (!box) throw new Error("missing failed block box");
+    await page.mouse.click(box.x + box.width + 6 + 9, box.y + box.height / 2);
+    await expect
+      .poll(async () => await pageStatus(pageUrl))
+      .toMatchObject({
+        state: "translated",
+        total: 21,
+        completed: 21,
+        failed: 0,
+      });
+    await expect(page.locator("noritrans-translation")).toHaveCount(21);
+    await expect(overlay).toHaveCount(0);
+    await expect(
+      page.getByText("已译 RETRY_BLOCK_E2E paragraph 21.", { exact: true }),
+    ).toBeVisible();
+  } finally {
+    retryBlockFailuresRemaining = 0;
+    await controlPage.evaluate(async (settings) => {
+      await chrome.runtime.sendMessage({ type: "SETTINGS_SET", settings });
+    }, previousSettings);
+    await page.close();
+    await context.unroute(pageUrl);
+  }
+});
+
+test("cancels a page task while keeping translated blocks and lets the rest retry", async () => {
+  const pageUrl = "https://www.youtube.com/page-cancel-keep";
+  await context.route(pageUrl, (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: `<!doctype html><main>${Array.from(
+        { length: 21 },
+        (_, index) =>
+          `<p id="keep-${index + 1}">${index === 20 ? "SLOW_BLOCK_E2E" : "Kept"} cancel paragraph ${index + 1}.</p>`,
+      ).join("")}</main>`,
+    }),
+  );
+  const previousSettings = await controlPage.evaluate(async () => {
+    const settings: unknown = await chrome.runtime.sendMessage({
+      type: "SETTINGS_GET",
+    });
+    if (
+      typeof settings !== "object" ||
+      settings === null ||
+      !("page" in settings) ||
+      typeof settings.page !== "object" ||
+      settings.page === null
+    ) {
+      throw new Error("Missing page settings");
+    }
+    await chrome.runtime.sendMessage({
+      type: "SETTINGS_SET",
+      settings: {
+        ...settings,
+        page: { ...settings.page, mode: "fast", displayMode: "translated" },
+      },
+    });
+    return settings;
+  });
+  const page = await context.newPage();
+  try {
+    await page.goto(pageUrl);
+    await sendContentCommand(pageUrl, "PAGE_TRANSLATE");
+    await expect
+      .poll(async () => (await pageStatus(pageUrl))?.completed)
+      .toBe(20);
+    // The slow batch is still in flight: cancelling keeps the twenty
+    // translated blocks and reports the remainder as retryable.
+    await sendContentCommand(pageUrl, "PAGE_CANCEL");
+    await expect
+      .poll(async () => await pageStatus(pageUrl))
+      .toMatchObject({
+        state: "cancelled",
+        total: 21,
+        completed: 20,
+        failed: 1,
+      });
+    await expect(page.locator("#keep-1")).toHaveText(
+      "已译 Kept cancel paragraph 1.",
+    );
+    await page.waitForTimeout(1_700);
+    await expect(page.locator("#keep-21")).toHaveText(
+      "SLOW_BLOCK_E2E cancel paragraph 21.",
+    );
+    expect(await pageStatus(pageUrl)).toMatchObject({ state: "cancelled" });
+
+    await sendContentCommand(pageUrl, "PAGE_RETRY_FAILED");
+    await expect
+      .poll(async () => await pageStatus(pageUrl))
+      .toMatchObject({ state: "translated", completed: 21, failed: 0 });
+    await expect(page.locator("#keep-21")).toHaveText(
+      "已译 SLOW_BLOCK_E2E cancel paragraph 21.",
+    );
+  } finally {
+    await controlPage.evaluate(async (settings) => {
+      await chrome.runtime.sendMessage({ type: "SETTINGS_SET", settings });
+    }, previousSettings);
+    await page.close();
+    await context.unroute(pageUrl);
+  }
+});
+
 test("cache clearing cancels active page workers before emptying background storage", async () => {
   const pageUrl = "https://www.youtube.com/page-cache-clear-active";
   const previousPage = await controlPage.evaluate(async () => {
@@ -3752,8 +3923,10 @@ test("cache clearing cancels active page workers before emptying background stor
     await expect(page.locator("main > p").first()).toHaveText(
       "SLOW_TRANSLATION cache fixture 1.",
     );
+    // Cache clearing interrupts the task: it is reported as cancelled with a
+    // retryable remainder, not as a Provider error.
     expect(await pageStatus(pageUrl)).toMatchObject({
-      state: "error",
+      state: "cancelled",
       completed: 0,
       failed: 18,
     });

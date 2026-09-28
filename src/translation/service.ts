@@ -77,45 +77,73 @@ function validCachedTranslation(
 }
 
 interface CacheReadWaiter {
+  scope: CacheReadScope;
   signal: AbortSignal;
   resolve: (acquired: boolean) => void;
   abort: () => void;
 }
 
+/**
+ * Per-request state for cache reads. Stopping one request's queued reads must
+ * not turn other requests' (other tabs') queued reads into misses, because
+ * every spurious miss spends Provider tokens.
+ */
+interface CacheReadScope {
+  stopped: boolean;
+}
+
+interface CacheReadOutcome {
+  cached: string | undefined;
+  timedOut: boolean;
+  /** True when the IndexedDB read rejected and the key was treated as a miss. */
+  failed: boolean;
+}
+
+const CACHE_READ_MISS: CacheReadOutcome = {
+  cached: undefined,
+  timedOut: false,
+  failed: false,
+};
+
 class BackgroundCacheReadPool {
   private active = 0;
-  private stopped = false;
   private readonly waiters: CacheReadWaiter[] = [];
 
   async read(
     key: string,
     signal: AbortSignal,
-  ): Promise<{ cached: string | undefined; timedOut: boolean }> {
-    if (!(await this.acquire(signal))) {
-      return { cached: undefined, timedOut: false };
-    }
-    const underlying = getCachedTranslation(key);
+    scope: CacheReadScope,
+  ): Promise<CacheReadOutcome> {
+    if (!(await this.acquire(signal, scope))) return CACHE_READ_MISS;
     let released = false;
     const release = (): void => {
       if (released) return;
       released = true;
       this.release();
     };
-    void underlying.then(release, release);
+    // The cache is an optimization: a rejected read (closed connection, quota
+    // or backend failure) fails open as a miss instead of failing the request
+    // before the Provider is called.
+    const underlying: Promise<CacheReadOutcome> = Promise.resolve()
+      .then(() => getCachedTranslation(key))
+      .then(
+        (cached) => ({ cached, timedOut: false, failed: false }),
+        () => ({ cached: undefined, timedOut: false, failed: true }),
+      );
+    void underlying.then(release);
     let timer: ReturnType<typeof globalThis.setTimeout> | undefined;
     let removeAbortListener: (() => void) | undefined;
     try {
       const result = await Promise.race([
-        underlying.then((cached) => ({ cached, timedOut: false })),
-        new Promise<{ cached: undefined; timedOut: true }>((resolve) => {
+        underlying,
+        new Promise<CacheReadOutcome>((resolve) => {
           timer = globalThis.setTimeout(
-            () => resolve({ cached: undefined, timedOut: true }),
+            () => resolve({ cached: undefined, timedOut: true, failed: false }),
             CACHE_READ_TIMEOUT_MS,
           );
         }),
-        new Promise<{ cached: undefined; timedOut: false }>((resolve) => {
-          const abort = (): void =>
-            resolve({ cached: undefined, timedOut: false });
+        new Promise<CacheReadOutcome>((resolve) => {
+          const abort = (): void => resolve(CACHE_READ_MISS);
           signal.addEventListener("abort", abort, { once: true });
           removeAbortListener = () =>
             signal.removeEventListener("abort", abort);
@@ -123,7 +151,7 @@ class BackgroundCacheReadPool {
         }),
       ]);
       if (result.timedOut || signal.aborted) {
-        this.stopQueuedReads();
+        this.stopQueuedReads(scope);
         release();
       }
       return result;
@@ -133,14 +161,18 @@ class BackgroundCacheReadPool {
     }
   }
 
-  private acquire(signal: AbortSignal): Promise<boolean> {
-    if (this.stopped || signal.aborted) return Promise.resolve(false);
+  private acquire(
+    signal: AbortSignal,
+    scope: CacheReadScope,
+  ): Promise<boolean> {
+    if (scope.stopped || signal.aborted) return Promise.resolve(false);
     if (this.active < CACHE_READ_CONCURRENCY) {
       this.active += 1;
       return Promise.resolve(true);
     }
     return new Promise<boolean>((resolve) => {
       const waiter: CacheReadWaiter = {
+        scope,
         signal,
         resolve,
         abort: () => {
@@ -155,9 +187,13 @@ class BackgroundCacheReadPool {
     });
   }
 
-  private stopQueuedReads(): void {
-    this.stopped = true;
-    for (const waiter of this.waiters.splice(0)) {
+  /** Resolves only this request's queued reads as misses. */
+  private stopQueuedReads(scope: CacheReadScope): void {
+    scope.stopped = true;
+    for (let index = this.waiters.length - 1; index >= 0; index -= 1) {
+      const waiter = this.waiters[index];
+      if (waiter?.scope !== scope) continue;
+      this.waiters.splice(index, 1);
       waiter.signal.removeEventListener("abort", waiter.abort);
       waiter.resolve(false);
     }
@@ -165,15 +201,11 @@ class BackgroundCacheReadPool {
 
   private release(): void {
     this.active = Math.max(0, this.active - 1);
-    if (this.stopped) {
-      if (this.active === 0) this.stopped = false;
-      return;
-    }
     while (this.waiters.length > 0) {
       const waiter = this.waiters.shift();
       if (!waiter) return;
       waiter.signal.removeEventListener("abort", waiter.abort);
-      if (waiter.signal.aborted) {
+      if (waiter.signal.aborted || waiter.scope.stopped) {
         waiter.resolve(false);
         continue;
       }
@@ -267,16 +299,32 @@ export async function translateInBackground(
       matches.push(entry);
       entriesByKey.set(entry.key, matches);
     }
+    const readScope: CacheReadScope = { stopped: false };
+    let failedReads = 0;
     await Promise.all(
       [...entriesByKey.values()].map(async (entries) => {
         const first = entries[0];
         if (!first) return;
-        const read = await backgroundCacheReads.read(first.key, signal);
+        const read = await backgroundCacheReads.read(
+          first.key,
+          signal,
+          readScope,
+        );
+        if (read.failed) failedReads += 1;
         for (const entry of entries) {
           entry.cached = validCachedTranslation(entry.segment, read.cached);
         }
       }),
     );
+    if (failedReads > 0) {
+      // Bounded metadata only: no keys, source text or backend error text.
+      console.warn(
+        `[NoriTrans][TranslationCache] cache_read_failed ${JSON.stringify({
+          failedReads,
+          totalReads: entriesByKey.size,
+        })}`,
+      );
+    }
   }
   const missing = cacheEntries.filter((entry) => entry.cached === undefined);
   for (const entry of cacheEntries) {

@@ -56,6 +56,7 @@ import {
 import { subscribeTranslationProgress } from "@/src/translation/progress-channel";
 import { browser } from "wxt/browser";
 import { runtimeId } from "@/src/shared/runtime-id";
+import type { TranslationRequestPriority } from "@/src/shared/translation-request-gate";
 import { localizeRuntimeError } from "@/src/shared/runtime-errors";
 import {
   detectDominantSourceLanguage,
@@ -1679,7 +1680,18 @@ export class SubtitleController {
       });
       this.renderCurrentCue();
       if (uncached.length > 0)
-        await this.translateBatch(track, uncached, mode, run, mediaScope);
+        await this.translateBatch(
+          track,
+          uncached,
+          mode,
+          run,
+          mediaScope,
+          "primary",
+          undefined,
+          undefined,
+          // Stream cues are only useful while they are on screen.
+          "urgent",
+        );
       if (run !== this.session) return;
       const latestTrack = this.translationTrack ?? track;
       this.setStatus({
@@ -1865,6 +1877,7 @@ export class SubtitleController {
     };
     const translateMissingBatch = async (
       batch: SubtitleCue[],
+      priority: TranslationRequestPriority,
     ): Promise<void> => {
       const missing = batch.filter(
         (cue) => !this.translated.has(cue.id) && !claimedCueIds.has(cue.id),
@@ -1883,6 +1896,7 @@ export class SubtitleController {
           "primary",
           reusePlan,
           mediaTitle,
+          priority,
         );
         if (run === this.session) this.reportFullTrackProgress(track);
       } finally {
@@ -1898,7 +1912,7 @@ export class SubtitleController {
       track,
       urgentCues.filter((cue) => !this.translated.has(cue.id)),
       mode,
-    ).map((batch) => translateMissingBatch(batch));
+    ).map((batch) => translateMissingBatch(batch, "urgent"));
 
     const initialBackgroundBatchCount = createSubtitleBatches(
       track,
@@ -1931,7 +1945,7 @@ export class SubtitleController {
         if (!batch) return;
         await lookupCachedCues(batch);
         if (run !== this.session) return;
-        await translateMissingBatch(batch);
+        await translateMissingBatch(batch, "normal");
       }
     };
     const backgroundWorkers = Array.from(
@@ -1962,6 +1976,7 @@ export class SubtitleController {
     destination: "primary" | "fallback" = "primary",
     reusePlan?: FullTrackReusePlan,
     mediaTitle?: string,
+    priority: TranslationRequestPriority = "normal",
   ): Promise<void> {
     if (cues.length === 0) return;
     const id = runtimeId("subtitle");
@@ -2168,6 +2183,7 @@ export class SubtitleController {
           type: "TRANSLATE",
           requestId: id,
           request,
+          priority,
         });
         if (run !== this.session) return;
         if (
@@ -2665,6 +2681,9 @@ export class SubtitleController {
           run,
           mediaScope,
           "fallback",
+          undefined,
+          undefined,
+          "urgent",
         );
       } catch {
         if (run === this.session) this.fallbackFailedCueIds.add(cue.id);

@@ -588,6 +588,16 @@ async function runEmbeddedFrame(
       case "PAGE_AUTO_TRANSLATE_CURRENT":
         translatePage(true);
         return pageStatus;
+      case "PAGE_RETRY_FAILED":
+        pageStatus = localizePageStatus(pageSession.retryFailed());
+        reportStatus();
+        return pageStatus;
+      case "PAGE_CANCEL":
+        pageStatus = localizePageStatus(
+          pageSession.cancelPendingTranslations(),
+        );
+        reportStatus();
+        return pageStatus;
       case "PAGE_RESTORE":
         pageFollowsNavigation = false;
         pageStatus = pageSession.restore();
@@ -816,6 +826,8 @@ export default defineContentScript({
       command:
         | "PAGE_TRANSLATE"
         | "PAGE_AUTO_TRANSLATE_CURRENT"
+        | "PAGE_RETRY_FAILED"
+        | "PAGE_CANCEL"
         | "PAGE_RESTORE"
         | "SUBTITLE_START"
         | "SUBTITLE_RETRY_FAILED"
@@ -935,6 +947,8 @@ export default defineContentScript({
     const floatingControlOptions: UnifiedFloatingControlOptions = {
       settings,
       onPageTranslate: () => broadcastContentCommand("PAGE_TRANSLATE"),
+      onPageRetryFailed: () => broadcastContentCommand("PAGE_RETRY_FAILED"),
+      onPageCancel: () => broadcastContentCommand("PAGE_CANCEL"),
       onPageRestore: () => broadcastContentCommand("PAGE_RESTORE"),
       onAutoTranslateChange: setAutoTranslate,
       onPageSettingsChange: async (patch, fastProvider) => {
@@ -1318,6 +1332,16 @@ export default defineContentScript({
           return aggregatePageStatus();
         case "PAGE_AUTO_TRANSLATE_CURRENT":
           translatePage(true);
+          return aggregatePageStatus();
+        case "PAGE_RETRY_FAILED":
+          topPageStatus = localizePageStatus(pageSession.retryFailed());
+          refreshAggregatedStatusUi();
+          return aggregatePageStatus();
+        case "PAGE_CANCEL":
+          topPageStatus = localizePageStatus(
+            pageSession.cancelPendingTranslations(),
+          );
+          refreshAggregatedStatusUi();
           return aggregatePageStatus();
         case "PAGE_RESTORE": {
           await setManualTranslationIntent(false).catch(() => undefined);

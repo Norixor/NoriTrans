@@ -27,10 +27,16 @@ export function aggregatePageStatuses(
     state = "scanning";
   } else if (statuses.some((status) => status.state === "partial")) {
     state = "partial";
+  } else if (statuses.some((status) => status.state === "cancelled")) {
+    state = "cancelled";
   } else if (statuses.some((status) => status.state === "error")) {
     state = completed > 0 ? "partial" : "error";
   } else if (statuses.some((status) => status.state === "translated")) {
     state = "translated";
+  } else if (statuses.every((status) => status.state === "unavailable")) {
+    // Only when no frame can translate at all; an unavailable child beside an
+    // idle top frame is still an idle page.
+    state = "unavailable";
   } else {
     state = "idle";
   }

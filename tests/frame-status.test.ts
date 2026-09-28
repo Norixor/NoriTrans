@@ -79,6 +79,27 @@ describe("frame status aggregation", () => {
     expect(shouldHideNativeSubtitles(settings, status, true)).toBe(true);
   });
 
+  it("reports a cancelled page and treats unavailable as all-or-nothing", () => {
+    expect(
+      aggregatePageStatuses(
+        { state: "cancelled", total: 4, completed: 3, failed: 1 },
+        [{ state: "translated", total: 2, completed: 2, failed: 0 }],
+      ),
+    ).toMatchObject({ state: "cancelled", total: 6, completed: 5, failed: 1 });
+    expect(
+      aggregatePageStatuses(
+        { state: "idle", total: 0, completed: 0, failed: 0 },
+        [{ state: "unavailable", total: 0, completed: 0, failed: 0 }],
+      ),
+    ).toMatchObject({ state: "idle" });
+    expect(
+      aggregatePageStatuses(
+        { state: "unavailable", total: 0, completed: 0, failed: 0 },
+        [{ state: "unavailable", total: 0, completed: 0, failed: 0 }],
+      ),
+    ).toMatchObject({ state: "unavailable" });
+  });
+
   it("sums page progress and keeps a child translation cancellable", () => {
     expect(
       aggregatePageStatuses(

@@ -952,6 +952,236 @@ describe("OpenAI-compatible translation responses", () => {
     ).not.toHaveProperty("stream");
   });
 
+  it("drops temperature after an HTTP rejection and remembers it per model", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            error: {
+              message:
+                "Unsupported parameter: 'temperature' is not supported with this model.",
+              type: "invalid_request_error",
+            },
+          }),
+          { status: 400 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        completion('{"results":[{"id":"segment-1","translatedText":"你好"}]}'),
+      )
+      .mockResolvedValueOnce(
+        completion('{"results":[{"id":"segment-1","translatedText":"再见"}]}'),
+      );
+    stubWireFetch(fetch);
+    const batchRequest = { ...request, responseMode: "batch" as const };
+
+    await expect(
+      provider().translateBatch(batchRequest, new AbortController().signal),
+    ).resolves.toEqual([{ id: "segment-1", translatedText: "你好" }]);
+    await expect(
+      provider().translateBatch(batchRequest, new AbortController().signal),
+    ).resolves.toEqual([{ id: "segment-1", translatedText: "再见" }]);
+    const bodies = fetch.mock.calls.map((call) => {
+      const body = call[1]?.body;
+      return typeof body === "string"
+        ? (JSON.parse(body) as Record<string, unknown>)
+        : {};
+    });
+    expect(bodies[0]).toHaveProperty("temperature", 0);
+    expect(bodies[1]).not.toHaveProperty("temperature");
+    expect(bodies[2]).not.toHaveProperty("temperature");
+  });
+
+  it("drops a parameter rejected inside an HTTP 200 stream and keeps streaming", async () => {
+    const streamError = `data: ${JSON.stringify({
+      error: {
+        message:
+          "[openai] Unsupported parameter: 'temperature' is not supported with this model.",
+        type: "invalid_request_error",
+        code: "invalid_request_error",
+      },
+    })}\n\n`;
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(
+        new Response(streamError, {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          `${sseEvent('{"results":[["segment-1","你好"]]}')}data: [DONE]\n\n`,
+          { status: 200, headers: { "Content-Type": "text/event-stream" } },
+        ),
+      );
+    stubWireFetch(fetch);
+
+    await expect(
+      provider().translateBatch(request, new AbortController().signal),
+    ).resolves.toEqual([{ id: "segment-1", translatedText: "你好" }]);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    const retryBody = fetch.mock.calls[1]?.[1]?.body;
+    const retry =
+      typeof retryBody === "string"
+        ? (JSON.parse(retryBody) as Record<string, unknown>)
+        : {};
+    expect(retry).not.toHaveProperty("temperature");
+    expect(retry).toHaveProperty("stream", true);
+  });
+
+  it("downgrades rejected parameters on the non-streaming retry after an empty stream", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(
+        new Response("data: [DONE]\n\n", {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            error: {
+              message:
+                "Unsupported parameter: 'temperature' is not supported with this model.",
+              type: "invalid_request_error",
+              param: "temperature",
+              code: "unsupported_parameter",
+            },
+          }),
+          { status: 400 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        completion('{"results":[{"id":"segment-1","translatedText":"你好"}]}'),
+      );
+    stubWireFetch(fetch);
+
+    await expect(
+      provider().translateBatch(request, new AbortController().signal),
+    ).resolves.toEqual([{ id: "segment-1", translatedText: "你好" }]);
+    expect(fetch).toHaveBeenCalledTimes(3);
+    const lastBody = fetch.mock.calls[2]?.[1]?.body;
+    const last =
+      typeof lastBody === "string"
+        ? (JSON.parse(lastBody) as Record<string, unknown>)
+        : {};
+    expect(last).not.toHaveProperty("temperature");
+    expect(last).not.toHaveProperty("stream");
+  });
+
+  it("reports structured fields when the non-streaming retry fails", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(
+        new Response("data: [DONE]\n\n", {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            error: {
+              message: "SECRET_PROVIDER_TEXT model missing",
+              type: "invalid_request_error",
+              code: "model_not_found",
+            },
+          }),
+          { status: 400 },
+        ),
+      );
+    stubWireFetch(fetch);
+
+    const error = await provider()
+      .translateBatch(request, new AbortController().signal)
+      .catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(NoriTransError);
+    const details = (error as NoriTransError).details ?? "";
+    expect(details).toContain("The streamed completion was empty");
+    expect(details).toContain("HTTP 400");
+    expect(details).toContain("code=model_not_found");
+    expect(details).not.toContain("SECRET");
+  });
+
+  it("treats a string error event in an HTTP 200 stream as a rejection", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          `data: ${JSON.stringify({ error: "temperature is not supported for this model" })}\n\n`,
+          { status: 200, headers: { "Content-Type": "text/event-stream" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          `${sseEvent('{"results":[["segment-1","你好"]]}')}data: [DONE]\n\n`,
+          { status: 200, headers: { "Content-Type": "text/event-stream" } },
+        ),
+      );
+    stubWireFetch(fetch);
+
+    await expect(
+      provider().translateBatch(request, new AbortController().signal),
+    ).resolves.toEqual([{ id: "segment-1", translatedText: "你好" }]);
+    const retryBody = fetch.mock.calls[1]?.[1]?.body;
+    expect(
+      typeof retryBody === "string" ? JSON.parse(retryBody) : {},
+    ).not.toHaveProperty("temperature");
+  });
+
+  it("reports identifier fields of an unrecoverable stream error without its message", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
+      new Response(
+        `data: ${JSON.stringify({
+          error: {
+            message: "SECRET_PROVIDER_TEXT quota exhausted",
+            type: "insufficient_quota",
+            code: "insufficient_quota",
+          },
+        })}\n\n`,
+        { status: 200, headers: { "Content-Type": "text/event-stream" } },
+      ),
+    );
+    stubWireFetch(fetch);
+
+    const error = await provider()
+      .translateBatch(request, new AbortController().signal)
+      .catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(NoriTransError);
+    expect((error as NoriTransError).code).toBe("request_failed");
+    expect((error as NoriTransError).details).toContain(
+      "type=insufficient_quota",
+    );
+    expect((error as NoriTransError).details).not.toContain("SECRET");
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("names a rejected extension Origin without echoing the Provider body", async () => {
+    stubWireFetch(
+      vi
+        .fn<typeof globalThis.fetch>()
+        .mockResolvedValue(
+          new Response(
+            '{"message":"Origin is not allowed for credentialed requests"}',
+            { status: 403 },
+          ),
+        ),
+    );
+
+    const error = await provider()
+      .translateBatch(request, new AbortController().signal)
+      .catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(NoriTransError);
+    const details = (error as NoriTransError).details ?? "";
+    expect(details).toContain("HTTP 403");
+    expect(details).toContain("Origin header");
+    expect(details).not.toContain("credentialed");
+    expect((error as NoriTransError).retryable).toBe(false);
+  });
+
   it("caches a provider that silently returns JSON for a streaming request", async () => {
     const fetch = vi
       .fn<typeof globalThis.fetch>()
@@ -1845,11 +2075,33 @@ describe("OpenAI-compatible translation responses", () => {
       ),
     );
 
+    const error: unknown = await provider()
+      .translateBatch(request, new AbortController().signal)
+      .catch((failure: unknown) => failure);
+    expect(error).toMatchObject({
+      code: "request_failed",
+      message: runtimeErrorToken("rate_limited"),
+      reason: "rate_limited",
+      retryable: true,
+    });
+    expect((error as NoriTransError).details).not.toContain(
+      "secret provider detail",
+    );
+  });
+
+  it("classifies a Provider server error separately from configuration errors", async () => {
+    stubWireFetch(
+      vi.fn(() =>
+        Promise.resolve(new Response('{"error":"upstream"}', { status: 503 })),
+      ),
+    );
+
     await expect(
       provider().translateBatch(request, new AbortController().signal),
     ).rejects.toMatchObject({
       code: "request_failed",
-      message: runtimeErrorToken("request_failed"),
+      message: runtimeErrorToken("provider_error"),
+      reason: "provider_server_error",
       retryable: true,
     });
   });
@@ -1870,6 +2122,22 @@ describe("OpenAI-compatible translation responses", () => {
       message: runtimeErrorToken("request_failed"),
       retryable: true,
     });
+  });
+
+  it("classifies an unreachable Provider as a retryable network failure", async () => {
+    stubWireFetch(
+      vi.fn(() => Promise.reject(new TypeError("Failed to fetch secret-host"))),
+    );
+
+    const error: unknown = await provider()
+      .translateBatch(request, new AbortController().signal)
+      .catch((failure: unknown) => failure);
+    expect(error).toMatchObject({
+      code: "request_failed",
+      retryable: true,
+      reason: "network_error",
+    });
+    expect((error as NoriTransError).details).not.toContain("secret-host");
   });
 
   it("reports the provider deadline as a retryable request failure", async () => {
@@ -1895,6 +2163,8 @@ describe("OpenAI-compatible translation responses", () => {
       code: "request_failed",
       message: runtimeErrorToken("request_failed"),
       retryable: true,
+      reason: "request_timeout",
+      details: expect.stringContaining("5000 ms") as unknown,
     });
     await vi.advanceTimersByTimeAsync(5_000);
 

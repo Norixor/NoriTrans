@@ -100,14 +100,26 @@ function createPartGroups(parts: readonly PreparedPart[]): PreparedPart[][] {
 
 function providerError(error: unknown): NoriTransError {
   if (error instanceof NoriTransError) return error;
-  if (
-    error instanceof DOMException &&
-    (error.name === "AbortError" || error.name === "TimeoutError")
-  ) {
+  if (error instanceof DOMException && error.name === "AbortError") {
     return new NoriTransError(
       runtimeErrorToken("cancelled"),
       "cancelled",
       true,
+    );
+  }
+  if (
+    (error instanceof DOMException && error.name === "TimeoutError") ||
+    (error instanceof BergamotRuntimeError && error.code === "bergamot_timeout")
+  ) {
+    return new NoriTransError(
+      runtimeErrorToken("request_failed"),
+      "request_failed",
+      true,
+      `Provider=bergamot-local; ${error instanceof BergamotRuntimeError && error.details ? error.details : "local translation timed out"}`.slice(
+        0,
+        1_000,
+      ),
+      "request_timeout",
     );
   }
   if (error instanceof BergamotRuntimeError) {

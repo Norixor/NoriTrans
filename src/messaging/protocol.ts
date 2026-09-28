@@ -15,6 +15,7 @@ import type { SubtitleSiteProfile } from "@/src/subtitles/profiles/types";
 import { isPersistedFullTrack } from "@/src/subtitles/persisted-track";
 import type { SubtitleTrack } from "@/src/subtitles/types";
 import type { OcrCaptureResponse, OcrStatus } from "@/src/ocr/types";
+import type { TranslationRequestPriority } from "@/src/shared/translation-request-gate";
 import type { OcrRuntimeLanguage } from "@/src/ocr/languages";
 import {
   isOcrRuntimePack,
@@ -27,6 +28,8 @@ import {
 
 export type PageCommand =
   | { type: "PAGE_TRANSLATE" }
+  | { type: "PAGE_RETRY_FAILED" }
+  | { type: "PAGE_CANCEL" }
   | { type: "PAGE_AUTO_TRANSLATE_CURRENT" }
   | { type: "PAGE_RESTORE" }
   | { type: "PAGE_STATUS" };
@@ -71,6 +74,8 @@ export type BackgroundCommand =
       command:
         | "PAGE_TRANSLATE"
         | "PAGE_AUTO_TRANSLATE_CURRENT"
+        | "PAGE_RETRY_FAILED"
+        | "PAGE_CANCEL"
         | "PAGE_RESTORE"
         | "SUBTITLE_START"
         | "SUBTITLE_RETRY_FAILED"
@@ -84,7 +89,17 @@ export type BackgroundCommand =
     }
   | { type: "FRAME_STATUS_CLEAR"; frameInstanceId: string }
   | { type: "PAGE_MANUAL_TRANSLATION_SET"; enabled: boolean }
-  | { type: "TRANSLATE"; requestId: string; request: TranslationRequest }
+  | {
+      type: "TRANSLATE";
+      requestId: string;
+      request: TranslationRequest;
+      /**
+       * Scheduling hint for the per-tab request gate. `urgent` is reserved for
+       * playback-critical subtitle work and selection lookups; omitted means
+       * `normal`.
+       */
+      priority?: TranslationRequestPriority;
+    }
   | { type: "TRANSLATE_CANCEL"; requestId: string }
   | { type: "CACHE_EPOCH_GET" }
   | { type: "TRANSLATION_CACHE_GET"; key: string }
@@ -204,9 +219,22 @@ export interface TranslationProgressMessage {
 }
 
 /** Aggregated page-translation state; counts refer to stable segment IDs. */
+/**
+ * Page translation task state. `cancelled` keeps already translated blocks
+ * and reports the untranslated remainder as `failed`, so "retry failed" can
+ * resume; `unavailable` means this frame cannot translate at all (restricted
+ * frame or no usable Provider), as opposed to `idle` (not started).
+ */
 export interface PageStatus {
   state:
-    "idle" | "scanning" | "translating" | "translated" | "partial" | "error";
+    | "idle"
+    | "scanning"
+    | "translating"
+    | "translated"
+    | "partial"
+    | "error"
+    | "cancelled"
+    | "unavailable";
   total: number;
   completed: number;
   failed: number;
@@ -329,6 +357,8 @@ export function isPageStatusValue(value: unknown): value is PageStatus {
       "translated",
       "partial",
       "error",
+      "cancelled",
+      "unavailable",
     ].includes(String(value.state)) &&
     typeof value.total === "number" &&
     Number.isInteger(value.total) &&
@@ -642,6 +672,8 @@ export function isBackgroundCommand(
       return (
         value.command === "PAGE_TRANSLATE" ||
         value.command === "PAGE_AUTO_TRANSLATE_CURRENT" ||
+        value.command === "PAGE_RETRY_FAILED" ||
+        value.command === "PAGE_CANCEL" ||
         value.command === "PAGE_RESTORE" ||
         value.command === "SUBTITLE_START" ||
         value.command === "SUBTITLE_RETRY_FAILED" ||
@@ -667,6 +699,9 @@ export function isBackgroundCommand(
         typeof value.requestId === "string" &&
         value.requestId.length > 0 &&
         value.requestId.length <= 500 &&
+        (value.priority === undefined ||
+          value.priority === "urgent" ||
+          value.priority === "normal") &&
         isTranslationRequest(value.request)
       );
     case "TRANSLATE_CANCEL":
@@ -886,6 +921,8 @@ export function isContentCommand(value: unknown): value is ContentCommand {
       return isContentSettings(value.settings);
     case "PAGE_TRANSLATE":
     case "PAGE_AUTO_TRANSLATE_CURRENT":
+    case "PAGE_RETRY_FAILED":
+    case "PAGE_CANCEL":
     case "PAGE_RESTORE":
     case "PAGE_STATUS":
     case "CACHE_CLEARED":

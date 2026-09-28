@@ -106,6 +106,96 @@ describe("background translation cache lifecycle", () => {
     expect(mocks.translateBatch).not.toHaveBeenCalled();
   });
 
+  it("treats a rejected cache read as a miss and still calls the Provider", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    mocks.getCachedTranslation.mockRejectedValue(
+      new DOMException(
+        "The database connection is closing.",
+        "InvalidStateError",
+      ),
+    );
+    mocks.translateBatch.mockResolvedValue([
+      { id: "cache-read-failure", translatedText: "仍然翻译" },
+    ]);
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.provider.aiProvider = "openai-compatible";
+
+    await expect(
+      translateInBackground(
+        {
+          sourceLanguage: "en",
+          targetLanguage: "zh-CN",
+          mode: "ai",
+          segments: [{ id: "cache-read-failure", text: "Still translate" }],
+        },
+        settings,
+        new AbortController().signal,
+      ),
+    ).resolves.toEqual([
+      { id: "cache-read-failure", translatedText: "仍然翻译" },
+    ]);
+    expect(mocks.translateBatch).toHaveBeenCalledOnce();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("cache_read_failed"),
+    );
+    expect(String(warn.mock.calls[0]?.[0])).not.toContain("Still translate");
+    warn.mockRestore();
+  });
+
+  it("does not turn another request's queued cache reads into misses when one request aborts", async () => {
+    const pendingReads = new Map<string, () => void>();
+    mocks.getCachedTranslation.mockImplementation(
+      (key) =>
+        new Promise<string | undefined>((resolve) => {
+          pendingReads.set(key, () => resolve("缓存命中"));
+        }),
+    );
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.provider.aiProvider = "openai-compatible";
+    const abortedController = new AbortController();
+    const saturating = translateInBackground(
+      {
+        sourceLanguage: "en",
+        targetLanguage: "zh-CN",
+        mode: "ai",
+        segments: Array.from({ length: 8 }, (_, index) => ({
+          id: `saturating-${index}`,
+          text: `Saturating read ${index}`,
+        })),
+      },
+      settings,
+      abortedController.signal,
+    );
+    await vi.waitFor(() =>
+      expect(mocks.getCachedTranslation).toHaveBeenCalledTimes(8),
+    );
+    const queued = translateInBackground(
+      {
+        sourceLanguage: "en",
+        targetLanguage: "zh-CN",
+        mode: "ai",
+        segments: [{ id: "other-tab", text: "Other tab" }],
+      },
+      settings,
+      new AbortController().signal,
+    );
+    await Promise.resolve();
+    expect(mocks.getCachedTranslation).toHaveBeenCalledTimes(8);
+
+    abortedController.abort();
+    await expect(saturating).rejects.toMatchObject({ name: "AbortError" });
+    await vi.waitFor(() =>
+      expect(mocks.getCachedTranslation).toHaveBeenCalledTimes(9),
+    );
+    const lastKey = mocks.getCachedTranslation.mock.calls[8]?.[0];
+    if (lastKey) pendingReads.get(lastKey)?.();
+
+    await expect(queued).resolves.toEqual([
+      { id: "other-tab", translatedText: "缓存命中" },
+    ]);
+    expect(mocks.translateBatch).not.toHaveBeenCalled();
+  });
+
   it("bypasses translation cache for connection probes", async () => {
     mocks.translateBatch.mockResolvedValue([
       { id: "connection-test", translatedText: "你好" },

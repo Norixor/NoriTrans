@@ -42,24 +42,46 @@ interface NoriTransDatabase extends DBSchema {
 
 let databasePromise: Promise<IDBPDatabase<NoriTransDatabase>> | undefined;
 
+/**
+ * Opens the shared cache connection once and reuses it. A failed open, an
+ * abnormal close (`terminated`) or another context requesting a version change
+ * (`blocking`) drops the memoized connection so the next caller reopens it
+ * instead of failing until the service worker restarts.
+ */
 export function getDatabase(): Promise<IDBPDatabase<NoriTransDatabase>> {
-  databasePromise ??= openDB<NoriTransDatabase>("noritrans", 1, {
-    upgrade(database) {
-      const translations = database.createObjectStore("translations", {
-        keyPath: "key",
-      });
-      translations.createIndex("by-updated-at", "updatedAt");
+  if (databasePromise) return databasePromise;
+  const forget = (): void => {
+    if (databasePromise === opening) databasePromise = undefined;
+  };
+  const opening: Promise<IDBPDatabase<NoriTransDatabase>> =
+    openDB<NoriTransDatabase>("noritrans", 1, {
+      upgrade(database) {
+        const translations = database.createObjectStore("translations", {
+          keyPath: "key",
+        });
+        translations.createIndex("by-updated-at", "updatedAt");
 
-      const subtitleTracks = database.createObjectStore("subtitleTracks", {
-        keyPath: "key",
-      });
-      subtitleTracks.createIndex("by-updated-at", "updatedAt");
+        const subtitleTracks = database.createObjectStore("subtitleTracks", {
+          keyPath: "key",
+        });
+        subtitleTracks.createIndex("by-updated-at", "updatedAt");
 
-      const jobs = database.createObjectStore("jobs", { keyPath: "id" });
-      jobs.createIndex("by-updated-at", "updatedAt");
-    },
-  });
-  return databasePromise;
+        const jobs = database.createObjectStore("jobs", { keyPath: "id" });
+        jobs.createIndex("by-updated-at", "updatedAt");
+      },
+      blocking() {
+        forget();
+        void opening
+          .then((database) => database.close())
+          .catch(() => undefined);
+      },
+      terminated() {
+        forget();
+      },
+    });
+  databasePromise = opening;
+  opening.catch(forget);
+  return opening;
 }
 
 export async function getCachedTranslation(

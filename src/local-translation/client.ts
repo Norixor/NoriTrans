@@ -11,12 +11,23 @@ import {
 
 const TRANSLATION_TIMEOUT_MS = 3 * 60_000;
 
-function timeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+function timeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  onTimeout: () => void,
+): Promise<T> {
   return new Promise((resolve, reject) => {
-    const timer = globalThis.setTimeout(
-      () => reject(new DOMException("Timed out", "TimeoutError")),
-      timeoutMs,
-    );
+    const timer = globalThis.setTimeout(() => {
+      onTimeout();
+      reject(
+        new BergamotRuntimeError(
+          "bergamot_timeout",
+          "Bergamot offscreen request timed out.",
+          true,
+          `Offscreen request exceeded ${timeoutMs} ms.`,
+        ),
+      );
+    }, timeoutMs);
     promise.then(
       (value) => {
         globalThis.clearTimeout(timer);
@@ -94,9 +105,12 @@ export class BergamotOffscreenClient {
     };
     signal.addEventListener("abort", cancel, { once: true });
     try {
+      // A timed-out request is cancelled in the offscreen document too, so
+      // its queued Bergamot work does not delay later requests.
       const response: unknown = await timeout(
         browser.runtime.sendMessage(request),
         TRANSLATION_TIMEOUT_MS,
+        cancel,
       );
       if (!isBergamotOffscreenResponse(response, request.requestId)) {
         throw new BergamotRuntimeError(

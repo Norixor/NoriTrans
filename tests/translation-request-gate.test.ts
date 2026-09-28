@@ -143,4 +143,94 @@ describe("TranslationRequestGate", () => {
     expect(nextOperation).toHaveBeenCalledOnce();
     expect(gate.bucketCount).toBe(0);
   });
+
+  it("keeps a reserved permit for urgent requests while normal work saturates the tab", async () => {
+    const gate = new TranslationRequestGate(3, 1);
+    const holds = Array.from({ length: 4 }, deferred);
+    const started: string[] = [];
+    const run = (
+      name: string,
+      hold: { promise: Promise<void> },
+      priority: "urgent" | "normal",
+    ): Promise<void> =>
+      gate.run(
+        "tab:5",
+        name,
+        async () => {
+          started.push(name);
+          await hold.promise;
+        },
+        priority,
+      );
+
+    const normal = [0, 1, 2].map((index) =>
+      run(`normal-${index}`, holds[index] ?? deferred(), "normal"),
+    );
+    await flushMicrotasks();
+    expect(started).toEqual(["normal-0", "normal-1"]);
+
+    const urgent = run("urgent", holds[3] ?? deferred(), "urgent");
+    await flushMicrotasks();
+    expect(started).toEqual(["normal-0", "normal-1", "urgent"]);
+
+    holds[3]?.resolve();
+    await urgent;
+    await flushMicrotasks();
+    // The reserved permit is not handed to queued normal work.
+    expect(started).toEqual(["normal-0", "normal-1", "urgent"]);
+
+    holds[0]?.resolve();
+    await flushMicrotasks();
+    expect(started).toContain("normal-2");
+    for (const hold of holds) hold.resolve();
+    await Promise.all(normal);
+    expect(gate.bucketCount).toBe(0);
+  });
+
+  it("grants queued urgent requests before earlier queued normal requests", async () => {
+    const gate = new TranslationRequestGate(3, 1);
+    const holds = Array.from({ length: 3 }, deferred);
+    const started: string[] = [];
+    const hold = (name: string, index: number) => async (): Promise<void> => {
+      started.push(name);
+      await holds[index]?.promise;
+    };
+    const active = [
+      gate.run("tab:6", "normal-a", hold("normal-a", 0)),
+      gate.run("tab:6", "normal-b", hold("normal-b", 1)),
+      gate.run("tab:6", "urgent-a", hold("urgent-a", 2), "urgent"),
+    ];
+    const queuedNormal = gate.run("tab:6", "queued-normal", () => {
+      started.push("queued-normal");
+      return Promise.resolve();
+    });
+    const queuedUrgent = gate.run(
+      "tab:6",
+      "queued-urgent",
+      () => {
+        started.push("queued-urgent");
+        return Promise.resolve();
+      },
+      "urgent",
+    );
+    await flushMicrotasks();
+    expect(started).toEqual(["normal-a", "normal-b", "urgent-a"]);
+
+    holds[0]?.resolve();
+    await queuedUrgent;
+    expect(started).toEqual([
+      "normal-a",
+      "normal-b",
+      "urgent-a",
+      "queued-urgent",
+    ]);
+    for (const pending of holds) pending.resolve();
+    await Promise.all([...active, queuedNormal]);
+    expect(started.at(-1)).toBe("queued-normal");
+    expect(gate.bucketCount).toBe(0);
+  });
+
+  it("rejects a reservation that leaves no permit for normal requests", () => {
+    expect(() => new TranslationRequestGate(2, 2)).toThrow(RangeError);
+  });
 });

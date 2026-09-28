@@ -1053,6 +1053,28 @@ output {
 .button-danger:hover {
   background: var(--danger-button-hover);
 }
+.unsaved-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--warning, #ad710d);
+  border-radius: 999px;
+  color: var(--warning, #ad710d);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.unsaved-indicator::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+}
+.unsaved-indicator[hidden] {
+  display: none;
+}
 .save-bar {
   position: fixed;
   right: 0;

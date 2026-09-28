@@ -1846,6 +1846,7 @@ describe("PageTranslationSession", () => {
       failed: 1,
     });
     expect(session.cancelPendingTranslations().state).toBe("partial");
+    // Nothing was in flight, so the earlier partial result stands.
 
     const paragraph = document.createElement("p");
     paragraph.textContent = "Added after partial cache clear";
@@ -3561,7 +3562,7 @@ describe("PageTranslationSession", () => {
     const callsBeforeCancel = aiRuntime.sendMessage.mock.calls.length;
     const cancelled = session.handleCacheCleared();
     expect(cancelled).toMatchObject({
-      state: "error",
+      state: "cancelled",
       total: 348,
       completed: 0,
       failed: 348,
@@ -4448,6 +4449,118 @@ describe("PageTranslationSession", () => {
     await new Promise((resolve) => window.setTimeout(resolve, 600));
 
     expect(paragraph.textContent).toBe("T:Changed character data fixture");
+    session.restore();
+  });
+
+  it("retries only failed blocks and keeps translated content in place", async () => {
+    document.body.innerHTML = `<main>${Array.from(
+      { length: 21 },
+      (_, index) => `<p>Retry fixture ${index + 1}</p>`,
+    ).join("")}</main>`;
+    const session = new PageTranslationSession(vi.fn());
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.page.displayMode = "translated";
+    const requested: number[] = [];
+    localRuntime.translateBatch.mockImplementation((request) => {
+      requested.push(request.segments.length);
+      if (requested.length === 2) {
+        return Promise.reject(new Error("second batch failed"));
+      }
+      return Promise.resolve(
+        request.segments.map((segment) => ({
+          id: segment.id,
+          translatedText: `T:${segment.text}`,
+        })),
+      );
+    });
+
+    await expect(session.translate(settings)).resolves.toMatchObject({
+      state: "partial",
+      total: 21,
+      completed: 20,
+      failed: 1,
+      message: "second batch failed",
+    });
+    expect(document.querySelector("noritrans-translation-pending")).not.toBe(
+      null,
+    );
+    const failedParagraph = [...document.querySelectorAll("p")].find(
+      (paragraph) => !paragraph.textContent?.startsWith("T:"),
+    );
+    expect(failedParagraph).toBeDefined();
+
+    session.retryFailed();
+    await vi.waitFor(() =>
+      expect(session.getStatus()).toMatchObject({
+        state: "translated",
+        total: 21,
+        completed: 21,
+        failed: 0,
+      }),
+    );
+    expect(requested).toEqual([20, 1, 1]);
+    expect(session.getStatus().message).toBeUndefined();
+    expect(document.querySelector("noritrans-translation-pending")).toBeNull();
+    expect(
+      [...document.querySelectorAll("p")].every((paragraph) =>
+        paragraph.textContent?.startsWith("T:"),
+      ),
+    ).toBe(true);
+    session.restore();
+  });
+
+  it("reports a cancelled task, keeps translated blocks, and lets the remainder retry", async () => {
+    document.body.innerHTML = `<main>${Array.from(
+      { length: 21 },
+      (_, index) => `<p>Cancel fixture ${index + 1}</p>`,
+    ).join("")}</main>`;
+    const session = new PageTranslationSession(vi.fn());
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.page.displayMode = "translated";
+    let releaseSecondBatch: (() => void) | undefined;
+    let calls = 0;
+    localRuntime.translateBatch.mockImplementation((request) => {
+      calls += 1;
+      const results = request.segments.map((segment) => ({
+        id: segment.id,
+        translatedText: `T:${segment.text}`,
+      }));
+      if (calls === 2) {
+        return new Promise((resolve) => {
+          releaseSecondBatch = () => resolve(results);
+        });
+      }
+      return Promise.resolve(results);
+    });
+
+    const run = session.translate(settings);
+    await vi.waitFor(() =>
+      expect(session.getStatus()).toMatchObject({ completed: 20 }),
+    );
+    const cancelled = session.cancelPendingTranslations();
+    expect(cancelled).toMatchObject({
+      state: "cancelled",
+      total: 21,
+      completed: 20,
+      failed: 1,
+    });
+    releaseSecondBatch?.();
+    await run;
+    expect(session.getStatus().state).toBe("cancelled");
+    expect(
+      [...document.querySelectorAll("p")].filter((paragraph) =>
+        paragraph.textContent?.startsWith("T:"),
+      ),
+    ).toHaveLength(20);
+
+    session.retryFailed();
+    await vi.waitFor(() =>
+      expect(session.getStatus()).toMatchObject({
+        state: "translated",
+        completed: 21,
+        failed: 0,
+      }),
+    );
     session.restore();
   });
 

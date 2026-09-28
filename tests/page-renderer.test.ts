@@ -644,4 +644,110 @@ describe("PageRenderer", () => {
     ).toBe(false);
     expect(document.querySelector("noritrans-translation")).toBeNull();
   });
+
+  it("marks failed blocks with a clickable retry control beside pending rings", () => {
+    document.body.innerHTML =
+      "<main><p>Failed block</p><p>Pending block</p></main>";
+    const [failedParagraph, pendingParagraph] = document.querySelectorAll("p");
+    const failedNode = failedParagraph?.firstChild;
+    const pendingNode = pendingParagraph?.firstChild;
+    if (
+      !failedParagraph ||
+      !pendingParagraph ||
+      !(failedNode instanceof Text) ||
+      !(pendingNode instanceof Text)
+    ) {
+      throw new Error("invalid fixture");
+    }
+    const renderer = new PageRenderer();
+    const onRetryFailed = vi.fn();
+    renderer.onRetryFailed = onRetryFailed;
+    renderer.failedMarkerLabel = "Retry this block";
+    const failedSegment = { ...segment(failedParagraph, failedNode), id: "f" };
+    const pendingSegment = {
+      ...segment(pendingParagraph, pendingNode),
+      id: "p",
+    };
+
+    renderer.markPending([failedSegment, pendingSegment]);
+    renderer.markFailed([failedSegment]);
+
+    const overlay = document.querySelector("noritrans-translation-pending");
+    expect(overlay).not.toBeNull();
+    expect(renderer.failedSegments()).toEqual([failedSegment]);
+    // Rendering and retry travel through the renderer's own click handler,
+    // so simulate the marker click via the registered listener.
+    const marker = (
+      renderer as unknown as {
+        failed: Map<PageSegment, { indicator: HTMLButtonElement }>;
+      }
+    ).failed.get(failedSegment)?.indicator;
+    if (!marker) throw new Error("missing failed marker");
+    expect(marker.tagName).toBe("BUTTON");
+    expect(marker.getAttribute("aria-label")).toBe("Retry this block");
+    expect(marker.tabIndex).toBe(-1);
+    marker.click();
+    expect(onRetryFailed).toHaveBeenCalledWith(failedSegment);
+
+    // Re-queueing the block replaces its failed marker with a pending ring.
+    renderer.markPending([failedSegment]);
+    expect(renderer.failedSegments()).toEqual([]);
+    renderer.clearPending();
+    expect(document.querySelector("noritrans-translation-pending")).toBeNull();
+  });
+
+  it("keeps a static waiting ring and forced-colors styling for indicators", () => {
+    document.body.innerHTML = "<main><p>Indicator style</p></main>";
+    const paragraph = document.querySelector("p");
+    const node = paragraph?.firstChild;
+    if (!paragraph || !(node instanceof Text)) throw new Error("fixture");
+    const renderer = new PageRenderer();
+    const overlayRoots: ShadowRoot[] = [];
+    const attachShadow = vi.spyOn(Element.prototype, "attachShadow");
+    attachShadow.mockImplementation(function (
+      this: Element,
+      init: ShadowRootInit,
+    ) {
+      const original = attachShadow.getMockImplementation();
+      attachShadow.mockRestore();
+      const root = this.attachShadow(init);
+      attachShadow.mockImplementation(original ?? (() => root));
+      if (this.tagName === "NORITRANS-TRANSLATION-PENDING") {
+        overlayRoots.push(root);
+      }
+      return root;
+    });
+    try {
+      renderer.markPending([segment(paragraph, node)]);
+    } finally {
+      attachShadow.mockRestore();
+    }
+    const style = overlayRoots[0]?.querySelector("style")?.textContent ?? "";
+    expect(style).toContain("prefers-reduced-motion: reduce");
+    expect(style).toContain("border-style: dotted");
+    expect(style).toContain("forced-colors: active");
+    expect(style).toContain(".failed:focus-visible");
+    renderer.restore();
+  });
+
+  it("copies the source block's inline padding and margin to a sibling companion", () => {
+    document.body.innerHTML =
+      '<article><p style="padding: 0 32px; margin: 0 12px 0 24px">Padded source</p></article>';
+    const paragraph = document.querySelector("p");
+    const node = paragraph?.firstChild;
+    if (!paragraph || !(node instanceof Text)) throw new Error("fixture");
+    const renderer = new PageRenderer();
+
+    expect(
+      renderer.apply(segment(paragraph, node), "已译", "bilingual", "zh-CN"),
+    ).toBe(true);
+
+    const host = paragraph.nextElementSibling as HTMLElement | null;
+    expect(host?.tagName).toBe("NORITRANS-TRANSLATION");
+    expect(host?.style.paddingLeft).toBe("32px");
+    expect(host?.style.paddingRight).toBe("32px");
+    expect(host?.style.marginLeft).toBe("24px");
+    expect(host?.style.marginRight).toBe("12px");
+    renderer.restore();
+  });
 });

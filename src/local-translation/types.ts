@@ -82,6 +82,7 @@ export type BergamotRuntimeErrorCode =
   | "bergamot_invalid_request"
   | "bergamot_package_missing"
   | "bergamot_runtime_failed"
+  | "bergamot_timeout"
   | "bergamot_unsupported_language";
 
 export interface BergamotRuntimeFailure {

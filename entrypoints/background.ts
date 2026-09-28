@@ -40,6 +40,7 @@ import {
   safeRuntimeErrorToken,
 } from "@/src/shared/runtime-errors";
 import { runtimeId } from "@/src/shared/runtime-id";
+import { ServiceWorkerKeepalive } from "@/src/shared/service-worker-keepalive";
 import {
   TranslationRequestGate,
   translationBucketForTab,
@@ -56,7 +57,10 @@ import {
   invalidateLocalTranslationModelIdentity,
   translateInBackground,
 } from "@/src/translation/service";
-import type { TranslationResult } from "@/src/translation/types";
+import type {
+  TranslationFailure,
+  TranslationResult,
+} from "@/src/translation/types";
 import {
   deleteSiteProfileOverride,
   deleteUserSiteProfile,
@@ -116,7 +120,12 @@ import {
   setAutomaticUpdateChecks,
 } from "@/src/update/checker";
 
-const translationRequestGate = new TranslationRequestGate(8);
+// Eight active requests per tab, one of which only urgent (playback-critical)
+// requests may use so long page batches cannot starve subtitles.
+const translationRequestGate = new TranslationRequestGate(8, 1);
+const translationKeepalive = new ServiceWorkerKeepalive(() =>
+  browser.runtime.getPlatformInfo(),
+);
 const OCR_CAPTURE_MIN_INTERVAL_MS = Math.max(OCR_SAMPLE_INTERVAL_MS, 550);
 const OCR_OFFSCREEN_URL = browser.runtime.getURL("ocr-offscreen.html" as never);
 const OCR_PERMISSION_URL = browser.runtime.getURL(
@@ -143,6 +152,8 @@ let settingsMutationTail: Promise<void> = Promise.resolve();
 let siteProfileMutationTail: Promise<void> = Promise.resolve();
 let cacheEpoch = 0;
 let cacheMutationTail: Promise<void> = Promise.resolve();
+/** Settles when the most recently requested cache clear has finished. */
+let pendingCacheClear: Promise<void> | undefined;
 let lastOcrCaptureAtMs = 0;
 let ocrCaptureGate: Promise<void> = Promise.resolve();
 
@@ -230,6 +241,14 @@ function enqueueCacheMutation(
     () => undefined,
   );
   return operation;
+}
+
+/**
+ * Waits only for in-progress cache clears, not for unrelated queued writes
+ * from other tabs; a concurrent same-epoch write can at worst cause a miss.
+ */
+async function waitForPendingCacheClear(): Promise<void> {
+  while (pendingCacheClear) await pendingCacheClear;
 }
 
 async function readCacheAtCurrentEpoch<T>(
@@ -658,7 +677,33 @@ async function prepareCommandBroadcastFrames(
   return discoveredTargets;
 }
 
+const FORWARDED_FAILURE_REASONS: ReadonlySet<string> = new Set<
+  NonNullable<TranslationFailure["reason"]>
+>([
+  "bergamot_package_missing",
+  "bergamot_unsupported_language",
+  "chrome_language_detection_failed",
+  "chrome_pair_unavailable",
+  "request_timeout",
+  "network_error",
+  "rate_limited",
+  "provider_server_error",
+]);
+
 function translationError(error: unknown): TranslationResponse {
+  if (error instanceof DOMException && error.name === "AbortError") {
+    // The request gate aborted this request (explicit TRANSLATE_CANCEL, tab
+    // close or cache clear). This is a cancellation, not a Provider failure.
+    return {
+      ok: false,
+      error: {
+        code: "cancelled",
+        message: runtimeErrorToken("cancelled"),
+        retryable: true,
+        details: "The background cancelled the queued or active request.",
+      },
+    };
+  }
   if (error instanceof NoriTransError) {
     const allowedCodes = new Set([
       "provider_unavailable",
@@ -677,11 +722,10 @@ function translationError(error: unknown): TranslationResponse {
         message: error.message,
         retryable: error.retryable,
         ...(error.details ? { details: error.details.slice(0, 4_000) } : {}),
-        ...(error.reason === "bergamot_package_missing" ||
-        error.reason === "bergamot_unsupported_language" ||
-        error.reason === "chrome_language_detection_failed" ||
-        error.reason === "chrome_pair_unavailable"
-          ? { reason: error.reason }
+        ...(error.reason && FORWARDED_FAILURE_REASONS.has(error.reason)
+          ? {
+              reason: error.reason as NonNullable<TranslationFailure["reason"]>,
+            }
           : {}),
       },
     };
@@ -1140,7 +1184,8 @@ async function handleBackgroundCommand(
       let targets: ContentFrameTarget[] = [];
       if (
         message.command === "SUBTITLE_CANCEL" ||
-        message.command === "PAGE_RESTORE"
+        message.command === "PAGE_RESTORE" ||
+        message.command === "PAGE_CANCEL"
       ) {
         try {
           targets = await discoverCommandBroadcastFrames(tabId);
@@ -1234,12 +1279,13 @@ async function handleBackgroundCommand(
       return { ok: true };
     }
     case "TRANSLATE": {
+      const releaseKeepalive = translationKeepalive.hold();
       try {
         const results = await translationRequestGate.run(
           translationBucketForTab(sender.tab?.id),
           message.requestId,
           async (signal) => {
-            await cacheMutationTail;
+            await waitForPendingCacheClear();
             const requestCacheEpoch = cacheEpoch;
             const settings = await loadSettings();
             if (
@@ -1268,10 +1314,13 @@ async function handleBackgroundCommand(
                 relayTranslationProgress(sender, message.requestId, result),
             });
           },
+          message.priority,
         );
         return { ok: true, results } satisfies TranslationResponse;
       } catch (error) {
         return translationError(error);
+      } finally {
+        releaseKeepalive();
       }
     }
     case "TRANSLATE_CANCEL":
@@ -1791,6 +1840,14 @@ async function handleBackgroundCommand(
     case "CACHE_CLEAR": {
       cacheEpoch += 1;
       const clearOperation = enqueueCacheMutation(cacheEpoch, clearCache);
+      const clearSettled = clearOperation.then(
+        () => undefined,
+        () => undefined,
+      );
+      pendingCacheClear = clearSettled;
+      void clearSettled.then(() => {
+        if (pendingCacheClear === clearSettled) pendingCacheClear = undefined;
+      });
       translationRequestGate.cancelAll();
       await broadcastCacheCleared();
       await clearOperation;

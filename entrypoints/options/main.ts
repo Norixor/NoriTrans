@@ -735,6 +735,10 @@ async function initialize(): Promise<void> {
   let chromeTranslationPairs: string[] = [];
   let chromeTranslationPairsLoaded = false;
   const dirtyControls = new DirtyControlTracker();
+  const unsavedIndicator = element<HTMLElement>("unsaved-indicator");
+  const syncUnsavedIndicator = (): void => {
+    unsavedIndicator.hidden = dirtyControls.size === 0;
+  };
 
   const profileLanguageLabel = (code: string): string =>
     code === "auto"
@@ -1034,6 +1038,8 @@ async function initialize(): Promise<void> {
   };
   if (location.hash === "#visibility") {
     activateTab(tabItems.length - 1);
+  } else if (location.hash === "#providers") {
+    activateTab(0);
   }
 
   tabItems.forEach(({ tab }, index) => {
@@ -1132,6 +1138,7 @@ async function initialize(): Promise<void> {
           },
         };
         dirtyControls.mark("auto-translate-site-patterns");
+        syncUnsavedIndicator();
         renderAutoTranslateSites();
       });
       item.append(copy, remove);
@@ -1390,6 +1397,7 @@ async function initialize(): Promise<void> {
       throw new Error("settings-save-failed");
     }
     dirtyControls.confirm(submittedDirtyVersions);
+    syncUnsavedIndicator();
     return languageChanged;
   };
 
@@ -3495,8 +3503,15 @@ async function initialize(): Promise<void> {
       if (control.id === "update-auto-check") return;
       const id = controlIdentifier(control);
       dirtyControls.mark(id);
+      syncUnsavedIndicator();
     }
   };
+  // Quick settings apply immediately while this page needs "Save settings";
+  // the indicator and the leave prompt make that difference visible.
+  window.addEventListener("beforeunload", (event) => {
+    if (dirtyControls.size === 0) return;
+    event.preventDefault();
+  });
   form.addEventListener("input", markDirtyControl);
   form.addEventListener("change", markDirtyControl);
   fastProvider.addEventListener("change", () => {
@@ -3508,6 +3523,7 @@ async function initialize(): Promise<void> {
     if (method?.fastProvider) {
       fastProvider.value = method.fastProvider;
       dirtyControls.mark(controlIdentifier(fastProvider));
+      syncUnsavedIndicator();
       syncFastProviderFields();
     } else {
       syncLanguageRestrictions();

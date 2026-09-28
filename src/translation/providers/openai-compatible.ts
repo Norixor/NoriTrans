@@ -1,5 +1,6 @@
 import { NoriTransError } from "@/src/shared/errors";
 import { runtimeErrorToken } from "@/src/shared/runtime-errors";
+import { httpFailureClassification } from "@/src/translation/providers/http-failure";
 import type { AiProviderId } from "@/src/shared/settings";
 import {
   assertValidProtectedTranslation,
@@ -83,6 +84,7 @@ type ResponseFormatMode = "json-schema" | "json-object" | "none";
 interface OptionalRequestCapabilities {
   responseFormatMode?: ResponseFormatMode;
   reasoningEffortSupported?: boolean;
+  temperatureSupported?: boolean;
   anthropicOutputFormatSupported?: boolean;
 }
 
@@ -404,7 +406,11 @@ function lowLatencyReasoningEffort(model: string): "none" | undefined {
 function rejectsOptionalParameter(
   response: { status: number; body: string },
   parameter:
-    "response_format" | "reasoning_effort" | "output_config" | "stream",
+    | "response_format"
+    | "reasoning_effort"
+    | "output_config"
+    | "stream"
+    | "temperature",
 ): boolean {
   if (response.status !== 400 && response.status !== 422) return false;
   const body = response.body.toLowerCase();
@@ -415,7 +421,9 @@ function rejectsOptionalParameter(
         ? /reasoning[_ -]?effort/iu.test(body)
         : parameter === "output_config"
           ? /output[_ -]?config|json[_ -]?schema|structured/iu.test(body)
-          : /\bstream(?:ing)?\b/iu.test(body);
+          : parameter === "temperature"
+            ? /\btemperature\b/iu.test(body)
+            : /\bstream(?:ing)?\b/iu.test(body);
   return (
     mentionsParameter &&
     /unsupported|not support|unknown|unrecognized|unexpected|invalid|extra|additional/iu.test(
@@ -674,6 +682,28 @@ async function readStreamingContent(
           errorType === "api_error" ||
           errorType === "timeout_error",
         `The streamed Provider response reported an error event of type ${errorType}.`,
+      );
+    }
+    // OpenAI-style gateways put `{"error": {...}}` (or a bare string) in a
+    // data event of an HTTP 200 stream instead of returning an error status.
+    const streamedError: unknown = (payload as { error?: unknown }).error;
+    if (
+      payload.type !== "error" &&
+      (isRecord(streamedError) ||
+        (typeof streamedError === "string" && streamedError.trim()))
+    ) {
+      const errorType =
+        isRecord(streamedError) && typeof streamedError.type === "string"
+          ? streamedError.type
+          : "";
+      throw new StreamedRequestRejection(
+        data,
+        new NoriTransError(
+          runtimeErrorToken("request_failed"),
+          "request_failed",
+          /rate_limit|overloaded|server_error|timeout/iu.test(errorType),
+          `The streamed Provider response reported an error event.${providerErrorFields(data)}`,
+        ),
       );
     }
     if (payload.type === "message_delta" && isRecord(payload.delta)) {
@@ -936,6 +966,54 @@ function diagnosticKeys(value: Record<string, unknown>): string {
   const keys = Object.keys(value);
   const shown = keys.slice(0, 12).map(diagnosticId);
   return `${shown.join(", ") || "none"}${keys.length > shown.length ? `, ... (${keys.length} total)` : ""}`;
+}
+
+/**
+ * Summarizes a Provider error body with identifier-shaped fields only
+ * (`type`, `code`, `param`), never its free-text message, so diagnostics stay
+ * actionable without echoing Provider output.
+ */
+function providerErrorFields(body: string): string {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return "";
+  }
+  const error =
+    isRecord(parsed) && isRecord(parsed.error) ? parsed.error : parsed;
+  if (!isRecord(error)) return "";
+  const fields = (["type", "code", "param"] as const).flatMap((key) =>
+    typeof error[key] === "string" && error[key]
+      ? [`${key}=${diagnosticId(error[key])}`]
+      : [],
+  );
+  return fields.length > 0 ? ` Provider error ${fields.join(", ")}.` : "";
+}
+
+function httpFailureDetails(status: number, body: string): string {
+  // Gateways that forbid credentialed browser requests answer the extension's
+  // automatic Origin header with 403; name that cause because the same key
+  // and model succeed from a terminal.
+  const originHint =
+    status === 403 && /\borigin\b/iu.test(body)
+      ? " The Provider rejected the browser extension Origin header; allow chrome-extension origins on the Provider or its gateway."
+      : "";
+  return `HTTP ${status}. Provider error body length: ${body.length} characters.${providerErrorFields(body)}${originHint}`;
+}
+
+/**
+ * An OpenAI-style `{"error": ...}` event inside an HTTP 200 stream. The raw
+ * body stays in memory so the optional-parameter fallback can inspect it; only
+ * `failure` (identifier fields) is ever surfaced.
+ */
+class StreamedRequestRejection extends Error {
+  constructor(
+    readonly body: string,
+    readonly failure: NoriTransError,
+  ) {
+    super("Streamed Provider request rejection");
+  }
 }
 
 function invalidResponse(details?: string): NoriTransError {
@@ -1454,7 +1532,9 @@ export class OpenAICompatibleProvider implements TranslationProvider {
             }
           : {
               model: this.config.model,
-              temperature: 0,
+              ...(optionalCapabilities.temperatureSupported === false
+                ? {}
+                : { temperature: 0 }),
               ...(attemptedStreaming ? { stream: true } : {}),
               ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
               messages: [
@@ -1477,19 +1557,14 @@ export class OpenAICompatibleProvider implements TranslationProvider {
             ? { response_format: jsonObjectResponseFormat() }
             : {}),
       };
-      let response = await this.request(requestPayload, controller.signal);
-      let errorBody = response.ok ? "" : await response.text();
-      for (let fallback = 0; fallback < 5 && !response.ok; fallback += 1) {
+      const dropRejectedParameter = (status: number, body: string): boolean => {
         if (
           "response_format" in requestPayload &&
-          rejectsOptionalParameter(
-            { status: response.status, body: errorBody },
-            "response_format",
-          )
+          rejectsOptionalParameter({ status, body }, "response_format")
         ) {
           if (
             responseFormatMode === "json-schema" &&
-            rejectionTargetsJsonSchema(errorBody)
+            rejectionTargetsJsonSchema(body)
           ) {
             requestPayload.response_format = jsonObjectResponseFormat();
             responseFormatMode = "json-object";
@@ -1501,48 +1576,59 @@ export class OpenAICompatibleProvider implements TranslationProvider {
           }
         } else if (
           "output_config" in requestPayload &&
-          rejectsOptionalParameter(
-            { status: response.status, body: errorBody },
-            "output_config",
-          )
+          rejectsOptionalParameter({ status, body }, "output_config")
         ) {
           delete requestPayload.output_config;
           optionalCapabilities.anthropicOutputFormatSupported = false;
         } else if (
           "reasoning_effort" in requestPayload &&
-          rejectsOptionalParameter(
-            { status: response.status, body: errorBody },
-            "reasoning_effort",
-          )
+          rejectsOptionalParameter({ status, body }, "reasoning_effort")
         ) {
           delete requestPayload.reasoning_effort;
           optionalCapabilities.reasoningEffortSupported = false;
         } else if (
           "stream" in requestPayload &&
-          rejectsOptionalParameter(
-            { status: response.status, body: errorBody },
-            "stream",
-          )
+          rejectsOptionalParameter({ status, body }, "stream")
         ) {
           observeStreamingCapability("unsupported");
           delete requestPayload.stream;
+        } else if (
+          "temperature" in requestPayload &&
+          rejectsOptionalParameter({ status, body }, "temperature")
+        ) {
+          // Reasoning models reject sampling parameters; translation keeps
+          // working with the model default.
+          delete requestPayload.temperature;
+          optionalCapabilities.temperatureSupported = false;
         } else {
-          break;
+          return false;
         }
-        response = await this.request(requestPayload, controller.signal);
-        errorBody = response.ok ? "" : await response.text();
-      }
-
-      if (!response.ok) {
-        throw new NoriTransError(
-          runtimeErrorToken("request_failed"),
-          "request_failed",
-          response.status === 408 ||
-            response.status === 429 ||
-            response.status >= 500,
-          `HTTP ${response.status}. Provider error body length: ${errorBody.length} characters.`,
-        );
-      }
+        return true;
+      };
+      // Every request attempt, including the non-streaming retries after a
+      // stream problem, goes through the same optional-parameter downgrade and
+      // the same structured failure details.
+      const sendWithFallbacks = async (context = ""): Promise<Response> => {
+        let next = await this.request(requestPayload, controller.signal);
+        let errorBody = next.ok ? "" : await next.text();
+        for (let fallback = 0; fallback < 5 && !next.ok; fallback += 1) {
+          if (!dropRejectedParameter(next.status, errorBody)) break;
+          next = await this.request(requestPayload, controller.signal);
+          errorBody = next.ok ? "" : await next.text();
+        }
+        if (!next.ok) {
+          const failure = httpFailureClassification(next.status);
+          throw new NoriTransError(
+            runtimeErrorToken(failure.messageCode),
+            failure.code,
+            failure.retryable,
+            `${context}${httpFailureDetails(next.status, errorBody)}`,
+            failure.reason,
+          );
+        }
+        return next;
+      };
+      let response = await sendWithFallbacks();
 
       optionalCapabilities.responseFormatMode = responseFormatMode;
       if (
@@ -1570,12 +1656,38 @@ export class OpenAICompatibleProvider implements TranslationProvider {
         let streamed:
           Awaited<ReturnType<typeof readStreamingContent>> | undefined;
         try {
-          streamed = await readStreamingContent(
-            response,
-            wireRequest,
-            protocol,
-            wireAliases.restoreProgress,
-          );
+          // A gateway may accept the request with HTTP 200 and then reject an
+          // optional parameter inside the stream. Drop it and resend, exactly
+          // like an HTTP 400 rejection; nothing has been emitted yet.
+          for (let rejection = 0; ; rejection += 1) {
+            try {
+              streamed = await readStreamingContent(
+                response,
+                wireRequest,
+                protocol,
+                wireAliases.restoreProgress,
+              );
+              break;
+            } catch (streamError) {
+              if (!(streamError instanceof StreamedRequestRejection)) {
+                throw streamError;
+              }
+              if (
+                rejection >= 3 ||
+                !dropRejectedParameter(400, streamError.body)
+              ) {
+                throw streamError.failure;
+              }
+              response = await sendWithFallbacks();
+              const stillStreaming =
+                requestPayload.stream === true &&
+                response.headers
+                  .get("content-type")
+                  ?.toLowerCase()
+                  .includes("text/event-stream");
+              if (!stillStreaming) break;
+            }
+          }
         } catch (error) {
           if (
             error instanceof PartialStreamingResponseError ||
@@ -1590,18 +1702,9 @@ export class OpenAICompatibleProvider implements TranslationProvider {
           // never enter this branch.
           observeStreamingCapability("unsupported");
           delete requestPayload.stream;
-          response = await this.request(requestPayload, controller.signal);
-          if (!response.ok) {
-            const fallbackErrorBody = await response.text();
-            throw new NoriTransError(
-              runtimeErrorToken("request_failed"),
-              "request_failed",
-              response.status === 408 ||
-                response.status === 429 ||
-                response.status >= 500,
-              `The streamed completion was malformed before any result was emitted; the non-streaming fallback returned HTTP ${response.status}. Provider error body length: ${fallbackErrorBody.length} characters.`,
-            );
-          }
+          response = await sendWithFallbacks(
+            "The streamed completion was malformed before any result was emitted; non-streaming fallback: ",
+          );
         }
         if (streamed && !streamed.content.trim()) {
           // Some OpenAI-compatible gateways accept `stream: true` but return
@@ -1609,18 +1712,9 @@ export class OpenAICompatibleProvider implements TranslationProvider {
           // non-streaming retry is safe and avoids duplicating translated IDs.
           observeStreamingCapability("unsupported");
           delete requestPayload.stream;
-          response = await this.request(requestPayload, controller.signal);
-          if (!response.ok) {
-            const fallbackErrorBody = await response.text();
-            throw new NoriTransError(
-              runtimeErrorToken("request_failed"),
-              "request_failed",
-              response.status === 408 ||
-                response.status === 429 ||
-                response.status >= 500,
-              `The streamed completion was empty; the non-streaming fallback returned HTTP ${response.status}. Provider error body length: ${fallbackErrorBody.length} characters.`,
-            );
-          }
+          response = await sendWithFallbacks(
+            "The streamed completion was empty; non-streaming fallback: ",
+          );
         } else if (streamed) {
           try {
             const results = parseResults(
@@ -1646,18 +1740,9 @@ export class OpenAICompatibleProvider implements TranslationProvider {
             // rendered or cached yet.
             observeStreamingCapability("unsupported");
             delete requestPayload.stream;
-            response = await this.request(requestPayload, controller.signal);
-            if (!response.ok) {
-              const fallbackErrorBody = await response.text();
-              throw new NoriTransError(
-                runtimeErrorToken("request_failed"),
-                "request_failed",
-                response.status === 408 ||
-                  response.status === 429 ||
-                  response.status >= 500,
-                `The streamed completion was malformed before any result was emitted; the non-streaming fallback returned HTTP ${response.status}. Provider error body length: ${fallbackErrorBody.length} characters.`,
-              );
-            }
+            response = await sendWithFallbacks(
+              "The streamed completion was malformed before any result was emitted; non-streaming fallback: ",
+            );
           }
         }
       }
@@ -1743,6 +1828,8 @@ export class OpenAICompatibleProvider implements TranslationProvider {
           runtimeErrorToken("request_failed"),
           "request_failed",
           true,
+          `The Provider did not finish within the configured timeout of ${this.config.timeoutMs} ms.`,
+          "request_timeout",
         );
       }
       if (controller.signal.aborted) {
@@ -1753,10 +1840,22 @@ export class OpenAICompatibleProvider implements TranslationProvider {
         );
       }
       if (error instanceof NoriTransError) throw error;
+      // fetch() and body stream reads reject with TypeError when the request
+      // cannot reach the Provider or the connection drops mid-response.
+      if (error instanceof TypeError) {
+        throw new NoriTransError(
+          runtimeErrorToken("request_failed"),
+          "request_failed",
+          true,
+          "The Provider could not be reached or the connection was interrupted (network failure).",
+          "network_error",
+        );
+      }
       throw new NoriTransError(
         runtimeErrorToken("request_failed"),
         "request_failed",
         true,
+        `Unexpected Provider request failure type: ${error instanceof Error ? error.name.slice(0, 80) : typeof error}.`,
       );
     } finally {
       completeStreamingProbe?.("unknown");

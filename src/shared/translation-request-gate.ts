@@ -1,6 +1,13 @@
 export const EXTENSION_TRANSLATION_BUCKET = "extension";
 
+/**
+ * `urgent` marks time-critical work (current subtitle window, streamed cues,
+ * selection lookups) that must not wait behind long background batches.
+ */
+export type TranslationRequestPriority = "urgent" | "normal";
+
 interface PendingPermit {
+  priority: TranslationRequestPriority;
   signal: AbortSignal;
   resolve: (release: () => void) => void;
   reject: (error: DOMException) => void;
@@ -30,13 +37,30 @@ export function translationBucketForTab(tabId?: number): string {
  * Caps active translation operations independently for every browser tab.
  * Requests waiting for a permit remain cancellable and never invoke their
  * operation after cancellation.
+ *
+ * `reservedUrgentPerBucket` permits are only granted to urgent requests, and
+ * queued urgent requests are granted before queued normal ones, so long
+ * normal batches cannot starve playback-critical work. The total number of
+ * active operations per bucket never exceeds `maxActivePerBucket`.
  */
 export class TranslationRequestGate {
   private readonly buckets = new Map<string, BucketState>();
 
-  constructor(private readonly maxActivePerBucket: number) {
+  constructor(
+    private readonly maxActivePerBucket: number,
+    private readonly reservedUrgentPerBucket = 0,
+  ) {
     if (!Number.isInteger(maxActivePerBucket) || maxActivePerBucket < 1) {
       throw new RangeError("maxActivePerBucket must be a positive integer");
+    }
+    if (
+      !Number.isInteger(reservedUrgentPerBucket) ||
+      reservedUrgentPerBucket < 0 ||
+      reservedUrgentPerBucket >= maxActivePerBucket
+    ) {
+      throw new RangeError(
+        "reservedUrgentPerBucket must be a non-negative integer below maxActivePerBucket",
+      );
     }
   }
 
@@ -44,6 +68,7 @@ export class TranslationRequestGate {
     bucketKey: string,
     requestId: string,
     operation: (signal: AbortSignal) => Promise<T>,
+    priority: TranslationRequestPriority = "normal",
   ): Promise<T> {
     const bucket = this.getOrCreateBucket(bucketKey);
     bucket.requests.get(requestId)?.controller.abort();
@@ -53,7 +78,12 @@ export class TranslationRequestGate {
 
     let release: (() => void) | undefined;
     try {
-      release = await this.acquire(bucketKey, bucket, entry.controller.signal);
+      release = await this.acquire(
+        bucketKey,
+        bucket,
+        entry.controller.signal,
+        priority,
+      );
       if (entry.controller.signal.aborted) throw cancellationError();
       return await operation(entry.controller.signal);
     } finally {
@@ -98,19 +128,30 @@ export class TranslationRequestGate {
     return bucket;
   }
 
+  private limitFor(priority: TranslationRequestPriority): number {
+    return priority === "urgent"
+      ? this.maxActivePerBucket
+      : this.maxActivePerBucket - this.reservedUrgentPerBucket;
+  }
+
   private acquire(
     bucketKey: string,
     bucket: BucketState,
     signal: AbortSignal,
+    priority: TranslationRequestPriority,
   ): Promise<() => void> {
     if (signal.aborted) return Promise.reject(cancellationError());
-    if (bucket.active < this.maxActivePerBucket) {
+    // grantNext() runs on every release, so a request is only queued while
+    // its priority's limit is reached; no same-or-higher priority waiter can
+    // be skipped by granting immediately here.
+    if (bucket.active < this.limitFor(priority)) {
       bucket.active += 1;
       return Promise.resolve(this.createRelease(bucketKey, bucket));
     }
 
     return new Promise<() => void>((resolve, reject) => {
       const pending: PendingPermit = {
+        priority,
         signal,
         resolve,
         reject,
@@ -142,22 +183,38 @@ export class TranslationRequestGate {
   }
 
   private grantNext(bucketKey: string, bucket: BucketState): void {
-    while (
-      bucket.active < this.maxActivePerBucket &&
-      bucket.pending.length > 0
-    ) {
-      const pending = bucket.pending.shift();
+    for (;;) {
+      // Urgent requests keep FIFO order among themselves and jump ahead of
+      // queued normal requests; normal requests never use reserved permits.
+      const nextIndex =
+        bucket.active < this.maxActivePerBucket
+          ? this.firstPending(bucket, "urgent")
+          : -1;
+      const index =
+        nextIndex >= 0
+          ? nextIndex
+          : bucket.active < this.limitFor("normal")
+            ? this.firstPending(bucket, "normal")
+            : -1;
+      if (index < 0) return;
+      const [pending] = bucket.pending.splice(index, 1);
       if (!pending || pending.settled) continue;
+      pending.settled = true;
       pending.signal.removeEventListener("abort", pending.onAbort);
       if (pending.signal.aborted) {
-        pending.settled = true;
         pending.reject(cancellationError());
         continue;
       }
-      pending.settled = true;
       bucket.active += 1;
       pending.resolve(this.createRelease(bucketKey, bucket));
     }
+  }
+
+  private firstPending(
+    bucket: BucketState,
+    priority: TranslationRequestPriority,
+  ): number {
+    return bucket.pending.findIndex((pending) => pending.priority === priority);
   }
 
   private deleteBucketIfEmpty(bucketKey: string, bucket: BucketState): void {

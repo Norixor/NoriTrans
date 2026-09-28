@@ -5,7 +5,7 @@ import {
 } from "@/src/cache/content-client";
 import { promptVersion, translationCacheKey } from "@/src/cache/keys";
 import { PageRenderer } from "@/src/page/renderer";
-import { composedContains } from "@/src/page/composed-tree";
+import { composedContains, composedParentNode } from "@/src/page/composed-tree";
 import { pageTranslationScope } from "@/src/page/navigation";
 import {
   composedSlotTextNodes,
@@ -14,6 +14,8 @@ import {
   scanPageSegments,
   shouldSkipTextNode,
   type PageSegment,
+  createSkipCache,
+  type SkipCache,
 } from "@/src/page/scanner";
 import type { ContentSettings } from "@/src/shared/settings";
 import { ChromeLocalProvider } from "@/src/translation/providers/chrome-local";
@@ -37,6 +39,7 @@ import type {
 } from "@/src/translation/types";
 import { browser } from "wxt/browser";
 import { runtimeId } from "@/src/shared/runtime-id";
+import { message as localizedMessage } from "@/src/shared/i18n";
 import { NoriTransError } from "@/src/shared/errors";
 import {
   translationDiagnostic,
@@ -74,8 +77,13 @@ const MAX_REQUEST_FRAGMENT_CHARACTERS = 3_000;
 const MAX_CONTEXT_FRAGMENT_CHARACTERS = 600;
 const MAX_ATTRIBUTE_TEXT_CHECKS = 400;
 const SHADOW_ROOT_DISCOVERY_INTERVAL_MS = 750;
+const SHADOW_ROOT_DISCOVERY_MAX_INTERVAL_MS = 3_000;
+const RENDERER_SYNC_INTERVAL_MS = 200;
 const DYNAMIC_SCAN_DEBOUNCE_MS = 120;
 const DYNAMIC_SCAN_MAX_WAIT_MS = 320;
+// Idle time kept between dynamic rescans, as a multiple of the last scan's
+// duration (4 => rescans use at most ~20% of the main thread).
+const DYNAMIC_SCAN_IDLE_RATIO = 4;
 const INTERACTION_SCAN_DEBOUNCE_MS = 90;
 const INTERACTION_SCAN_ROOT_LIMIT = 8;
 const INTERACTION_PATH_ROOT_LIMIT = 8;
@@ -766,18 +774,123 @@ function isHiddenRevealRoot(element: Element): boolean {
   );
 }
 
-function responsiveRevealRoot(node: Text, scanRoot: Element): Element | null {
-  let current = composedParentElement(node);
-  let hiddenRoot: Element | null = null;
-  const visited = new WeakSet<Element>();
+const LINGUISTIC_CONTENT = /[\p{L}\p{N}]/u;
+
+/**
+ * Per element: `null` when the element belongs to extension UI (never a reveal
+ * candidate), otherwise the outermost hidden element between it and the scan
+ * root, or `false` when none is hidden.
+ */
+type HiddenRootMemo = Map<Element, Element | false | null>;
+
+function hiddenRootFrom(
+  element: Element,
+  scanRoot: Element,
+  memo: HiddenRootMemo,
+): Element | false | null {
+  const chain: Element[] = [];
+  const visited = new Set<Element>();
+  let current: Element | null = element;
+  let inherited: Element | false | null = false;
   while (current) {
-    if (visited.has(current) || isExtensionUiNode(current)) break;
+    const known = memo.get(current);
+    if (known !== undefined) {
+      inherited = known;
+      break;
+    }
+    if (visited.has(current)) break;
     visited.add(current);
-    if (isHiddenRevealRoot(current)) hiddenRoot = current;
+    chain.push(current);
+    if (
+      current.tagName.startsWith("NORITRANS-") ||
+      current.hasAttribute("data-noritrans-ui") ||
+      current.hasAttribute("data-noritrans-translated")
+    ) {
+      inherited = null;
+      break;
+    }
     if (current === scanRoot) break;
     current = composedParentElement(current);
   }
-  return hiddenRoot;
+  // Resolve from the outermost chain entry inward so each element records the
+  // outermost hidden element at or above it.
+  for (let index = chain.length - 1; index >= 0; index -= 1) {
+    const entry = chain[index]!;
+    if (inherited === null) {
+      memo.set(entry, null);
+      continue;
+    }
+    if (!inherited && isHiddenRevealRoot(entry)) inherited = entry;
+    memo.set(entry, inherited);
+  }
+  return inherited;
+}
+
+function responsiveRevealRoot(
+  node: Text,
+  scanRoot: Element,
+  memo: HiddenRootMemo = new Map(),
+): Element | null {
+  const parent = composedParentElement(node);
+  if (!parent) return null;
+  return hiddenRootFrom(parent, scanRoot, memo) || null;
+}
+
+function compareDocumentOrder(left: PageSegment, right: PageSegment): number {
+  if (left.anchor === right.anchor)
+    return left.documentOrder - right.documentOrder;
+  const position = left.anchor.compareDocumentPosition(right.anchor);
+  if (position & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
+  if (position & Node.DOCUMENT_POSITION_PRECEDING) return 1;
+  return left.documentOrder - right.documentOrder;
+}
+
+/**
+ * Inserts newly scanned segments into document order. Dynamic scans usually
+ * add a few blocks to thousands, so when the existing list is still ordered a
+ * binary-search merge replaces a full O(n log n) layout-order sort.
+ */
+function mergeInDocumentOrder(
+  existing: readonly PageSegment[],
+  added: readonly PageSegment[],
+): PageSegment[] {
+  const sortedExisting = existing.every(
+    (segment, index) =>
+      index === 0 || compareDocumentOrder(existing[index - 1]!, segment) <= 0,
+  );
+  if (!sortedExisting) {
+    return [...existing, ...added].sort(compareDocumentOrder);
+  }
+  const merged: PageSegment[] = [];
+  let from = 0;
+  for (const segment of [...added].sort(compareDocumentOrder)) {
+    let low = from;
+    let high = existing.length;
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      if (compareDocumentOrder(existing[middle]!, segment) <= 0) {
+        low = middle + 1;
+      } else {
+        high = middle;
+      }
+    }
+    while (from < low) merged.push(existing[from++]!);
+    merged.push(segment);
+  }
+  while (from < existing.length) merged.push(existing[from++]!);
+  return merged;
+}
+
+function segmentsByAnchor(
+  segments: readonly PageSegment[],
+): Map<Element, PageSegment[]> {
+  const index = new Map<Element, PageSegment[]>();
+  for (const segment of segments) {
+    const existing = index.get(segment.anchor);
+    if (existing) existing.push(segment);
+    else index.set(segment.anchor, [segment]);
+  }
+  return index;
 }
 
 function descendantTextNodes(nodes: Iterable<Node>): Text[] {
@@ -804,6 +917,7 @@ function visibilityMutationChangesSegmentMembership(
   target: Element,
   segment: PageSegment,
   scanRoot: Element,
+  skipCache?: SkipCache,
 ): boolean {
   if (target !== segment.anchor && !composedContains(segment.anchor, target)) {
     return false;
@@ -812,7 +926,9 @@ function visibilityMutationChangesSegmentMembership(
     composedContains(target, node),
   );
   const currentNodes = descendantTextNodes([target]).filter(
-    (node) => !isExtensionUiNode(node) && !shouldSkipTextNode(node, scanRoot),
+    (node) =>
+      !isExtensionUiNode(node) &&
+      !shouldSkipTextNode(node, scanRoot, skipCache),
   );
   // Hiding the whole source anchor only needs the renderer's existing
   // visibility synchronization. Descendant membership changes require a new
@@ -833,6 +949,7 @@ function visibilityMutationChangesSegmentMembership(
 function attributeMayRevealUnseenText(
   mutation: MutationRecord,
   seen: WeakSet<Text>,
+  skipCache?: SkipCache,
 ): boolean {
   if (mutation.type !== "attributes" || !(mutation.target instanceof Element))
     return false;
@@ -846,7 +963,9 @@ function attributeMayRevealUnseenText(
         nodeRoot instanceof ShadowRoot
           ? nodeRoot
           : (document.body ?? document.documentElement);
-      if (!seen.has(node) && !shouldSkipTextNode(node, scanRoot)) return true;
+      if (!seen.has(node) && !shouldSkipTextNode(node, scanRoot, skipCache)) {
+        return true;
+      }
     }
   }
   const roots: Array<Element | ShadowRoot> = [mutation.target];
@@ -861,7 +980,7 @@ function attributeMayRevealUnseenText(
       if (
         node instanceof Text &&
         !seen.has(node) &&
-        !shouldSkipTextNode(node, root)
+        !shouldSkipTextNode(node, root, skipCache)
       ) {
         return true;
       }
@@ -1249,12 +1368,16 @@ export class PageTranslationSession {
   private observedRoots = new WeakSet<Node>();
   private mutationTimer: number | undefined;
   private mutationQueuedAt: number | undefined;
+  private lastDynamicScanEndedAt: number | undefined;
+  private lastDynamicScanDurationMs = 0;
   private interactionTimer: number | undefined;
   private interactionScanRoots = new Set<Element>();
   private responsiveScanTimer: number | undefined;
   private responsiveScanRoots = new Set<Element>();
   private observedVisualViewport: VisualViewport | undefined;
   private shadowDiscoveryTimer: number | undefined;
+  private rendererSyncTimer: number | undefined;
+  private rendererDirtyRoots: Set<Node> | "all" = new Set();
   private toggleEventRoots = new Set<Document | ShadowRoot>();
   private observedSlots = new Map<
     HTMLSlotElement,
@@ -1292,7 +1415,16 @@ export class PageTranslationSession {
     failed: 0,
   };
 
-  constructor(private readonly onStatus: StatusListener) {}
+  /**
+   * Set by `cancelPendingTranslations`; keeps the terminal state reported as
+   * `cancelled` (instead of `partial`) until a new run or retry starts.
+   */
+  private cancelled = false;
+
+  constructor(private readonly onStatus: StatusListener) {
+    this.renderer.failedMarkerLabel = localizedMessage("retryFailedBlock");
+    this.renderer.onRetryFailed = (segment) => this.retryFailed([segment]);
+  }
 
   getStatus(): PageStatus {
     return { ...this.status };
@@ -1322,12 +1454,18 @@ export class PageTranslationSession {
         configuredSourceLanguage: settings.page.sourceLanguage,
         targetLanguage: settings.page.targetLanguage,
       });
-      this.update({ state: "idle", total: 0, completed: 0, failed: 0 });
+      this.update({
+        state: "unavailable",
+        total: 0,
+        completed: 0,
+        failed: 0,
+      });
       return this.getStatus();
     }
     this.configureLocalProvider(settings);
     const controller = new AbortController();
     this.controller = controller;
+    this.cancelled = false;
     this.failureMessage = undefined;
     this.failureDetails = undefined;
     this.translationsByConfiguration.clear();
@@ -1381,7 +1519,49 @@ export class PageTranslationSession {
     this.documentSegments = [];
     this.invalidatedSegments = new WeakSet<PageSegment>();
     this.segmentOutcomes = new WeakMap<PageSegment, "completed" | "failed">();
+    this.cancelled = false;
     this.update({ state: "idle", total: 0, completed: 0, failed: 0 });
+    return this.getStatus();
+  }
+
+  /**
+   * Re-queues failed blocks (all of them, or only `segments`) without
+   * restoring the rest of the page. Completed translations stay in place; the
+   * retried blocks go through the normal dynamic-segment pipeline, so cached
+   * results, batching and cancellation behave exactly as for new content.
+   */
+  retryFailed(segments?: readonly PageSegment[]): PageStatus {
+    if (!this.settings) return this.getStatus();
+    const wanted = segments ? new Set(segments) : undefined;
+    const failedSegments = this.documentSegments.filter(
+      (segment) =>
+        this.segmentOutcomes.get(segment) === "failed" &&
+        (!wanted || wanted.has(segment)),
+    );
+    if (failedSegments.length === 0) return this.getStatus();
+    const root = this.activeRoot?.isConnected
+      ? this.activeRoot
+      : (document.body ?? document.documentElement);
+    if (!root) return this.getStatus();
+    this.cancelled = false;
+    if (!this.controller || this.controller.signal.aborted) {
+      this.controller = new AbortController();
+      this.configureLocalProvider(this.settings);
+    }
+    if (!this.observer) this.observeDynamicContent(root);
+    this.invalidateAnchors(
+      new Set(failedSegments.map((segment) => segment.anchor)),
+    );
+    if (this.status.failed === 0) {
+      this.failureMessage = undefined;
+      this.failureDetails = undefined;
+    }
+    const rescanned = scanPageSegments(root, this.seen);
+    if (rescanned.length === 0) {
+      this.finishStatus();
+      return this.getStatus();
+    }
+    this.startDynamicSegments(rescanned);
     return this.getStatus();
   }
 
@@ -1440,8 +1620,12 @@ export class PageTranslationSession {
     }
     this.toggleEventRoots.clear();
     if (this.shadowDiscoveryTimer !== undefined)
-      window.clearInterval(this.shadowDiscoveryTimer);
+      window.clearTimeout(this.shadowDiscoveryTimer);
     this.shadowDiscoveryTimer = undefined;
+    if (this.rendererSyncTimer !== undefined)
+      window.clearTimeout(this.rendererSyncTimer);
+    this.rendererSyncTimer = undefined;
+    this.rendererDirtyRoots = new Set();
     for (const [slot, observation] of this.observedSlots) {
       slot.removeEventListener("slotchange", observation.listener);
     }
@@ -1458,6 +1642,13 @@ export class PageTranslationSession {
       ? this.activeRoot
       : (document.body ?? document.documentElement);
     this.controller.abort();
+    // Blocks that never received a result are reported as failed so the user
+    // can retry only them; they get the same in-page retry marker.
+    const cancelledSegments = this.documentSegments.filter(
+      (segment) =>
+        !this.invalidatedSegments.has(segment) &&
+        this.segmentOutcomes.get(segment) === undefined,
+    );
     this.renderer.clearPending();
     this.stopDynamicObservation();
     this.controller = undefined;
@@ -1468,6 +1659,11 @@ export class PageTranslationSession {
       this.status.total - this.status.completed - this.status.failed,
     );
     this.status.failed += remaining;
+    for (const segment of cancelledSegments) {
+      this.segmentOutcomes.set(segment, "failed");
+    }
+    this.renderer.markFailed(cancelledSegments);
+    this.cancelled = remaining > 0;
     this.finishStatus();
     if (resumeDynamicObservation && this.settings && root) {
       this.controller = new AbortController();
@@ -1850,6 +2046,7 @@ export class PageTranslationSession {
               this.status.failed += 1;
               this.segmentOutcomes.set(segment, "failed");
             }
+            this.renderer.markFailed(pendingMembers);
             this.failureMessage ??=
               "页面内容在翻译期间发生变化，译文未能写入。";
             applyRetries.delete(result.id);
@@ -1943,10 +2140,10 @@ export class PageTranslationSession {
         );
         this.status.failed += currentSegments.length;
         for (const segment of currentSegments) {
-          this.renderer.clearPending([segment]);
           failedMembers.add(segment);
           this.segmentOutcomes.set(segment, "failed");
         }
+        this.renderer.markFailed(currentSegments);
         return currentSegments;
       };
       const completeWithoutTranslation = (
@@ -2418,10 +2615,33 @@ export class PageTranslationSession {
       const pageMutations = mutations.filter(
         (mutation) => !isExtensionOnlyMutation(mutation),
       );
+      // Rendering translations mutates the page too. Those records carry no
+      // page change, so they must not trigger another page-wide pass.
+      if (pageMutations.length === 0) return;
       const currentRoot = document.body ?? document.documentElement;
       const rootChanged = currentRoot !== this.activeRoot;
       this.activeRoot = currentRoot;
-      const discoveredRoot = this.observeAvailableRoots(currentRoot);
+      const addedNodes = pageMutations.flatMap((mutation) =>
+        mutation.type === "childList" ? [...mutation.addedNodes] : [],
+      );
+      const discoveredRoot = this.observeAvailableRoots(
+        currentRoot,
+        rootChanged ? undefined : addedNodes,
+      );
+      const skipCache = createSkipCache();
+      let anchorIndex: Map<Element, PageSegment[]> | undefined;
+      const segmentsAnchoredAtOrAbove = (target: Element): PageSegment[] => {
+        anchorIndex ??= segmentsByAnchor(this.documentSegments);
+        const matches: PageSegment[] = [];
+        let current: Node | null = target;
+        for (let depth = 0; current && depth < 4_096; depth += 1) {
+          if (current instanceof Element) {
+            matches.push(...(anchorIndex.get(current) ?? []));
+          }
+          current = composedParentNode(current);
+        }
+        return matches;
+      };
       const changedTextNodes = pageMutations.flatMap((mutation) =>
         mutation.type === "characterData" &&
         mutation.target instanceof Text &&
@@ -2494,12 +2714,14 @@ export class PageTranslationSession {
           // A nested visibility change alters the text membership of its
           // enclosing semantic block. Replace that block as one unit so a
           // newly visible child cannot create a second bilingual companion.
-          for (const segment of this.documentSegments) {
+          // Only blocks anchored at or above the target can be affected.
+          for (const segment of segmentsAnchoredAtOrAbove(mutation.target)) {
             if (
               visibilityMutationChangesSegmentMembership(
                 mutation.target,
                 segment,
                 currentRoot,
+                skipCache,
               )
             ) {
               changedAnchors.add(segment.anchor);
@@ -2536,14 +2758,17 @@ export class PageTranslationSession {
         }
       }
       this.invalidateAnchors(changedAnchors);
-      const discardedDetachedSegments = this.discardDetachedSegments();
+      // Detached-source cleanup and visibility/placement drift are handled by
+      // one throttled pass; a whole-page check per mutation batch is what
+      // made busy pages stutter. Rendering re-validates sources on apply.
+      this.markRendererDirty(pageMutations);
       const hasVisibilityAttributeChange = pageMutations.some(
         (mutation) =>
           !(
             mutation.type === "attributes" &&
             mutation.attributeName &&
             CONTROLLED_REVEAL_ATTRIBUTES.has(mutation.attributeName)
-          ) && attributeMayRevealUnseenText(mutation, this.seen),
+          ) && attributeMayRevealUnseenText(mutation, this.seen, skipCache),
       );
       this.queueInteractionScanRoots(controlledRoots);
       if (
@@ -2552,13 +2777,11 @@ export class PageTranslationSession {
         !hasVisibilityAttributeChange &&
         !rootChanged &&
         !discoveredRoot &&
-        !discardedDetachedSegments &&
         !pageMutations.some((mutation) => mutation.addedNodes.length > 0)
       ) {
         return;
       }
       for (const node of changedTextNodes) this.seen.delete(node);
-      if (discardedDetachedSegments) this.finishStatus();
       this.scheduleDynamicScan(currentRoot);
     });
     this.observeAvailableRoots(root);
@@ -2580,14 +2803,74 @@ export class PageTranslationSession {
       this.handleViewportResize,
       { passive: true },
     );
-    this.shadowDiscoveryTimer = window.setInterval(() => {
+    this.scheduleShadowDiscovery(SHADOW_ROOT_DISCOVERY_INTERVAL_MS);
+  }
+
+  /**
+   * `attachShadow()` emits no mutation, so a periodic full pass remains the
+   * only way to find late roots. Back off while nothing new appears so an idle
+   * translated page does not walk its whole DOM several times per second.
+   */
+  private scheduleShadowDiscovery(delay: number): void {
+    this.shadowDiscoveryTimer = window.setTimeout(() => {
+      this.shadowDiscoveryTimer = undefined;
+      if (!this.observer) return;
       const currentRoot = document.body ?? document.documentElement;
       const rootChanged = currentRoot !== this.activeRoot;
       this.activeRoot = currentRoot;
-      if (rootChanged || this.observeAvailableRoots(currentRoot)) {
+      const discovered = this.observeAvailableRoots(currentRoot);
+      if (rootChanged || discovered) {
         this.scheduleDynamicScan(currentRoot);
       }
-    }, SHADOW_ROOT_DISCOVERY_INTERVAL_MS);
+      this.scheduleShadowDiscovery(
+        rootChanged || discovered
+          ? SHADOW_ROOT_DISCOVERY_INTERVAL_MS
+          : Math.min(delay * 2, SHADOW_ROOT_DISCOVERY_MAX_INTERVAL_MS),
+      );
+    }, delay);
+  }
+
+  /**
+   * Keeps bilingual companions' visibility and placement in step with page
+   * style changes. Throttled because animated pages mutate class/style every
+   * frame, while a full pass is proportional to the translated block count.
+   */
+  private markRendererDirty(mutations: readonly MutationRecord[]): void {
+    for (const mutation of mutations) {
+      if (this.rendererDirtyRoots === "all") break;
+      const target = mutation.target;
+      const changedNodes =
+        mutation.type === "childList"
+          ? [...mutation.addedNodes, ...mutation.removedNodes]
+          : [];
+      if (
+        target === document.documentElement ||
+        target === document.head ||
+        target === document.body ||
+        changedNodes.some(
+          (node) =>
+            node instanceof HTMLStyleElement || node instanceof HTMLLinkElement,
+        )
+      ) {
+        // Stylesheets and root-level classes can restyle any block.
+        this.rendererDirtyRoots = "all";
+        break;
+      }
+      this.rendererDirtyRoots.add(target);
+    }
+    this.scheduleRendererSync();
+  }
+
+  private scheduleRendererSync(): void {
+    if (this.rendererSyncTimer !== undefined) return;
+    this.rendererSyncTimer = window.setTimeout(() => {
+      this.rendererSyncTimer = undefined;
+      const roots = this.rendererDirtyRoots;
+      this.rendererDirtyRoots = new Set();
+      if (!this.controller || this.controller.signal.aborted) return;
+      if (this.discardDetachedSegments()) this.finishStatus();
+      this.renderer.syncLayout(roots === "all" ? undefined : roots);
+    }, RENDERER_SYNC_INTERVAL_MS);
   }
 
   private readonly handleInteractionReveal = (event: Event): void => {
@@ -2758,9 +3041,12 @@ export class PageTranslationSession {
   }
 
   private trackResponsiveRevealRoots(root: Element): void {
+    const hiddenRootMemo: HiddenRootMemo = new Map();
     for (const node of descendantTextNodes([root])) {
-      if (this.seen.has(node) || isExtensionUiNode(node)) continue;
-      const hiddenRoot = responsiveRevealRoot(node, root);
+      // Whitespace and punctuation are never translated; skipping them first
+      // avoids an ancestor style walk for most text nodes on a page.
+      if (this.seen.has(node) || !LINGUISTIC_CONTENT.test(node.data)) continue;
+      const hiddenRoot = responsiveRevealRoot(node, root, hiddenRootMemo);
       if (!hiddenRoot || this.responsiveScanRoots.has(hiddenRoot)) continue;
       for (const existing of this.responsiveScanRoots) {
         if (hiddenRoot.contains(existing)) {
@@ -2783,9 +3069,19 @@ export class PageTranslationSession {
     const now = Date.now();
     this.mutationQueuedAt ??= now;
     const elapsed = Math.max(0, now - this.mutationQueuedAt);
+    // A full rescan costs time proportional to the page. On pages that mutate
+    // continuously, keep rescans to a bounded share of the main thread by
+    // spacing them by a multiple of the previous scan's duration.
+    const cooldown =
+      this.lastDynamicScanEndedAt === undefined
+        ? 0
+        : this.lastDynamicScanEndedAt +
+          this.lastDynamicScanDurationMs * DYNAMIC_SCAN_IDLE_RATIO -
+          now;
     const delay = Math.max(
       0,
       Math.min(DYNAMIC_SCAN_DEBOUNCE_MS, DYNAMIC_SCAN_MAX_WAIT_MS - elapsed),
+      cooldown,
     );
     if (this.mutationTimer !== undefined)
       window.clearTimeout(this.mutationTimer);
@@ -2794,6 +3090,7 @@ export class PageTranslationSession {
       this.mutationQueuedAt = undefined;
       if (!this.settings || !this.controller || this.controller.signal.aborted)
         return;
+      const startedAt = performance.now();
       const currentRoot = this.activeRoot?.isConnected
         ? this.activeRoot
         : (document.body ?? document.documentElement);
@@ -2801,6 +3098,8 @@ export class PageTranslationSession {
       const segments = scanPageSegments(currentRoot ?? root, this.seen);
       this.trackResponsiveRevealRoots(currentRoot ?? root);
       this.startDynamicSegments(segments);
+      this.lastDynamicScanDurationMs = performance.now() - startedAt;
+      this.lastDynamicScanEndedAt = Date.now();
     }, delay);
   }
 
@@ -2813,21 +3112,22 @@ export class PageTranslationSession {
     ) {
       return;
     }
-    this.documentSegments = [...this.documentSegments, ...segments].sort(
-      (left, right) => {
-        if (left.anchor === right.anchor)
-          return left.documentOrder - right.documentOrder;
-        const position = left.anchor.compareDocumentPosition(right.anchor);
-        if (position & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
-        if (position & Node.DOCUMENT_POSITION_PRECEDING) return 1;
-        return left.documentOrder - right.documentOrder;
-      },
+    this.documentSegments = mergeInDocumentOrder(
+      this.documentSegments,
+      segments,
     );
     for (const [index, segment] of this.documentSegments.entries()) {
       segment.documentOrder = index;
     }
     this.status.total += segments.length;
-    this.update({ ...this.status, state: "translating" });
+    // A new run supersedes the previous failure summary; finishStatus()
+    // re-attaches it when failed blocks remain after this run.
+    this.update({
+      state: "translating",
+      total: this.status.total,
+      completed: this.status.completed,
+      failed: this.status.failed,
+    });
     void this.runTranslationSegments(
       segments,
       this.settings,
@@ -2836,9 +3136,24 @@ export class PageTranslationSession {
     );
   }
 
-  private observeAvailableRoots(root: Element): boolean {
+  /**
+   * Observes open shadow roots under `root`, or only under `scope` when the
+   * caller knows which subtrees were added. A scoped pass keeps each mutation
+   * batch proportional to the inserted content rather than the whole page.
+   */
+  private observeAvailableRoots(
+    root: Element,
+    scope?: readonly Node[],
+  ): boolean {
     if (!this.observer) return false;
-    const shadowRoots = discoverOpenShadowRoots(root).filter(
+    const discoveredRoots = scope
+      ? scope.flatMap((node) =>
+          node instanceof Element && node.isConnected
+            ? discoverOpenShadowRoots(node)
+            : [],
+        )
+      : discoverOpenShadowRoots(root);
+    const shadowRoots = discoveredRoots.filter(
       (candidate) => !isExtensionUiNode(candidate.host),
     );
     const candidates: Node[] = [document, ...shadowRoots];
@@ -2877,18 +3192,20 @@ export class PageTranslationSession {
         this.toggleEventRoots.add(candidate);
       }
     }
-    if (this.observeSlots(shadowRoots)) discovered = true;
+    if (this.observeSlots(shadowRoots, scope === undefined)) discovered = true;
     return discovered;
   }
 
-  private observeSlots(shadowRoots: ShadowRoot[]): boolean {
+  private observeSlots(shadowRoots: ShadowRoot[], complete: boolean): boolean {
     const available = new Set(
       shadowRoots.flatMap((root) => [
         ...root.querySelectorAll<HTMLSlotElement>("slot"),
       ]),
     );
     for (const [slot, observation] of this.observedSlots) {
-      if (available.has(slot) && slot.isConnected) continue;
+      // A scoped pass only sees new subtrees, so it may prune detached slots
+      // but must keep every still-connected slot found by earlier passes.
+      if (slot.isConnected && (!complete || available.has(slot))) continue;
       slot.removeEventListener("slotchange", observation.listener);
       this.observedSlots.delete(slot);
     }
@@ -2936,8 +3253,9 @@ export class PageTranslationSession {
   }
 
   private invalidateAnchors(changedAnchors: ReadonlySet<Element>): void {
+    if (changedAnchors.size === 0) return;
     const restoredNodes = this.renderer.restoreAnchors(changedAnchors);
-    this.renderer.reconcile();
+    this.renderer.discardDetached();
     for (const node of restoredNodes) this.seen.delete(node);
     const invalidatedDocumentSegments = this.documentSegments.filter(
       (segment) => changedAnchors.has(segment.anchor),
@@ -2959,7 +3277,7 @@ export class PageTranslationSession {
   }
 
   private discardDetachedSegments(): boolean {
-    const discardedByRenderer = new Set(this.renderer.reconcile());
+    const discardedByRenderer = new Set(this.renderer.discardDetached());
     const discarded = this.documentSegments.filter(
       (segment) =>
         discardedByRenderer.has(segment) ||
@@ -3002,13 +3320,15 @@ export class PageTranslationSession {
         ? "idle"
         : this.status.completed + this.status.failed < this.status.total
           ? "translating"
-          : this.status.total > 0 &&
-              this.status.completed === 0 &&
-              this.status.failed >= this.status.total
-            ? "error"
-            : this.status.failed > 0
-              ? "partial"
-              : "translated";
+          : this.cancelled && this.status.failed > 0
+            ? "cancelled"
+            : this.status.total > 0 &&
+                this.status.completed === 0 &&
+                this.status.failed >= this.status.total
+              ? "error"
+              : this.status.failed > 0
+                ? "partial"
+                : "translated";
     if (
       this.settings?.page.mode === "fast" &&
       (pageFastProvider(this.settings) === "chrome-local" ||

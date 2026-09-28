@@ -189,4 +189,79 @@ describe("popup status UI", () => {
     expect(source?.selectedOptions[0]?.textContent).toBe("languageAuto");
     expect(source?.selectedOptions[0]?.disabled).toBe(false);
   });
+
+  it("retries only failed blocks and cancels an active page task", async () => {
+    vi.useFakeTimers();
+    vi.resetModules();
+    installPopupMarkup();
+    vi.stubGlobal("chrome", {
+      i18n: {
+        getMessage: (key: string) => key,
+        getUILanguage: () => "en",
+      },
+    });
+    vi.stubGlobal("browser", browser);
+    popupState.pageStatus = {
+      state: "partial",
+      total: 4,
+      completed: 3,
+      failed: 1,
+      message: "Provider failed",
+    };
+    popupState.subtitleStatus = {
+      state: "unavailable",
+      total: 0,
+      completed: 0,
+      failed: 0,
+    };
+
+    await import("@/entrypoints/popup/main");
+    await vi.waitFor(() =>
+      expect(
+        document.querySelector("#status-section")?.getAttribute("aria-busy"),
+      ).toBe("false"),
+    );
+    const translate =
+      document.querySelector<HTMLButtonElement>("#translate-page");
+    const restore = document.querySelector<HTMLButtonElement>("#restore-page");
+    const form = document.querySelector<HTMLFormElement>("#translation-form");
+    if (!translate || !restore || !form) throw new Error("missing popup form");
+    expect(translate.textContent).toBe("retryFailedBlocks");
+    expect(document.querySelector("#page-progress")?.textContent).toBe(
+      "progressCount 3/4",
+    );
+
+    const sent = vi.mocked(browser.tabs.sendMessage);
+    sent.mockClear();
+    form.requestSubmit();
+    await vi.waitFor(() =>
+      expect(
+        sent.mock.calls.some(
+          ([, request]) =>
+            (request as { type: string }).type === "PAGE_RETRY_FAILED",
+        ),
+      ).toBe(true),
+    );
+
+    popupState.pageStatus = {
+      state: "translating",
+      total: 4,
+      completed: 3,
+      failed: 0,
+    };
+    await vi.advanceTimersByTimeAsync(1_500);
+    await vi.waitFor(() =>
+      expect(restore.textContent).toBe("cancelPageTranslation"),
+    );
+    expect(translate.disabled).toBe(true);
+    sent.mockClear();
+    restore.click();
+    await vi.waitFor(() =>
+      expect(
+        sent.mock.calls.some(
+          ([, request]) => (request as { type: string }).type === "PAGE_CANCEL",
+        ),
+      ).toBe(true),
+    );
+  });
 });

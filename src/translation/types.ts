@@ -87,5 +87,13 @@ export interface TranslationFailure {
     | "bergamot_package_missing"
     | "bergamot_unsupported_language"
     | "chrome_language_detection_failed"
-    | "chrome_pair_unavailable";
+    | "chrome_pair_unavailable"
+    /** The client-side request deadline expired before the Provider answered. */
+    | "request_timeout"
+    /** The request could not reach the Provider (DNS, TLS, offline, CORS). */
+    | "network_error"
+    /** HTTP 429: the Provider is throttling; retry later without config changes. */
+    | "rate_limited"
+    /** HTTP 5xx: the Provider failed server-side; retry later. */
+    | "provider_server_error";
 }

@@ -367,6 +367,8 @@ async function defaultRemoteTranslate(
       type: "TRANSLATE",
       requestId,
       request,
+      // The user is waiting on this popover; do not queue behind page batches.
+      priority: "urgent",
     });
     if (!isTranslationResponse(response) || !response.ok || !response.results) {
       throw new Error(

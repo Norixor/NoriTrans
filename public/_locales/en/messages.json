@@ -1096,5 +1096,33 @@
   "updateNeverChecked": { "message": "No update check has run yet." },
   "updateCheckFailed": {
     "message": "Could not check GitHub releases. Try again later."
+  },
+  "pageStatusCancelled": { "message": "Translation cancelled" },
+  "retryFailedBlocks": { "message": "Retry failed items" },
+  "retryFailedBlock": { "message": "Translation failed for this block. Retry" },
+  "pageProgressLabel": {
+    "message": "$DONE$ of $TOTAL$ blocks",
+    "placeholders": {
+      "done": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
+  "openProviderSettings": { "message": "Open translation service settings" },
+  "runtimeErrorRateLimited": {
+    "message": "The translation provider is rate limiting requests. Wait a moment and retry the failed items."
+  },
+  "runtimeErrorProviderError": {
+    "message": "The translation provider returned a server error. Retry the failed items later."
+  },
+  "unsavedChanges": { "message": "Unsaved changes" },
+  "unsavedChangesLeave": {
+    "message": "You have unsaved settings changes. Leave without saving?"
+  },
+  "translationCancelledAnnouncement": {
+    "message": "Translation cancelled. $DONE$ of $TOTAL$ blocks were translated.",
+    "placeholders": {
+      "done": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
   }
 }

@@ -1,5 +1,6 @@
 import { NoriTransError } from "@/src/shared/errors";
 import { runtimeErrorToken } from "@/src/shared/runtime-errors";
+import { httpFailureClassification } from "@/src/translation/providers/http-failure";
 import type { DeepLPlan, FastProviderId } from "@/src/shared/settings";
 import {
   protectedTextParts,
@@ -178,21 +179,13 @@ export abstract class CloudMachineTranslationProvider implements TranslationProv
       });
       const text = await response.text();
       if (!response.ok) {
-        const retryable =
-          response.status === 408 ||
-          response.status === 429 ||
-          response.status >= 500;
+        const failure = httpFailureClassification(response.status);
         throw new NoriTransError(
-          runtimeErrorToken(
-            response.status === 401 || response.status === 403
-              ? "invalid_configuration"
-              : "request_failed",
-          ),
-          response.status === 401 || response.status === 403
-            ? "invalid_configuration"
-            : "request_failed",
-          retryable,
+          runtimeErrorToken(failure.messageCode),
+          failure.code,
+          failure.retryable,
           `Provider=${this.id}; HTTP status=${response.status}; response characters=${text.length}.`,
+          failure.reason,
         );
       }
       try {
@@ -203,11 +196,17 @@ export abstract class CloudMachineTranslationProvider implements TranslationProv
     } catch (error) {
       if (error instanceof NoriTransError) throw error;
       if (parentSignal.aborted) throw new DOMException("Aborted", "AbortError");
+      const reason = requestSignal.signal.aborted
+        ? "request_timeout"
+        : error instanceof TypeError
+          ? "network_error"
+          : undefined;
       throw new NoriTransError(
         runtimeErrorToken("provider_unavailable"),
         "provider_unavailable",
         true,
-        `Provider=${this.id}; failure=${error instanceof Error ? error.name : "unknown"}.`,
+        `Provider=${this.id}; failure=${reason ?? (error instanceof Error ? error.name : "unknown")}${reason === "request_timeout" ? `; timeoutMs=${this.config.timeoutMs}` : ""}.`,
+        reason,
       );
     } finally {
       requestSignal.dispose();

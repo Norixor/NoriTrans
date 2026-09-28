@@ -4,6 +4,8 @@ export type RuntimeErrorCode =
   | "invalid_configuration"
   | "invalid_response"
   | "request_failed"
+  | "rate_limited"
+  | "provider_error"
   | "cancelled"
   | "content_settings_unavailable"
   | "settings_save_failed"
@@ -16,6 +18,8 @@ type RuntimeErrorMessageKey =
   | "runtimeErrorInvalidConfiguration"
   | "runtimeErrorInvalidResponse"
   | "runtimeErrorRequestFailed"
+  | "runtimeErrorRateLimited"
+  | "runtimeErrorProviderError"
   | "runtimeErrorCancelled"
   | "runtimeErrorContentSettingsUnavailable"
   | "runtimeErrorSettingsSaveFailed"
@@ -30,6 +34,8 @@ const MESSAGE_KEYS: Record<RuntimeErrorCode, RuntimeErrorMessageKey> = {
   invalid_configuration: "runtimeErrorInvalidConfiguration",
   invalid_response: "runtimeErrorInvalidResponse",
   request_failed: "runtimeErrorRequestFailed",
+  rate_limited: "runtimeErrorRateLimited",
+  provider_error: "runtimeErrorProviderError",
   cancelled: "runtimeErrorCancelled",
   content_settings_unavailable: "runtimeErrorContentSettingsUnavailable",
   settings_save_failed: "runtimeErrorSettingsSaveFailed",

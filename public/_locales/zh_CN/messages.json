@@ -986,5 +986,31 @@
     "placeholders": { "version": { "content": "$1" } }
   },
   "updateNeverChecked": { "message": "尚未检查版本更新。" },
-  "updateCheckFailed": { "message": "无法检查 GitHub Release，请稍后重试。" }
+  "updateCheckFailed": { "message": "无法检查 GitHub Release，请稍后重试。" },
+  "pageStatusCancelled": { "message": "翻译已取消" },
+  "retryFailedBlocks": { "message": "重试失败项" },
+  "retryFailedBlock": { "message": "此段翻译失败，点击重试" },
+  "pageProgressLabel": {
+    "message": "已完成 $DONE$ / $TOTAL$ 段",
+    "placeholders": {
+      "done": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
+  "openProviderSettings": { "message": "打开翻译服务设置" },
+  "runtimeErrorRateLimited": {
+    "message": "翻译 Provider 正在限流，请稍候再重试失败项。"
+  },
+  "runtimeErrorProviderError": {
+    "message": "翻译 Provider 返回服务端错误，请稍后重试失败项。"
+  },
+  "unsavedChanges": { "message": "有未保存的修改" },
+  "unsavedChangesLeave": { "message": "设置尚未保存，确定离开？" },
+  "translationCancelledAnnouncement": {
+    "message": "翻译已取消，已完成 $DONE$ / $TOTAL$ 段。",
+    "placeholders": {
+      "done": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  }
 }

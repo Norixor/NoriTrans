@@ -31,10 +31,14 @@ export class BergamotRuntimeError extends Error {
 
 export function bergamotFailure(error: unknown): BergamotRuntimeFailure {
   if (error instanceof BergamotRuntimeError) return error.toFailure();
-  if (
-    error instanceof DOMException &&
-    (error.name === "AbortError" || error.name === "TimeoutError")
-  ) {
+  if (error instanceof DOMException && error.name === "TimeoutError") {
+    return new BergamotRuntimeError(
+      "bergamot_timeout",
+      "Bergamot operation timed out.",
+      true,
+    ).toFailure();
+  }
+  if (error instanceof DOMException && error.name === "AbortError") {
     return new BergamotRuntimeError(
       "bergamot_cancelled",
       "Bergamot operation was cancelled.",

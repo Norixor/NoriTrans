@@ -241,8 +241,20 @@ export const UNIFIED_FLOATING_CONTROL_STYLE = `
     padding: 0 3px 10px;
     border-bottom: 1px solid var(--nt-border-muted);
   }
-  .status-copy { display: flex; min-width: 0; align-items: center; gap: 10px; }
+  .status-copy {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: 8px minmax(0, 1fr);
+    align-items: center;
+    column-gap: 10px;
+    row-gap: 2px;
+  }
   .dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: #918b81; box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 8%, transparent); }
+  /* Failure states also change the dot's shape so the row is not color-only. */
+  .status-row[data-state="error"] .dot { border-radius: 2px; }
+  .status-row[data-state="partial"] .dot,
+  .status-row[data-state="cancelled"] .dot { border-radius: 50% 50% 2px 2px; }
+  .status-row[data-state="cancelled"] .dot { background: #8c959f; }
   .status-row[data-state="scanning"] .dot,
   .status-row[data-state="translating"] .dot,
   .status-row[data-state="waiting"] .dot { background: var(--nt-accent); }
@@ -253,14 +265,33 @@ export const UNIFIED_FLOATING_CONTROL_STYLE = `
   .status-row[data-state="unavailable"] .dot,
   .status-row[data-state="disabled"] .dot { background: #8c959f; }
   .status {
+    display: -webkit-box;
     min-width: 0;
     overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
     font-size: 12.5px;
     font-weight: 680;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
     text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
   }
-  .progress { flex: 0 0 auto; color: var(--nt-muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+  .status-detail {
+    display: -webkit-box;
+    min-width: 0;
+    grid-column: 2;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    color: var(--nt-muted);
+    font-size: 11.5px;
+    font-weight: 500;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+  }
+  .status-detail[hidden] { display: none; }
+  .progress { flex: 0 0 auto; color: var(--nt-muted); font-size: 11.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .diagnostic {
     margin: 6px 0 0;
     border: 1px solid var(--nt-border-muted);
@@ -303,6 +334,18 @@ export const UNIFIED_FLOATING_CONTROL_STYLE = `
     overflow-wrap: anywhere;
     white-space: pre-wrap;
   }
+  .diagnostic-link {
+    display: inline-flex;
+    min-height: 32px;
+    align-items: center;
+    margin: 0 10px 8px;
+    color: var(--nt-accent-hover);
+    font-size: 12px;
+    font-weight: 650;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .diagnostic-link:focus-visible { outline: 3px solid var(--nt-focus); outline-offset: 2px; }
   .settings-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -523,16 +566,37 @@ export const UNIFIED_FLOATING_CONTROL_STYLE = `
     place-items: center;
   }
   .launcher-surface svg { width: 23px; height: 23px; }
+  /*
+   * The launcher badge only appears when the last task needs attention:
+   * partial/cancelled (round, warning color) or failed (square, danger
+   * color). Shape differs so the state is not conveyed by color alone.
+   */
   .launcher-active-dot {
     position: absolute;
-    top: 4px;
-    right: 5px;
-    width: 6px;
-    height: 6px;
+    top: 3px;
+    right: 4px;
+    display: none;
+    width: 8px;
+    height: 8px;
     border: 1px solid rgb(122 74 0 / 30%);
     border-radius: 50%;
-    background: var(--nt-accent);
+    background: var(--nt-warning);
     box-shadow: 0 1px 2px rgb(88 54 0 / 26%);
+  }
+  :host([data-attention="partial"]) .launcher-active-dot { display: block; }
+  :host([data-attention="error"]) .launcher-active-dot {
+    display: block;
+    border-radius: 2px;
+    background: var(--nt-danger);
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
   .launcher-surface::before {
     position: absolute;
@@ -610,6 +674,26 @@ export const UNIFIED_FLOATING_CONTROL_STYLE = `
     place-items: center;
   }
   .quick-action svg { width: 20px; height: 20px; }
+  .quick-action:disabled {
+    border-style: dashed;
+    color: var(--nt-muted);
+    opacity: 0.6;
+    box-shadow: none;
+    filter: grayscale(1);
+  }
+  .quick-progress {
+    display: inline-block;
+    min-width: 0;
+    padding: 5px 7px;
+    border: 1px solid var(--nt-border);
+    border-radius: 6px;
+    background: var(--nt-bg);
+    color: var(--nt-text);
+    font: 600 11px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .quick-progress[hidden] { display: none; }
   .quick-translate {
     border-color: var(--nt-border);
     background: var(--nt-bg);
@@ -642,6 +726,11 @@ export const UNIFIED_FLOATING_CONTROL_STYLE = `
   }
   .danger { color: var(--nt-danger); }
   @keyframes noritrans-launcher-spin { to { transform: rotate(360deg); } }
+  @media (forced-colors: active) {
+    .launcher-active-dot { border: 2px solid CanvasText; background: Highlight; }
+    .dot { border: 1px solid CanvasText; }
+    .quick-action:disabled { border-style: dashed; }
+  }
   @media (max-width: 375px) {
     .panel { width: calc(100vw - 20px); max-width: calc(100vw - 20px); }
     .panel-menu-popover button, .panel-menu-popover a,

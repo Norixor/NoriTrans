@@ -73,6 +73,10 @@ export interface FloatingControlPosition {
 export interface UnifiedFloatingControlOptions {
   settings: ContentSettings;
   onPageTranslate(): Promise<void> | void;
+  /** Re-queues only failed blocks; falls back to `onPageTranslate` when absent. */
+  onPageRetryFailed?(): Promise<void> | void;
+  /** Stops in-flight work but keeps translated blocks; falls back to restore. */
+  onPageCancel?(): Promise<void> | void;
   onPageRestore(): Promise<void> | void;
   onAutoTranslateChange(enabled: boolean): Promise<void> | void;
   onPageSettingsChange(
@@ -181,6 +185,10 @@ function pageStateMessage(state: PageStatus["state"]): string {
       return message("pageStatusPartial");
     case "error":
       return message("pageStatusError");
+    case "cancelled":
+      return message("pageStatusCancelled");
+    case "unavailable":
+      return message("pageStatusUnavailable");
   }
 }
 
@@ -203,18 +211,56 @@ function subtitleStateMessage(state: SubtitleStatus["state"]): string {
   }
 }
 
+interface LayeredStatusText {
+  /** Short state word shown in the status row's first line. */
+  title: string;
+  /** Provider/reason sentence shown below the title; empty when none. */
+  detail: string;
+}
+
+const LAYERED_PAGE_STATES: ReadonlySet<PageStatus["state"]> = new Set([
+  "partial",
+  "error",
+  "cancelled",
+  "unavailable",
+]);
+
+/**
+ * Failure states keep the short state word as the headline and move the
+ * (often long) reason into a second, muted line instead of truncating it.
+ */
+function pageStatusText(status: PageStatus): LayeredStatusText {
+  const stateMessage = pageStateMessage(status.state);
+  if (status.message && LAYERED_PAGE_STATES.has(status.state)) {
+    return { title: stateMessage, detail: status.message };
+  }
+  return { title: status.message ?? stateMessage, detail: "" };
+}
+
 function subtitleStatusMessage(
   status: SubtitleStatus,
   displayState: SubtitleStatus["state"],
-): string {
-  const stateMessage = status.message ?? subtitleStateMessage(displayState);
-  if (!status.completeness) return stateMessage;
-  const trackKind = message(
-    status.completeness === "full"
-      ? "subtitleTrackFull"
-      : "subtitleTrackStream",
-  );
-  return `${stateMessage} · ${trackKind}`;
+): LayeredStatusText {
+  const stateMessage = subtitleStateMessage(displayState);
+  const trackKind = status.completeness
+    ? message(
+        status.completeness === "full"
+          ? "subtitleTrackFull"
+          : "subtitleTrackStream",
+      )
+    : "";
+  const withTrack = (text: string): string =>
+    trackKind ? `${text} · ${trackKind}` : text;
+  if (
+    status.message &&
+    (displayState === "error" ||
+      displayState === "partial" ||
+      displayState === "cancelled" ||
+      displayState === "unavailable")
+  ) {
+    return { title: withTrack(stateMessage), detail: status.message };
+  }
+  return { title: withTrack(status.message ?? stateMessage), detail: "" };
 }
 
 function ocrStateMessage(state: OcrStatus["state"]): string {
@@ -302,7 +348,9 @@ export class UnifiedFloatingControl {
   private readonly updateLink = document.createElement("a");
   private readonly ignoreUpdateButton = document.createElement("button");
   private readonly launcher = document.createElement("button");
+  private readonly liveRegion = document.createElement("div");
   private readonly quickActions = document.createElement("div");
+  private readonly quickProgress = document.createElement("output");
   private readonly quickTranslateButton = document.createElement("button");
   private readonly quickStopButton = document.createElement("button");
   private readonly pageTab = document.createElement("button");
@@ -404,6 +452,8 @@ export class UnifiedFloatingControl {
   };
   private preferredTaskTarget: FloatingTaskTarget = "page";
   private pageBusy = false;
+  private lastPageAnnouncement: string | undefined;
+  private readonly statusDetails = new WeakMap<HTMLElement, HTMLElement>();
   private expanded = false;
   private dragState: DragState | undefined;
   private suppressLauncherClick = false;
@@ -571,7 +621,7 @@ export class UnifiedFloatingControl {
     this.pageStatusRow.append(pageStatusCopy, this.pageProgress);
     this.configureDiagnostic(this.pageDiagnostic, this.pageDiagnosticText);
     const autoLabel = document.createElement("label");
-    autoLabel.className = "checkbox page-toggle";
+    autoLabel.className = "checkbox page-toggle field-wide";
     this.autoTranslate.type = "checkbox";
     this.autoTranslate.setAttribute(
       "aria-label",
@@ -658,11 +708,13 @@ export class UnifiedFloatingControl {
     this.restoreButton.type = "button";
     this.restoreButton.textContent = message("widgetRestore");
     pageActions.append(this.translateButton, this.restoreButton);
+    // Status, then actions, then settings: after a failure the retry/cancel
+    // controls stay adjacent to the message instead of below every select.
     this.pagePanel.append(
       this.pageStatusRow,
       this.pageDiagnostic,
-      pageSettingsGrid,
       pageActions,
+      pageSettingsGrid,
     );
 
     this.videoPanel.id = "noritrans-video-panel";
@@ -817,7 +869,7 @@ export class UnifiedFloatingControl {
     this.ocrStopButton.type = "button";
     this.ocrStopButton.textContent = message("ocrStop");
     ocrActions.append(this.ocrStartButton, this.ocrStopButton);
-    this.configureDiagnostic(this.ocrDiagnostic, this.ocrDiagnosticText);
+    this.configureDiagnostic(this.ocrDiagnostic, this.ocrDiagnosticText, false);
     ocrSummary.append(this.ocrStatusRow);
     ocrControls.append(
       ocrEnabledLabel,
@@ -828,8 +880,8 @@ export class UnifiedFloatingControl {
     this.ocrDetails.append(ocrSummary, ocrControls);
     this.videoPanel.append(
       this.subtitleStatusRow,
-      subtitleActions,
       this.subtitleDiagnostic,
+      subtitleActions,
       videoSettingsGrid,
       createProfileButton,
       this.ocrDetails,
@@ -911,8 +963,8 @@ export class UnifiedFloatingControl {
     this.imagePanel.append(
       this.imageStatusRow,
       this.imageDiagnostic,
-      imageGrid,
       imageActions,
+      imageGrid,
     );
 
     this.launcher.className = "icon-button launcher";
@@ -927,12 +979,20 @@ export class UnifiedFloatingControl {
     this.launcher.innerHTML =
       '<span class="launcher-surface"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h10M9 3v2c0 4-2 7-5 9"/><path d="M6 10c2 0 4 1 6 3"/><path d="m14 19 3-8 3 8M15 16h4"/></svg><span class="launcher-active-dot" aria-hidden="true"></span></span>';
 
+    this.liveRegion.className = "sr-only";
+    this.liveRegion.setAttribute("role", "status");
+    this.liveRegion.setAttribute("aria-live", "polite");
     this.quickActions.className = "quick-actions";
     this.quickActions.setAttribute("role", "group");
     this.quickActions.setAttribute(
       "aria-label",
       message("floatingPageQuickActions"),
     );
+    // The launcher's accessible name already carries the percentage; the
+    // badge is a sighted-user shortcut for the collapsed state.
+    this.quickProgress.className = "quick-progress";
+    this.quickProgress.setAttribute("aria-hidden", "true");
+    this.quickProgress.hidden = true;
     this.quickTranslateButton.type = "button";
     this.quickTranslateButton.className = "quick-action quick-translate";
     this.quickTranslateButton.setAttribute(
@@ -949,7 +1009,11 @@ export class UnifiedFloatingControl {
     );
     this.quickStopButton.innerHTML =
       '<svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg>';
-    this.quickActions.append(this.quickTranslateButton, this.quickStopButton);
+    this.quickActions.append(
+      this.quickProgress,
+      this.quickTranslateButton,
+      this.quickStopButton,
+    );
 
     this.panel.append(
       header,
@@ -959,7 +1023,12 @@ export class UnifiedFloatingControl {
       this.videoPanel,
       this.imagePanel,
     );
-    control.append(this.panel, this.launcher, this.quickActions);
+    control.append(
+      this.panel,
+      this.launcher,
+      this.quickActions,
+      this.liveRegion,
+    );
     root.append(style, control);
     document.documentElement.append(this.host);
 
@@ -1005,7 +1074,12 @@ export class UnifiedFloatingControl {
     this.imageTab.addEventListener("click", () => this.activateTab("image"));
     tablist.addEventListener("keydown", this.handleTabKeydown);
     this.translateButton.addEventListener("click", () => {
-      void this.runPageAction(() => this.options.onPageTranslate());
+      const retry = this.pageRetryAvailable();
+      void this.runPageAction(() =>
+        retry
+          ? (this.options.onPageRetryFailed ?? this.options.onPageTranslate)()
+          : this.options.onPageTranslate(),
+      );
     });
     this.quickTranslateButton.addEventListener("click", () => {
       void this.runQuickTranslateAction();
@@ -1014,7 +1088,12 @@ export class UnifiedFloatingControl {
       void this.runQuickStopAction();
     });
     this.restoreButton.addEventListener("click", () => {
-      void this.runPageAction(() => this.options.onPageRestore());
+      const cancel = this.pageTaskActive();
+      void this.runPageAction(() =>
+        cancel
+          ? (this.options.onPageCancel ?? this.options.onPageRestore)()
+          : this.options.onPageRestore(),
+      );
     });
     this.autoTranslate.addEventListener("change", () => {
       void this.changeAutoTranslate();
@@ -1558,15 +1637,17 @@ export class UnifiedFloatingControl {
     this.currentPageStatus = status;
     if (this.pageTaskActive()) this.preferredTaskTarget = "page";
     this.pageStatusRow.dataset.state = status.state;
-    this.pageStatus.textContent =
-      status.message ?? pageStateMessage(status.state);
+    const text = pageStatusText(status);
+    this.setStatusText(this.pageStatus, text);
     this.pageProgress.textContent = this.progressText(status);
     this.updateDiagnostic(
       this.pageDiagnostic,
       this.pageDiagnosticText,
       status.details,
     );
+    this.announcePageTransition(status, text);
     this.syncPageButtons();
+    this.syncLauncherAttention();
     this.syncLauncherLoading();
   }
 
@@ -1575,9 +1656,9 @@ export class UnifiedFloatingControl {
     if (this.videoTaskActive()) this.preferredTaskTarget = "video";
     const displayState = stableSubtitleDisplayState(status);
     this.subtitleStatusRow.dataset.state = displayState;
-    this.subtitleStatus.textContent = subtitleStatusMessage(
-      status,
-      displayState,
+    this.setStatusText(
+      this.subtitleStatus,
+      subtitleStatusMessage(status, displayState),
     );
     this.subtitleProgress.textContent = this.progressText(status);
     this.updateDiagnostic(
@@ -1587,15 +1668,73 @@ export class UnifiedFloatingControl {
     );
     this.syncVideoStatusVisibility();
     this.syncSubtitleTaskButtons();
+    this.syncLauncherAttention();
     this.syncLauncherLoading();
+  }
+
+  private setStatusText(status: HTMLElement, text: LayeredStatusText): void {
+    status.textContent = text.title;
+    status.title = text.detail ? `${text.title} — ${text.detail}` : text.title;
+    const detail = this.statusDetails.get(status);
+    if (!detail) return;
+    detail.textContent = text.detail;
+    detail.title = text.detail;
+    detail.hidden = !text.detail;
+  }
+
+  /**
+   * Announces page state transitions (not every batch) through a live region
+   * that stays in the DOM while the panel is collapsed; the panel's own
+   * `role=status` covers the expanded case.
+   */
+  private announcePageTransition(
+    status: PageStatus,
+    text: LayeredStatusText,
+  ): void {
+    const key = status.state === "scanning" ? "translating" : status.state;
+    if (key === this.lastPageAnnouncement) return;
+    this.lastPageAnnouncement = key;
+    if (key === "idle" || this.expanded) {
+      this.liveRegion.textContent = "";
+      return;
+    }
+    const counts = [String(status.completed), String(status.total)];
+    let announcement = text.detail
+      ? `${text.title}. ${text.detail}`
+      : text.title;
+    if (key === "cancelled") {
+      announcement = message("translationCancelledAnnouncement", counts);
+    } else if (key !== "translating" && status.total > 0) {
+      announcement = `${announcement} ${message("pageProgressLabel", counts)}`;
+    }
+    this.liveRegion.textContent = announcement;
+  }
+
+  private syncLauncherAttention(): void {
+    const page = this.currentPageStatus;
+    const subtitle = this.currentSubtitleStatus;
+    const subtitleDisplay = stableSubtitleDisplayState(subtitle);
+    const attention =
+      page.state === "error" || subtitleDisplay === "error"
+        ? "error"
+        : page.state === "partial" ||
+            page.state === "cancelled" ||
+            subtitleDisplay === "partial" ||
+            (subtitleDisplay === "cancelled" && subtitle.failed > 0)
+          ? "partial"
+          : undefined;
+    if (attention) this.host.dataset.attention = attention;
+    else delete this.host.dataset.attention;
   }
 
   updateOcrStatus(status: OcrStatus): void {
     this.currentOcrStatus = status;
     if (this.ocrTaskActive()) this.preferredTaskTarget = "video";
     this.ocrStatusRow.dataset.state = status.state;
-    this.ocrStatus.textContent =
-      status.message ?? ocrStateMessage(status.state);
+    this.setStatusText(this.ocrStatus, {
+      title: status.message ?? ocrStateMessage(status.state),
+      detail: "",
+    });
     this.ocrProgress.textContent =
       status.state === "initializing" && status.progress !== undefined
         ? `${Math.round(status.progress * 100)}%`
@@ -1624,11 +1763,14 @@ export class UnifiedFloatingControl {
       this.preferredTaskTarget = "image";
     }
     this.imageStatusRow.dataset.state = status.state;
-    this.imageStatus.textContent =
-      status.message ??
-      message(
-        `imageStatus${status.state[0]?.toUpperCase()}${status.state.slice(1)}`,
-      );
+    this.setStatusText(this.imageStatus, {
+      title:
+        status.message ??
+        message(
+          `imageStatus${status.state[0]?.toUpperCase()}${status.state.slice(1)}`,
+        ),
+      detail: "",
+    });
     this.imageProgress.textContent = this.progressText(status);
     this.updateDiagnostic(
       this.imageDiagnostic,
@@ -1717,6 +1859,7 @@ export class UnifiedFloatingControl {
   private configureDiagnostic(
     diagnostic: HTMLDetailsElement,
     text: HTMLPreElement,
+    withSettingsLink = true,
   ): void {
     diagnostic.className = "diagnostic";
     diagnostic.hidden = true;
@@ -1724,6 +1867,16 @@ export class UnifiedFloatingControl {
     summary.textContent = message("viewProviderDetails");
     text.setAttribute("aria-label", message("providerDetailsLabel"));
     diagnostic.append(summary, text);
+    if (!withSettingsLink) return;
+    const settingsLink = document.createElement("a");
+    settingsLink.className = "diagnostic-link";
+    settingsLink.href =
+      browser.runtime?.getURL?.("/options.html#providers") ?? "#providers";
+    settingsLink.target = "_blank";
+    settingsLink.rel = "noopener";
+    settingsLink.textContent = message("openProviderSettings");
+    settingsLink.addEventListener("click", () => this.collapse(false));
+    diagnostic.append(settingsLink);
   }
 
   private updateDiagnostic(
@@ -1746,7 +1899,11 @@ export class UnifiedFloatingControl {
     status.className = "status";
     status.setAttribute("role", "status");
     status.setAttribute("aria-live", "polite");
-    copy.append(dot, status);
+    const detail = document.createElement("span");
+    detail.className = "status-detail";
+    detail.hidden = true;
+    this.statusDetails.set(status, detail);
+    copy.append(dot, status, detail);
     return copy;
   }
 
@@ -2011,6 +2168,16 @@ export class UnifiedFloatingControl {
     ];
     if (active.length === 1) return active[0]!;
     return this.preferredTaskTarget;
+  }
+
+  private pageRetryAvailable(): boolean {
+    const status = this.currentPageStatus;
+    return (
+      status.failed > 0 &&
+      (status.state === "partial" ||
+        status.state === "error" ||
+        status.state === "cancelled")
+    );
   }
 
   private runQuickTranslateAction(): void {
@@ -2469,7 +2636,9 @@ export class UnifiedFloatingControl {
       const translating =
         this.currentPageStatus.state === "scanning" ||
         this.currentPageStatus.state === "translating";
-      translateLabel = message("widgetTranslate");
+      translateLabel = message(
+        this.pageRetryAvailable() ? "retryFailedBlocks" : "widgetTranslate",
+      );
       stopLabel = message("stopPageTranslation");
       this.quickTranslateButton.disabled = this.pageBusy || translating;
       this.quickStopButton.disabled = this.pageBusy || !translating;
@@ -2570,10 +2739,17 @@ export class UnifiedFloatingControl {
           String(Math.round(progress * 100)),
         )}`,
       );
+      const countText = `${completed}/${total}`;
+      this.launcher.title = `${launcherLabel} · ${countText}`;
+      this.quickProgress.textContent = countText;
+      this.quickProgress.hidden = false;
     } else {
       this.host.dataset.progressMode = "indeterminate";
       this.host.style.removeProperty("--nt-progress-angle");
       this.launcher.setAttribute("aria-label", launcherLabel);
+      this.launcher.title = launcherLabel;
+      this.quickProgress.textContent = "";
+      this.quickProgress.hidden = true;
     }
     this.launcher.setAttribute("aria-busy", String(loading));
   }
@@ -2587,9 +2763,13 @@ export class UnifiedFloatingControl {
         ? this.settings.provider.aiProvider
         : (this.settings.page.fastProviderOverride ??
           this.settings.provider.fastProvider);
+    this.translateButton.textContent = message(
+      this.pageRetryAvailable() ? "retryFailedBlocks" : "widgetTranslate",
+    );
     this.translateButton.disabled =
       this.pageBusy ||
       translating ||
+      this.currentPageStatus.state === "unavailable" ||
       !this.pairAvailable(
         provider,
         this.settings.page.sourceLanguage,
@@ -2602,7 +2782,8 @@ export class UnifiedFloatingControl {
       this.pageBusy ||
       (!translating &&
         this.currentPageStatus.state !== "translated" &&
-        this.currentPageStatus.state !== "partial");
+        this.currentPageStatus.state !== "partial" &&
+        this.currentPageStatus.state !== "cancelled");
     this.syncQuickActions();
   }
 

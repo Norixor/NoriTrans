@@ -44,6 +44,8 @@ function isPageStatus(value: unknown): value is PageStatus {
       "translated",
       "partial",
       "error",
+      "cancelled",
+      "unavailable",
     ].includes(value.state) &&
     "total" in value &&
     typeof value.total === "number" &&
@@ -172,6 +174,7 @@ async function initialize(): Promise<void> {
   let statusRefreshBusy = false;
   let actionBusy = false;
   let pageAvailable = false;
+  let currentPageStatus: PageStatus | undefined;
   let translationCapabilities: TranslationCapabilities | undefined;
 
   const renderUpdateStatus = (status: ExtensionUpdateStatus): void => {
@@ -351,9 +354,37 @@ async function initialize(): Promise<void> {
         targetSelect.value,
         translationCapabilities,
       );
-    translateButton.disabled = actionBusy || !pageAvailable || !pairAvailable;
+    const translating =
+      currentPageStatus?.state === "scanning" ||
+      currentPageStatus?.state === "translating";
+    const retry =
+      currentPageStatus !== undefined &&
+      currentPageStatus.failed > 0 &&
+      ["partial", "error", "cancelled"].includes(currentPageStatus.state);
+    // Mirror the floating control: the primary action retries only failed
+    // blocks after a partial result, and the secondary action cancels an
+    // active task instead of restoring the page.
+    translateButton.textContent = message(
+      retry ? "retryFailedBlocks" : "translateCurrentPage",
+    );
+    restoreButton.textContent = message(
+      translating ? "cancelPageTranslation" : "restoreOriginal",
+    );
+    translateButton.disabled =
+      actionBusy || !pageAvailable || !pairAvailable || translating;
     restoreButton.disabled = actionBusy || !pageAvailable;
   };
+  const pageCommand = (): "PAGE_TRANSLATE" | "PAGE_RETRY_FAILED" =>
+    currentPageStatus !== undefined &&
+    currentPageStatus.failed > 0 &&
+    ["partial", "error", "cancelled"].includes(currentPageStatus.state)
+      ? "PAGE_RETRY_FAILED"
+      : "PAGE_TRANSLATE";
+  const secondaryCommand = (): "PAGE_RESTORE" | "PAGE_CANCEL" =>
+    currentPageStatus?.state === "scanning" ||
+    currentPageStatus?.state === "translating"
+      ? "PAGE_CANCEL"
+      : "PAGE_RESTORE";
 
   const setPageAvailable = (available: boolean): void => {
     pageAvailable = available;
@@ -422,9 +453,11 @@ async function initialize(): Promise<void> {
         { frameId: 0 },
       );
       if (isPageStatus(pageStatus)) {
-        setPageAvailable(true);
+        currentPageStatus = pageStatus;
+        setPageAvailable(pageStatus.state !== "unavailable");
         pageStatusElement.textContent =
           pageStatus.message ?? message(statusKey("page", pageStatus.state));
+        pageStatusElement.title = pageStatusElement.textContent;
         setProgress(
           pageProgressElement,
           pageStatus.completed,
@@ -432,6 +465,7 @@ async function initialize(): Promise<void> {
         );
         updateDiagnostic(pageDiagnostic, pageStatus.details);
       } else {
+        currentPageStatus = undefined;
         setPageAvailable(false);
         pageStatusElement.textContent = message("pageStatusUnavailable");
         pageProgressElement.textContent = "";
@@ -454,6 +488,7 @@ async function initialize(): Promise<void> {
         updateDiagnostic(subtitleDiagnostic, undefined);
       }
     } catch {
+      currentPageStatus = undefined;
       setPageAvailable(false);
       pageStatusElement.textContent = message("pageStatusUnavailable");
       subtitleStatusElement.textContent = message("subtitleStatusUnavailable");
@@ -491,7 +526,7 @@ async function initialize(): Promise<void> {
         const tabId = await activeTabId();
         if (tabId === null) throw new Error("no-active-tab");
         await ensureContent(tabId);
-        await browser.tabs.sendMessage(tabId, { type: "PAGE_TRANSLATE" });
+        await browser.tabs.sendMessage(tabId, { type: pageCommand() });
         actionMessage.textContent = message("translationStarted");
         await refreshStatuses();
       } catch {
@@ -511,8 +546,11 @@ async function initialize(): Promise<void> {
         const tabId = await activeTabId();
         if (tabId === null) throw new Error("no-active-tab");
         await ensureContent(tabId);
-        await browser.tabs.sendMessage(tabId, { type: "PAGE_RESTORE" });
-        actionMessage.textContent = message("pageRestored");
+        const command = secondaryCommand();
+        await browser.tabs.sendMessage(tabId, { type: command });
+        actionMessage.textContent = message(
+          command === "PAGE_CANCEL" ? "pageStatusCancelled" : "pageRestored",
+        );
         await refreshStatuses();
       } catch {
         actionMessage.dataset.tone = "error";
