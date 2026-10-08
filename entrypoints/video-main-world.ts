@@ -21,6 +21,7 @@ import {
   type NetflixTimedTextCandidate,
 } from "@/src/subtitles/adapters/netflix-manifest";
 import { readNetflixPlayerTextTracks } from "@/src/subtitles/adapters/netflix-player";
+import { WatchEpochTracker } from "@/src/subtitles/adapters/watch-epoch";
 import {
   fetchMaxDashFullTrack,
   parseMaxDashTextTracks,
@@ -458,7 +459,7 @@ function installNetflixResourceRecovery(
   let observer: PerformanceObserver | undefined;
   let playerTimer: number | undefined;
   let preferredSourceLanguage = "auto";
-  let lastWatchPath = location.pathname;
+  const watchEpoch = new WatchEpochTracker(location.pathname);
   let lastManifestDiagnostic = "";
   let lastPlayerTrackCount = -1;
 
@@ -513,11 +514,41 @@ function installNetflixResourceRecovery(
     }
   };
 
+  const resourceUrls = (): string[] => {
+    try {
+      return performance
+        .getEntriesByType("resource")
+        .map((entry) => entry.name);
+    } catch {
+      return [];
+    }
+  };
+
+  // Moving to another watch page (for example the next episode) must not let
+  // the Resource Timing buffer replay the previous page's subtitle requests as
+  // if they belonged to the new player. Everything requested so far becomes
+  // stale; only manifest-declared URLs of the new page are trusted afterwards.
+  const rollWatchEpoch = (): void => {
+    if (location.pathname === watchEpoch.currentPath) return;
+    if (
+      watchEpoch.roll(location.pathname, [...resourceUrls(), ...seen.keys()])
+    ) {
+      seen.clear();
+      queue.length = 0;
+      manifestCandidates.clear();
+      lastManifestDiagnostic = "";
+      lastPlayerTrackCount = -1;
+      netflixDiagnostic("watch-epoch-rolled", {});
+    }
+  };
+
   const enqueue = (
     url: string,
     manifestCandidate = false,
     language?: string,
   ): void => {
+    rollWatchEpoch();
+    if (!manifestCandidate && watchEpoch.isStale(url)) return;
     const previousManifestCandidate = seen.get(url);
     const upgradesPreviousCandidate =
       previousManifestCandidate === false && manifestCandidate;
@@ -571,12 +602,7 @@ function installNetflixResourceRecovery(
 
   const discoverPlayerTracks = (): void => {
     if (!enabled) return;
-    if (location.pathname !== lastWatchPath) {
-      lastWatchPath = location.pathname;
-      seen.clear();
-      queue.length = 0;
-      manifestCandidates.clear();
-    }
+    rollWatchEpoch();
     const tracks = readNetflixPlayerTextTracks(windowValue);
     if (tracks.length !== lastPlayerTrackCount) {
       lastPlayerTrackCount = tracks.length;
@@ -646,6 +672,7 @@ function installNetflixResourceRecovery(
   };
 
   const setEnabled = (nextEnabled: boolean): void => {
+    rollWatchEpoch();
     enabled = nextEnabled;
     if (!enabled) {
       queue.length = 0;
