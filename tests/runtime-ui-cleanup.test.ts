@@ -18,13 +18,19 @@ describe("stale content runtime UI cleanup", () => {
         <div data-noritrans-ui="subtitle-overlay"></div>
       </div>
       <div data-noritrans-ui="floating-control-fullscreen-portal"></div>
+      <div data-noritrans-ui="floating-control"></div>
+      <div data-noritrans-ui="floating-control-portal"></div>
       <div data-noritrans-ui="ocr-region-selector"></div>
       <noritrans-translation data-noritrans-translated="segment-1">Translated</noritrans-translation>
       <div data-noritrans-ui="unknown-future-marker"></div>
     `;
 
-    expect(removeStaleRuntimeUi()).toBe(7);
+    expect(removeStaleRuntimeUi()).toBe(9);
+    // Legacy hosts of the previous control (orphaned by an update) go too.
     expect(document.querySelector("noritrans-floating-control")).toBeNull();
+    expect(
+      document.querySelector('[data-noritrans-ui^="floating-control"]'),
+    ).toBeNull();
     expect(document.querySelector(".stop-button")).toBeNull();
     expect(document.querySelector("noritrans-translation")?.textContent).toBe(
       "Translated",

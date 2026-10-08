@@ -2,6 +2,12 @@ import type { DisplayMode } from "@/src/shared/settings";
 import type { PageSegment } from "@/src/page/scanner";
 import { composedContains, composedParentNode } from "@/src/page/composed-tree";
 import { cleanTranslatedText } from "@/src/translation/output";
+import { message } from "@/src/shared/i18n";
+import {
+  NT_THEME_WRAPPER_CLASS,
+  NT_THEME_WRAPPER_CSS,
+} from "@/src/ui/tokens/tokens";
+import { createStatusGlyph } from "@/src/ui/dom/status-glyph";
 import {
   createProtectedText,
   parseProtectedText,
@@ -52,20 +58,25 @@ const COMPACT_INTERACTIVE_SELECTOR = [
 
 type AppliedTranslation = AppliedReplacement | AppliedBilingual;
 
-type IndicatorKind = "pending" | "failed";
+type IndicatorKind = "pending" | "failed" | "skipped";
 
 interface BlockIndicator {
   kind: IndicatorKind;
+  /** Measured inline size of a labelled pill; pending chips are fixed. */
+  width?: number;
   segment: PageSegment;
   indicator: HTMLElement;
 }
 
 const PENDING_VIEWPORT_GAP_PX = 6;
-const PENDING_INDICATOR_SIZE_PX = 10;
+const PENDING_INDICATOR_SIZE_PX = 16;
 const PENDING_INSET_PX = 2;
-// The failed marker is a clickable retry control, so it needs a larger hit
-// target than the passive pending ring.
-const FAILED_INDICATOR_SIZE_PX = 18;
+// Failed and skipped marks are labelled pills ("not translated · retry"); the
+// failed one is a button, so its block size also serves as the hit target.
+const FAILED_INDICATOR_HEIGHT_PX = 22;
+const SKIPPED_INDICATOR_HEIGHT_PX = 20;
+// Used until a pill has been measured (or where layout is unavailable).
+const PILL_FALLBACK_WIDTH_PX = 120;
 const REFLOW_RELAYOUT_DELAY_MS = 250;
 
 function translatedNodeTexts(
@@ -467,82 +478,121 @@ function createIndicatorOverlay(): {
 } {
   const host = document.createElement("noritrans-translation-pending");
   host.dataset.noritransUi = "page-translation-pending";
-  // The overlay is decorative for assistive technology: the floating control
-  // announces progress and exposes a keyboard-reachable "retry failed items"
-  // action, so the per-block markers stay pointer-only.
-  host.setAttribute("aria-hidden", "true");
   const shadow = host.attachShadow({ mode: "closed" });
   const style = document.createElement("style");
+  // Direction B marks: shape + text + colour. Tokens sit on the `.nt-theme`
+  // wrapper rather than :host so page rules cannot repaint them. Marks are
+  // positioned in this fixed layer and never inserted into the page's own
+  // lists, tables or flex/grid containers.
   style.textContent = `
+    ${NT_THEME_WRAPPER_CSS}
     :host {
-      position: fixed;
-      inset: 0 auto auto 0;
-      inline-size: 0;
-      block-size: 0;
-      overflow: visible;
-      pointer-events: none;
-      z-index: 2147483646;
+      all: initial;
+      display: block !important;
+      position: fixed !important;
+      inset: 0 auto auto 0 !important;
+      inline-size: 0 !important;
+      block-size: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      border: 0 !important;
+      opacity: 1 !important;
+      overflow: visible !important;
+      pointer-events: none !important;
+      z-index: 2147483646 !important;
+    }
+    :host::before,
+    :host::after {
+      content: none !important;
+      display: none !important;
     }
     .layer {
       position: fixed;
       inset: 0;
       pointer-events: none;
     }
-    .indicator {
+    .indicator, .failed, .skipped {
       position: fixed;
       box-sizing: border-box;
+      margin: 0;
+    }
+    .indicator {
+      display: grid;
+      place-items: center;
       inline-size: ${PENDING_INDICATOR_SIZE_PX}px;
       block-size: ${PENDING_INDICATOR_SIZE_PX}px;
-      border: 1.5px solid currentColor;
-      border-inline-end-color: transparent;
-      border-radius: 50%;
-      opacity: 0.56;
+      padding: 2px;
+      border-radius: var(--nt-r-pill);
+      background: var(--nt-s-progress-bg);
+      color: var(--nt-s-progress);
+      opacity: 0.86;
     }
-    .indicator[hidden] { display: none; }
+    .indicator > svg { inline-size: 100%; block-size: 100%; }
+    .failed, .skipped {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--nt-space-1);
+      padding: 0 var(--nt-space-3);
+      border-radius: var(--nt-r-pill);
+      font: 600 11px/1 var(--nt-font);
+      white-space: nowrap;
+    }
+    .failed > svg, .skipped > svg {
+      flex: none;
+      inline-size: 12px;
+      block-size: 12px;
+    }
     .failed {
-      position: fixed;
-      display: grid;
-      box-sizing: border-box;
-      inline-size: ${FAILED_INDICATOR_SIZE_PX}px;
-      block-size: ${FAILED_INDICATOR_SIZE_PX}px;
-      margin: 0;
-      padding: 0;
-      border: 1.5px solid currentColor;
-      border-radius: 50%;
-      background: transparent;
-      color: inherit;
-      font: 700 11px/1 system-ui, sans-serif;
-      opacity: 0.82;
-      place-items: center;
+      block-size: ${FAILED_INDICATOR_HEIGHT_PX}px;
+      border: 1px solid color-mix(in srgb, var(--nt-s-err) 35%, transparent);
+      background: var(--nt-s-err-bg);
+      color: var(--nt-s-err);
+      box-shadow: var(--nt-shadow-card);
       cursor: pointer;
       pointer-events: auto;
     }
-    .failed[hidden] { display: none; }
-    .failed:hover, .failed:focus-visible { opacity: 1; }
-    .failed:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+    .failed:hover {
+      background: color-mix(in srgb, var(--nt-s-err) 14%, var(--nt-s-err-bg));
+    }
+    .failed:focus-visible {
+      outline: var(--nt-focus-width) solid var(--nt-focus);
+      outline-offset: 2px;
+    }
+    .skipped {
+      block-size: ${SKIPPED_INDICATOR_HEIGHT_PX}px;
+      border: 0;
+      background: var(--nt-s-neutral-bg);
+      color: var(--nt-s-neutral);
+    }
+    .indicator[hidden], .failed[hidden], .skipped[hidden] { display: none; }
     @media (prefers-reduced-motion: no-preference) {
-      .indicator { animation: noritrans-page-pending 720ms linear infinite; }
+      .indicator > svg { animation: noritrans-page-pending 900ms linear infinite; }
       @keyframes noritrans-page-pending {
         to { transform: rotate(360deg); }
       }
     }
     @media (prefers-reduced-motion: reduce) {
       /* A static dotted ring still reads as "waiting" without a spinner. */
-      .indicator { border-style: dotted; border-inline-end-color: currentColor; }
+      .indicator { border: 1.5px dotted currentColor; border-style: dotted; }
+      .indicator > svg { display: none; }
     }
     @media (forced-colors: active) {
-      .indicator, .failed {
-        border-color: CanvasText;
+      .indicator, .failed, .skipped {
+        border: 1px solid CanvasText;
+        background: Canvas;
         color: CanvasText;
         opacity: 1;
+        forced-color-adjust: none;
       }
-      .indicator { border-inline-end-color: transparent; }
-      .failed { background: Canvas; }
+      .failed:focus-visible { outline-color: Highlight; }
     }
   `;
+  const theme = document.createElement("div");
+  theme.className = NT_THEME_WRAPPER_CLASS;
   const layer = document.createElement("div");
   layer.className = "layer";
-  shadow.append(style, layer);
+  theme.append(layer);
+  shadow.append(style, theme);
   return { host, layer };
 }
 
@@ -560,6 +610,8 @@ export class PageRenderer {
   >();
   private readonly pending = new Map<PageSegment, BlockIndicator>();
   private readonly failed = new Map<PageSegment, BlockIndicator>();
+  private readonly skipped = new Map<PageSegment, BlockIndicator>();
+  private skippedMarksEnabled = false;
   private pendingOverlay: ReturnType<typeof createIndicatorOverlay> | undefined;
   private pendingFrame: number | undefined;
   private documentResizeObserver: ResizeObserver | undefined;
@@ -568,11 +620,15 @@ export class PageRenderer {
   /**
    * Document reflows happen on nearly every applied translation. Re-measuring
    * thousands of pending rings per frame would dominate the main thread, so a
-   * reflow only re-measures when clickable failed markers exist, and at most
+   * reflow only re-measures when failed or skipped pills exist, and at most
    * a few times per second; pending rings still follow scroll and resize.
    */
   private readonly scheduleReflowLayout = (): void => {
-    if (this.failed.size === 0 || this.reflowLayoutTimer !== undefined) return;
+    if (
+      (this.failed.size === 0 && this.skipped.size === 0) ||
+      this.reflowLayoutTimer !== undefined
+    )
+      return;
     this.reflowLayoutTimer = window.setTimeout(() => {
       this.reflowLayoutTimer = undefined;
       this.schedulePendingLayout();
@@ -580,7 +636,11 @@ export class PageRenderer {
   };
   /** Invoked when the user clicks a failed block's in-page retry marker. */
   onRetryFailed: ((segment: PageSegment) => void) | undefined;
-  /** Accessible name for the failed marker; set by the owner (localized). */
+  /**
+   * Longer description of the failed marker (tooltip and accessible
+   * description); set by the owner (localized). The accessible name is the
+   * marker's visible text so speech input can target what is on screen.
+   */
   failedMarkerLabel = "";
 
   private readonly schedulePendingLayout = (): void => {
@@ -652,14 +712,15 @@ export class PageRenderer {
     // still pays for a single layout.
     const layouts: Array<{
       indicator: HTMLElement;
-      position?: { left: number; top: number; color: string };
+      position?: { left: number; top: number };
     }> = [];
-    for (const entry of [...this.pending.values(), ...this.failed.values()]) {
+    for (const entry of [
+      ...this.pending.values(),
+      ...this.failed.values(),
+      ...this.skipped.values(),
+    ]) {
       const { anchor } = entry.segment;
-      const size =
-        entry.kind === "failed"
-          ? FAILED_INDICATOR_SIZE_PX
-          : PENDING_INDICATOR_SIZE_PX;
+      const { width, height } = this.indicatorSize(entry);
       if (!anchor.isConnected || !isComposedVisible(anchor, visibility)) {
         layouts.push({ indicator: entry.indicator });
         continue;
@@ -676,27 +737,33 @@ export class PageRenderer {
         layouts.push({ indicator: entry.indicator });
         continue;
       }
-      const color = getComputedStyle(anchor).color;
       const hasRightSpace =
-        rect.right + PENDING_VIEWPORT_GAP_PX + size <= viewportWidth;
-      const hasLeftSpace = rect.left - PENDING_VIEWPORT_GAP_PX - size >= 0;
+        rect.right + PENDING_VIEWPORT_GAP_PX + width <= viewportWidth;
+      const hasLeftSpace = rect.left - PENDING_VIEWPORT_GAP_PX - width >= 0;
       let left: number | undefined;
       let top: number | undefined;
       if (hasRightSpace || hasLeftSpace) {
         const sideLeft = hasRightSpace
           ? rect.right + PENDING_VIEWPORT_GAP_PX
-          : rect.left - PENDING_VIEWPORT_GAP_PX - size;
+          : rect.left - PENDING_VIEWPORT_GAP_PX - width;
+        // Pills align with the block's first line, where a reader looks for
+        // its state; the small pending chip stays vertically centred.
         const sideTop = Math.max(
           0,
-          Math.min(viewportHeight - size, rect.top + (rect.height - size) / 2),
+          Math.min(
+            viewportHeight - height,
+            entry.kind === "pending"
+              ? rect.top + (rect.height - height) / 2
+              : rect.top,
+          ),
         );
         // One hit test per on-screen marker: the geometry above is already
         // resolved, so elementFromPoint does not force another layout.
         if (
           !this.indicatorCollides(
             anchor,
-            sideLeft + size / 2,
-            sideTop + size / 2,
+            sideLeft + width / 2,
+            sideTop + height / 2,
           )
         ) {
           left = sideLeft;
@@ -709,16 +776,19 @@ export class PageRenderer {
         // of hiding it, keeping it away from the source text body.
         left = Math.max(
           0,
-          Math.min(viewportWidth - size, rect.right - size - PENDING_INSET_PX),
+          Math.min(
+            viewportWidth - width,
+            rect.right - width - PENDING_INSET_PX,
+          ),
         );
         top = Math.max(
           0,
-          Math.min(viewportHeight - size, rect.top + PENDING_INSET_PX),
+          Math.min(viewportHeight - height, rect.top + PENDING_INSET_PX),
         );
       }
       layouts.push({
         indicator: entry.indicator,
-        position: { left, top, color },
+        position: { left, top },
       });
     }
     for (const { indicator, position } of layouts) {
@@ -726,15 +796,46 @@ export class PageRenderer {
         indicator.hidden = true;
         continue;
       }
-      indicator.style.color = position.color;
       indicator.style.left = `${position.left}px`;
       indicator.style.top = `${position.top}px`;
       indicator.hidden = false;
     }
   }
 
+  /**
+   * Pills are measured once while visible (newly created marks are laid out
+   * before they can be hidden) and cached, so later passes stay read-only.
+   */
+  private indicatorSize(entry: BlockIndicator): {
+    width: number;
+    height: number;
+  } {
+    if (entry.kind === "pending") {
+      return {
+        width: PENDING_INDICATOR_SIZE_PX,
+        height: PENDING_INDICATOR_SIZE_PX,
+      };
+    }
+    if (entry.width === undefined && !entry.indicator.hidden) {
+      const measured = entry.indicator.getBoundingClientRect().width;
+      if (measured > 0) entry.width = Math.ceil(measured);
+    }
+    return {
+      width: entry.width ?? PILL_FALLBACK_WIDTH_PX,
+      height:
+        entry.kind === "failed"
+          ? FAILED_INDICATOR_HEIGHT_PX
+          : SKIPPED_INDICATOR_HEIGHT_PX,
+    };
+  }
+
   private removePendingOverlayIfEmpty(): void {
-    if (this.pending.size > 0 || this.failed.size > 0 || !this.pendingOverlay)
+    if (
+      this.pending.size > 0 ||
+      this.failed.size > 0 ||
+      this.skipped.size > 0 ||
+      !this.pendingOverlay
+    )
       return;
     if (this.pendingFrame !== undefined) {
       window.cancelAnimationFrame(this.pendingFrame);
@@ -762,8 +863,13 @@ export class PageRenderer {
         continue;
       }
       this.clearFailed([segment]);
+      this.clearSkipped([segment]);
       const indicator = document.createElement("span");
       indicator.className = "indicator";
+      // Progress is announced by the floating control; per-block chips would
+      // only add noise for assistive technology.
+      indicator.setAttribute("aria-hidden", "true");
+      indicator.append(createStatusGlyph("translating"));
       this.ensurePendingOverlay().layer.append(indicator);
       this.pending.set(segment, { kind: "pending", segment, indicator });
     }
@@ -790,13 +896,17 @@ export class PageRenderer {
     for (const segment of segments) {
       if (this.failed.has(segment) || !segment.anchor.isConnected) continue;
       this.clearPending([segment]);
+      this.clearSkipped([segment]);
       const indicator = document.createElement("button");
       indicator.type = "button";
       indicator.className = "failed";
-      indicator.tabIndex = -1;
-      indicator.textContent = "!";
-      indicator.title = this.failedMarkerLabel;
-      indicator.setAttribute("aria-label", this.failedMarkerLabel);
+      const text = document.createElement("span");
+      text.textContent = message("pageMarkFailedRetry");
+      indicator.append(createStatusGlyph("error"), text);
+      if (this.failedMarkerLabel) {
+        indicator.title = this.failedMarkerLabel;
+        indicator.setAttribute("aria-description", this.failedMarkerLabel);
+      }
       indicator.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -819,6 +929,52 @@ export class PageRenderer {
     this.removePendingOverlayIfEmpty();
   }
 
+  /**
+   * Turns the "skipped" marks on or off. Off by default: they only appear
+   * when the user enables them in settings. Turning them off removes any
+   * marks already shown.
+   */
+  setSkippedMarksEnabled(enabled: boolean): void {
+    this.skippedMarksEnabled = enabled;
+    if (!enabled) this.clearSkipped();
+  }
+
+  /**
+   * Shows a passive "skipped" mark beside blocks the session deliberately
+   * left untranslated. A no-op while skipped marks are disabled.
+   */
+  markSkipped(segments: readonly PageSegment[]): void {
+    if (!this.skippedMarksEnabled) return;
+    for (const segment of segments) {
+      if (
+        this.skipped.has(segment) ||
+        this.pending.has(segment) ||
+        this.failed.has(segment) ||
+        !segment.anchor.isConnected
+      )
+        continue;
+      const indicator = document.createElement("span");
+      indicator.className = "skipped";
+      const text = document.createElement("span");
+      text.textContent = message("pageMarkSkipped");
+      indicator.append(createStatusGlyph("skipped"), text);
+      this.ensurePendingOverlay().layer.append(indicator);
+      this.skipped.set(segment, { kind: "skipped", segment, indicator });
+    }
+    this.schedulePendingLayout();
+  }
+
+  clearSkipped(segments?: readonly PageSegment[]): void {
+    const targets = segments ?? [...this.skipped.keys()];
+    for (const segment of targets) {
+      const skipped = this.skipped.get(segment);
+      if (!skipped) continue;
+      skipped.indicator.remove();
+      this.skipped.delete(segment);
+    }
+    this.removePendingOverlayIfEmpty();
+  }
+
   /** Segments currently carrying an in-page failed marker. */
   failedSegments(): PageSegment[] {
     return [...this.failed.keys()];
@@ -831,6 +987,9 @@ export class PageRenderer {
     );
     this.clearFailed(
       [...this.failed.keys()].filter((segment) => anchors.has(segment.anchor)),
+    );
+    this.clearSkipped(
+      [...this.skipped.keys()].filter((segment) => anchors.has(segment.anchor)),
     );
     for (let index = this.applied.length - 1; index >= 0; index -= 1) {
       const applied = this.applied[index];
@@ -945,6 +1104,7 @@ export class PageRenderer {
       );
     this.clearPending([...this.pending.keys()].filter(detachedIndicator));
     this.clearFailed([...this.failed.keys()].filter(detachedIndicator));
+    this.clearSkipped([...this.skipped.keys()].filter(detachedIndicator));
     this.schedulePendingLayout();
     const kept: AppliedTranslation[] = [];
     for (let index = this.applied.length - 1; index >= 0; index -= 1) {
@@ -1160,6 +1320,7 @@ export class PageRenderer {
   restore(): void {
     this.clearPending();
     this.clearFailed();
+    this.clearSkipped();
     for (const applied of this.applied.reverse()) {
       if (applied.kind === "bilingual") {
         applied.host.remove();

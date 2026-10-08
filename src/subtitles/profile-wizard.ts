@@ -520,7 +520,7 @@ export class SubtitleProfileWizard {
         const root = this.returnFocus.getRootNode();
         const launcher =
           root instanceof ShadowRoot
-            ? root.querySelector<HTMLElement>(".launcher")
+            ? root.querySelector<HTMLElement>(".launcher nt-pill-fab")
             : null;
         launcher?.focus();
       } else {

@@ -11,6 +11,23 @@ import { existsSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { getOcrRuntimeLanguage } from "@/src/ocr/runtime-catalog";
 import { TRANSLATION_METHODS } from "@/src/shared/translation-methods";
+import {
+  FLOATING_CONTROL_SELECTOR,
+  FLOATING_PORTAL_SURFACE,
+  floatingAction,
+  floatingControl,
+  floatingLauncher,
+  floatingPanel,
+  floatingParentSurface,
+  floatingSelect,
+  floatingSwitch,
+  floatingTab,
+  floatingTabBody,
+  openFloatingEditor,
+  openFloatingPanel,
+  openFloatingSection,
+  openFloatingTab,
+} from "./floating-control";
 
 interface SubtitleStatus {
   state: string;
@@ -115,6 +132,21 @@ async function extensionIdFor(browserContext: BrowserContext): Promise<string> {
   const extensionId = new URL(worker.url()).host;
   if (!extensionId) throw new Error("Extension service worker has no ID");
   return extensionId;
+}
+
+/**
+ * Shows an options group or deep link by hash, the way the navigation links
+ * and `OPTIONS_PAGE_OPEN` do.
+ */
+async function openOptionsSection(page: Page, hash: string): Promise<void> {
+  await page.evaluate((value) => {
+    if (window.location.hash === `#${value}`) {
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+    } else {
+      window.location.hash = value;
+    }
+  }, hash);
+  await expect(page.locator(".opt-group:not([hidden])")).toHaveCount(1);
 }
 
 async function configureProvider(page: Page): Promise<void> {
@@ -583,11 +615,12 @@ test.afterAll(async () => {
   await context?.close();
 });
 
-test("popup keeps icons and custom select arrows geometrically aligned", async () => {
+test("popup keeps the title bar icon centered and the shell at 360px", async () => {
   const extensionId = new URL(controlPage.url()).host;
   const page = await context.newPage();
   try {
     await page.goto(`chrome-extension://${extensionId}/popup.html`);
+    await expect(page.locator("nt-icon-button#open-options")).toHaveCount(1);
     const geometry = await page.evaluate(() => {
       const rect = (element: Element) => {
         const value = element.getBoundingClientRect();
@@ -596,11 +629,9 @@ test("popup keeps icons and custom select arrows geometrically aligned", async (
           centerY: value.top + value.height / 2,
         };
       };
-      const button = document.querySelector(".icon-button")!;
+      const host = document.querySelector("nt-icon-button#open-options")!;
+      const button = host.shadowRoot!.querySelector("button")!;
       const icon = button.querySelector("svg")!;
-      const controls = [...document.querySelectorAll(".select-control")].filter(
-        (control) => control.getBoundingClientRect().height > 0,
-      );
       return {
         popupWidth: document.querySelector("main")!.getBoundingClientRect()
           .width,
@@ -610,23 +641,12 @@ test("popup keeps icons and custom select arrows geometrically aligned", async (
           "#retry-subtitles, #cancel-subtitles, #subtitle-task-panel",
         ).length,
         bodyWidth: document.body.getBoundingClientRect().width,
+        buttonSize: button.getBoundingClientRect().width,
         shellRightInset:
           document.querySelector("main")!.getBoundingClientRect().right -
-          button.getBoundingClientRect().right,
+          host.getBoundingClientRect().right,
         gearDeltaX: rect(icon).centerX - rect(button).centerX,
         gearDeltaY: rect(icon).centerY - rect(button).centerY,
-        arrows: controls.map((control) => {
-          const style = getComputedStyle(control, "::after");
-          const select = control.querySelector("select")!;
-          return {
-            right: style.right,
-            top: style.top,
-            width: style.width,
-            controlHeight: control.getBoundingClientRect().height,
-            selectHeight: select.getBoundingClientRect().height,
-            mask: style.maskImage,
-          };
-        }),
       };
     });
 
@@ -634,26 +654,12 @@ test("popup keeps icons and custom select arrows geometrically aligned", async (
     expect(geometry.unresolvedMessages).toBe(false);
     expect(geometry.subtitleTaskControls).toBe(0);
     expect(geometry.bodyWidth).toBe(360);
-    expect(geometry.shellRightInset).toBeGreaterThanOrEqual(15);
-    expect(geometry.shellRightInset).toBeLessThanOrEqual(16);
-    expect(geometry.gearDeltaX).toBe(0);
-    expect(geometry.gearDeltaY).toBe(0);
-    expect(geometry.arrows).toHaveLength(3);
-    expect(geometry.arrows.every((arrow) => arrow.right === "14px")).toBe(true);
-    expect(
-      geometry.arrows.every(
-        (arrow) =>
-          Math.abs(Number.parseFloat(arrow.top) - arrow.controlHeight / 2) <= 1,
-      ),
-    ).toBe(true);
-    expect(geometry.arrows.every((arrow) => arrow.width === "14px")).toBe(true);
-    expect(geometry.arrows.every((arrow) => arrow.controlHeight === 44)).toBe(
-      true,
-    );
-    expect(geometry.arrows.every((arrow) => arrow.selectHeight === 44)).toBe(
-      true,
-    );
-    expect(geometry.arrows.every((arrow) => arrow.mask !== "none")).toBe(true);
+    expect(geometry.buttonSize).toBeGreaterThanOrEqual(40);
+    // The title bar pads the settings button by 8px from the shell edge.
+    expect(geometry.shellRightInset).toBeGreaterThanOrEqual(7.5);
+    expect(geometry.shellRightInset).toBeLessThanOrEqual(8.5);
+    expect(Math.abs(geometry.gearDeltaX)).toBeLessThanOrEqual(0.5);
+    expect(Math.abs(geometry.gearDeltaY)).toBeLessThanOrEqual(0.5);
 
     const manifest = await page.evaluate(() => chrome.runtime.getManifest());
     expect(manifest.manifest_version).toBe(3);
@@ -734,6 +740,15 @@ test("popup keeps icons and custom select arrows geometrically aligned", async (
 
 test("popup and options honor dark mode, reduced motion, and narrow widths", async () => {
   const extensionId = new URL(controlPage.url()).host;
+  const fixtureUrl = "https://popup-theme.example.net/";
+  await context.route(fixtureUrl, (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: "<!doctype html><title>Popup theme</title><main><p>Popup theme fixture.</p></main>",
+    }),
+  );
+  const target = await context.newPage();
+  await target.goto(fixtureUrl);
   const page = await context.newPage();
   try {
     await page.setViewportSize({ width: 380, height: 900 });
@@ -748,12 +763,18 @@ test("popup and options honor dark mode, reduced motion, and narrow widths", asy
 
     await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
     await page.reload();
+    // The popup acts on the active tab; a web page there gives its card a
+    // primary action ("Translate") to inspect.
+    await target.bringToFront();
+    await expect(page.locator('nt-button[data-primary="true"]')).toBeVisible({
+      timeout: 15_000,
+    });
     const popupDark = await page.evaluate(() => {
-      const button = document.querySelector<HTMLButtonElement>(".icon-button")!;
-      const primary =
-        document.querySelector<HTMLButtonElement>(".button-primary")!;
-      const select = document.querySelector<HTMLSelectElement>("select")!;
-      const option = select.options[0]!;
+      const host = document.querySelector("nt-icon-button")!;
+      const button = host.shadowRoot!.querySelector("button")!;
+      const primary = document
+        .querySelector('nt-button[data-primary="true"]')!
+        .shadowRoot!.querySelector("button")!;
       return {
         background: getComputedStyle(document.body).backgroundColor,
         overflow:
@@ -761,24 +782,22 @@ test("popup and options honor dark mode, reduced motion, and narrow widths", asy
           document.documentElement.clientWidth,
         buttonHeight: button.getBoundingClientRect().height,
         transitionDuration: getComputedStyle(button).transitionDuration,
+        primaryBackground: getComputedStyle(primary).backgroundColor,
         primaryBackgroundImage: getComputedStyle(primary).backgroundImage,
         primaryColor: getComputedStyle(primary).color,
-        selectColorScheme: getComputedStyle(select).colorScheme,
-        optionBackground: getComputedStyle(option).backgroundColor,
-        optionColor: getComputedStyle(option).color,
       };
     });
-    expect(popupDark.background).not.toBe(lightBackground);
+    expect(lightBackground).toBe("rgb(255, 255, 255)");
+    expect(popupDark.background).toBe("rgb(24, 22, 48)");
     expect(popupDark.overflow).toBe(false);
-    expect(popupDark.buttonHeight).toBeGreaterThanOrEqual(44);
+    expect(popupDark.buttonHeight).toBeGreaterThanOrEqual(40);
     expect(Number.parseFloat(popupDark.transitionDuration)).toBeLessThanOrEqual(
       0.001,
     );
+    // Dark tokens: accent #a08cff with on-accent #120f2a text.
+    expect(popupDark.primaryBackground).toBe("rgb(160, 140, 255)");
     expect(popupDark.primaryBackgroundImage).toBe("none");
-    expect(popupDark.primaryColor).toBe("rgb(33, 31, 27)");
-    expect(popupDark.selectColorScheme).toBe("dark");
-    expect(popupDark.optionBackground).toBe("rgb(33, 31, 27)");
-    expect(popupDark.optionColor).toBe("rgb(246, 241, 231)");
+    expect(popupDark.primaryColor).toBe("rgb(18, 15, 42)");
 
     await page.setViewportSize({ width: 380, height: 900 });
     await page.reload();
@@ -798,25 +817,28 @@ test("popup and options honor dark mode, reduced motion, and narrow widths", asy
     await expect(page.locator('meta[name="theme-color"]')).toHaveCount(2);
 
     await page.goto(`chrome-extension://${extensionId}/options.html`);
-    await expect(
-      page.locator(
-        "form input:not([name]), form select:not([name]), form textarea:not([name])",
-      ),
-    ).toHaveCount(0);
     await expect(page.locator('meta[name="theme-color"]')).toHaveCount(2);
-    await expect(page.locator(".settings-tab")).toHaveCount(9);
-    await page.locator("#visibility-settings-tab").click();
+    const groupLinks = page.locator(".opt-nav a[data-group]");
+    await expect(groupLinks).toHaveCount(6);
+    await expect(groupLinks.first()).toHaveAttribute("aria-current", "page");
+    await page.goto(
+      `chrome-extension://${extensionId}/options.html#visibility`,
+    );
+    await expect(page.locator("#group-general")).toBeVisible();
     await expect(
-      page.locator("#floating-control-enabled"),
+      page.locator("#floating-control-enabled button"),
     ).toHaveAccessibleName(/floating control|浮动控制|浮窗/iu);
-    await page.locator("#selection-settings-tab").click();
+    await expect(page.locator("#restore-session-floating")).toBeVisible();
+    await page.locator('.opt-nav a[data-group="page"]').click();
+    await expect(page).toHaveURL(/#page$/u);
+    await page.locator("#selection-translation > summary").click();
     await expect(
-      page.locator("#selection-translation-enabled"),
+      page.locator("#selection-translation-enabled button"),
     ).toHaveAccessibleName(/selection translation|划词翻译/iu);
-    await page.locator("#profiles-settings-tab").click();
-    await expect(page.locator(".data-section")).toBeHidden();
+    await page.locator('.opt-nav a[data-group="sites"]').click();
+    await expect(page.locator("#clear-cache")).toBeHidden();
     const builtInProfiles = page.locator(
-      '.profile-catalog-item[data-kind="builtin"]',
+      '#site-list-builtin .site-entry[data-kind="builtin"]',
     );
     await expect(builtInProfiles).toHaveCount(18);
     const builtInProfileText = (await builtInProfiles.allTextContents()).join(
@@ -833,87 +855,74 @@ test("popup and options honor dark mode, reduced motion, and narrow widths", asy
     expect(builtInProfileText).toContain("Kanopy");
     expect(builtInProfileText).toContain("TVer");
     expect(builtInProfileText).not.toContain("Standard HTML5 TextTrack");
-    await expect(page.locator("#profile-total-count")).toHaveText("18");
-    await page.locator("#provider-settings-tab").click();
-    await expect(page.locator(".data-section")).toBeVisible();
-    await page.locator("#provider-settings-tab").press("ArrowLeft");
-    await expect(page.locator("#visibility-settings-tab")).toHaveAttribute(
-      "aria-selected",
-      "true",
+    await expect(page.locator("#site-list-builtin-title .count")).toHaveText(
+      "18",
     );
-    await expect(page.locator("#visibility-settings-tab")).toBeFocused();
-    await expect(page.locator(".data-section")).toBeHidden();
-    await page.locator("#ocr-runtimes-tab").click();
-    await expect(page.locator("#ocr-runtimes-panel")).toBeVisible();
+    await page.locator('.opt-nav a[data-group="privacy"]').click();
+    await expect(page.locator("#clear-cache")).toBeVisible();
+    await expect(page.locator("#host-permission-note")).toContainText(
+      "https://*/*",
+    );
+    // Group links are one plain tab sequence.
+    await page.locator('.opt-nav a[data-group="privacy"]').focus();
+    await page.keyboard.press("Tab");
     await expect(
-      page.locator("#ocr-runtimes-panel .runtime-local-note"),
-    ).toContainText(/device|设备/iu);
-    await expect(page.locator("#ocr-runtimes-panel")).not.toContainText(
+      page.locator('.opt-nav a[data-group="general"]'),
+    ).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(page.locator("#group-general")).toBeVisible();
+    await expect(page.locator("#clear-cache")).toBeHidden();
+    await page.goto(`chrome-extension://${extensionId}/options.html#ocr`);
+    await expect(page.locator("#image-recognition")).toHaveAttribute(
+      "open",
+      "",
+    );
+    await expect(page.locator("#ocr-runtimes-panel")).toContainText(
+      /device|设备/iu,
+    );
+    await expect(page.locator("#group-video")).not.toContainText(
       /PP-OCR|ONNX|SHA-256|物理模型|physical model/iu,
     );
-    await page.locator("#visibility-settings-tab").click();
-    await expect(page.locator("#visibility-settings-panel")).toBeVisible();
-    await expect(page.locator("#floating-control-enabled")).toBeVisible();
-    await expect(page.locator("#restore-session-floating")).toBeVisible();
-    await page.locator("#page-settings-tab").click();
-    const denseSettingsGeometry = await page.evaluate(() => {
-      const control = document.querySelector<HTMLSelectElement>(
-        "#page-source-language",
-      )!;
-      const panel = document.querySelector<HTMLElement>(
-        "#page-settings-panel",
-      )!;
-      const panelStyle = getComputedStyle(panel);
-      return {
-        controlHeight: control.getBoundingClientRect().height,
-        panelBackground: panelStyle.backgroundColor,
-        panelBorderTop: panelStyle.borderTopWidth,
-      };
-    });
-    // Narrow layouts retain a 44px touch target; desktop settings use 40px.
-    expect(denseSettingsGeometry.controlHeight).toBe(44);
-    expect(denseSettingsGeometry.panelBackground).toBe("rgba(0, 0, 0, 0)");
-    expect(denseSettingsGeometry.panelBorderTop).toBe("0px");
-    await page.locator("#ocr-runtimes-tab").click();
+    await page.goto(`chrome-extension://${extensionId}/options.html#page`);
+    await expect(page.locator("#page-source-language select")).toBeVisible();
     const optionsGeometry = await page.evaluate(() => {
-      const select = document.querySelector<HTMLSelectElement>(
-        "#page-source-language",
-      )!;
-      const option = select.options[0]!;
+      const select = document
+        .querySelector("#page-source-language")!
+        .shadowRoot!.querySelector("select")!;
       return {
+        controlHeight: select.getBoundingClientRect().height,
         overflow:
           document.documentElement.scrollWidth >
           document.documentElement.clientWidth,
-        saveHeight: document
-          .querySelector<HTMLButtonElement>("#save-settings")!
+        navHeight: document
+          .querySelector<HTMLElement>(".opt-nav a")!
           .getBoundingClientRect().height,
+        navPosition: getComputedStyle(
+          document.querySelector<HTMLElement>(".opt-nav")!,
+        ).overflowX,
         transitionDuration: getComputedStyle(
-          document.querySelector<HTMLButtonElement>("#save-settings")!,
+          document.querySelector("#group-page details.adv > summary .chev")!,
         ).transitionDuration,
         unresolvedMessages:
           document.documentElement.outerHTML.includes("__MSG_"),
-        primaryBackgroundImage: getComputedStyle(
-          document.querySelector<HTMLButtonElement>("#save-settings")!,
-        ).backgroundImage,
-        runtimeActionHeight: document
-          .querySelector<HTMLButtonElement>("#ocr-runtime-download-all")!
-          .getBoundingClientRect().height,
-        selectColorScheme: getComputedStyle(select).colorScheme,
-        optionBackground: getComputedStyle(option).backgroundColor,
-        optionColor: getComputedStyle(option).color,
+        bodyBackground: getComputedStyle(document.body).backgroundColor,
+        selectBackground: getComputedStyle(select).backgroundColor,
+        selectColor: getComputedStyle(select).color,
       };
     });
+    // Narrow layouts retain a 44px touch target; desktop settings use 40px.
+    expect(optionsGeometry.controlHeight).toBe(44);
     expect(optionsGeometry.overflow).toBe(false);
-    expect(optionsGeometry.saveHeight).toBeGreaterThanOrEqual(44);
-    expect(optionsGeometry.runtimeActionHeight).toBeGreaterThanOrEqual(44);
+    expect(optionsGeometry.navHeight).toBeGreaterThanOrEqual(44);
+    expect(optionsGeometry.navPosition).toBe("auto");
     expect(
       Number.parseFloat(optionsGeometry.transitionDuration),
     ).toBeLessThanOrEqual(0.001);
     expect(optionsGeometry.unresolvedMessages).toBe(false);
-    expect(optionsGeometry.primaryBackgroundImage).toBe("none");
-    expect(optionsGeometry.selectColorScheme).toBe("dark");
-    expect(optionsGeometry.optionBackground).toBe("rgb(37, 34, 30)");
-    expect(optionsGeometry.optionColor).toBe("rgb(243, 238, 229)");
+    // Dark tokens of src/ui/tokens/tokens.ts: bg #0e0d1a, surface #181630.
+    expect(optionsGeometry.bodyBackground).toBe("rgb(14, 13, 26)");
+    expect(optionsGeometry.selectBackground).toBe("rgb(24, 22, 48)");
+    expect(optionsGeometry.selectColor).toBe("rgb(241, 239, 255)");
 
     await page.goto(`chrome-extension://${extensionId}/ocr-permission.html`);
     await page.setViewportSize({ width: 520, height: 340 });
@@ -949,27 +958,33 @@ test("popup and options honor dark mode, reduced motion, and narrow widths", asy
       }),
     );
     await page.goto(darkFloatingPageUrl);
-    await expect(page.locator("noritrans-floating-control")).toBeAttached();
-    const floatingSelectPalette = await page.evaluate(() => {
-      const root = document.querySelector(
-        "noritrans-floating-control",
-      )?.shadowRoot;
-      const select = root?.querySelector<HTMLSelectElement>("select");
-      const option = select?.options[0];
-      if (!select || !option) return null;
+    const darkControl = floatingControl(page);
+    await expect(darkControl).toBeAttached();
+    const darkEditor = await openFloatingEditor(
+      await openFloatingTab(darkControl, "page"),
+    );
+    const darkSelect = floatingSelect(darkEditor, "source");
+    await expect(darkSelect).toBeVisible();
+    const floatingSelectPalette = await darkSelect.evaluate((element) => {
+      const select = element as HTMLSelectElement;
+      const option = select.options[0];
+      if (!option) return null;
       return {
         colorScheme: getComputedStyle(select).colorScheme,
-        optionBackground: getComputedStyle(option).backgroundColor,
+        selectBackground: getComputedStyle(select).backgroundColor,
         optionColor: getComputedStyle(option).color,
       };
     });
+    // Dark tokens of src/ui/tokens/tokens.ts: surface #181630, fg #f1efff.
     expect(floatingSelectPalette).toEqual({
       colorScheme: "dark",
-      optionBackground: "rgb(33, 31, 27)",
-      optionColor: "rgb(245, 239, 229)",
+      selectBackground: "rgb(24, 22, 48)",
+      optionColor: "rgb(241, 239, 255)",
     });
   } finally {
     await page.close();
+    await target.close();
+    await context.unroute(fixtureUrl);
   }
 });
 
@@ -992,7 +1007,7 @@ test("options lists missing OCR runtimes without automatic downloads and preserv
   await context.route(modelUrl, blockExplicitModelDownload);
   try {
     await controlPage.goto(`chrome-extension://${extensionId}/options.html`);
-    await controlPage.locator("#ocr-runtimes-tab").click();
+    await openOptionsSection(controlPage, "ocr");
     await expect(controlPage.locator("#ocr-runtime-list")).toBeVisible();
     await expect(controlPage.locator("#ocr-runtime-list")).not.toHaveAttribute(
       "aria-live",
@@ -1002,48 +1017,36 @@ test("options lists missing OCR runtimes without automatic downloads and preserv
       "role",
       "status",
     );
-    await expect(
-      controlPage.locator("#ocr-runtime-list .runtime-item"),
-    ).toHaveCount(3);
-    await expect(
-      controlPage.locator("#ocr-runtime-list .runtime-group"),
-    ).toHaveCount(3);
-    await controlPage.locator("#profiles-settings-tab").click();
+    await expect(controlPage.locator("#ocr-runtime-list .rt-item")).toHaveCount(
+      3,
+    );
+    await openOptionsSection(controlPage, "sites");
     const builtInProfiles = controlPage.locator(
-      '.profile-catalog-item[data-kind="builtin"]',
+      '.site-entry[data-kind="builtin"]',
     );
     await expect(builtInProfiles).toHaveCount(18);
-    await expect(controlPage.locator("#profile-catalog-list")).toContainText(
-      "Max / HBO Max",
-    );
-    await expect(controlPage.locator("#profile-catalog-list")).toContainText(
-      "Disney+",
-    );
-    await expect(controlPage.locator("#profile-catalog-list")).toContainText(
-      "Prime Video",
-    );
-    await expect(controlPage.locator("#profile-catalog-list")).toContainText(
-      "TVer",
-    );
+    const builtInList = controlPage.locator("#site-list-builtin");
+    await expect(builtInList).toContainText("Max / HBO Max");
+    await expect(builtInList).toContainText("Disney+");
+    await expect(builtInList).toContainText("Prime Video");
+    await expect(builtInList).toContainText("TVer");
     await expect(
-      controlPage.locator(
-        '#ocr-runtime-list .runtime-status-badge[data-state="missing"]',
-      ),
+      controlPage.locator('#ocr-runtime-list .rt-item[data-state="missing"]'),
     ).toHaveCount(3);
     await expect(
       controlPage.locator("#ocr-runtime-download-all"),
     ).toBeEnabled();
     expect(modelRequests).toEqual([]);
-    await controlPage.locator("#ocr-runtimes-tab").click();
+    await openOptionsSection(controlPage, "ocr");
     const focusedRuntimeAction = await controlPage.evaluate(() => {
-      const button = document.querySelector<HTMLButtonElement>(
-        '#ocr-runtime-list button[data-runtime-action="download"]',
+      const host = document.querySelector<HTMLElement>(
+        '#ocr-runtime-list nt-button[data-runtime-action="download"]',
       );
-      if (!button) throw new Error("Missing OCR runtime download action");
-      const identity = {
-        language: button.dataset.runtimeLanguage,
-        action: button.dataset.runtimeAction,
-      };
+      const button = host?.shadowRoot?.querySelector("button");
+      if (!host || !button) {
+        throw new Error("Missing OCR runtime download action");
+      }
+      const identity = { pack: host.dataset.runtimePack };
       button.focus();
       // The explicit action may start a download when the optional origin is
       // already granted. Its synchronous and polled rerenders must keep focus.
@@ -1051,10 +1054,7 @@ test("options lists missing OCR runtimes without automatic downloads and preserv
       const active = document.activeElement as HTMLElement | null;
       return {
         expected: identity,
-        actual: {
-          language: active?.dataset.runtimeLanguage,
-          action: active?.dataset.runtimeAction,
-        },
+        actual: { pack: active?.dataset.runtimePack },
       };
     });
     expect(focusedRuntimeAction.actual).toEqual(focusedRuntimeAction.expected);
@@ -1063,10 +1063,7 @@ test("options lists missing OCR runtimes without automatic downloads and preserv
       .poll(() =>
         controlPage.evaluate(() => {
           const active = document.activeElement as HTMLElement | null;
-          return {
-            language: active?.dataset.runtimeLanguage,
-            action: active?.dataset.runtimeAction,
-          };
+          return { pack: active?.dataset.runtimePack };
         }),
       )
       .toEqual(focusedRuntimeAction.expected);
@@ -1077,105 +1074,78 @@ test("options lists missing OCR runtimes without automatic downloads and preserv
 });
 
 test("site Profile synchronizes visual and developer management", async () => {
-  await controlPage.locator("#profiles-settings-tab").click();
-  const profileItems = controlPage.locator(".profile-catalog-item");
-  await expect(profileItems.first()).toBeVisible();
-  const profileGroups = controlPage.locator(".profile-catalog-section");
-  await expect(profileGroups).toHaveCount(2);
-  await profileGroups.nth(1).locator("summary").click();
-  await expect(profileGroups.nth(1)).not.toHaveAttribute("open", "");
-  await profileItems.first().click();
-  await expect(profileGroups.nth(1)).not.toHaveAttribute("open", "");
-  await profileGroups.nth(1).locator("summary").click();
-  await expect(profileGroups.nth(1)).toHaveAttribute("open", "");
+  await openOptionsSection(controlPage, "sites");
+  const builtIn = controlPage.locator('.site-entry[data-kind="builtin"]');
+  await expect(builtIn.first()).toBeVisible();
   await expect(
-    controlPage.locator(".profile-catalog-item", {
+    controlPage.locator(".site-entry", {
       hasText: "Standard HTML5 TextTrack",
     }),
   ).toHaveCount(0);
-  const profileLayout = await profileItems.first().evaluate((element) => {
-    const style = getComputedStyle(element);
-    const name = element.querySelector("strong");
-    const meta = element.querySelector(":scope > span");
-    return {
-      display: style.display,
-      width: element.getBoundingClientRect().width,
-      parentWidth: element.parentElement?.getBoundingClientRect().width ?? 0,
-      nameDisplay: name ? getComputedStyle(name).display : "missing",
-      metaDisplay: meta ? getComputedStyle(meta).display : "missing",
-    };
-  });
-  expect(profileLayout).toMatchObject({
-    display: "grid",
-    nameDisplay: "block",
-    metaDisplay: "block",
-  });
-  expect(profileLayout.width).toBeGreaterThan(profileLayout.parentWidth - 16);
-  const workspaceColumns = await controlPage
-    .locator(".profile-editor-workspace")
-    .evaluate((element) =>
-      getComputedStyle(element).gridTemplateColumns.trim().split(/\s+/u),
-    );
-  expect(workspaceColumns).toHaveLength(2);
-  await expect(controlPage.locator("#profile-capture-details")).toBeVisible();
-  await expect(
-    controlPage.locator("#profile-capture-parser"),
-  ).not.toBeVisible();
-  await expect(controlPage.locator("#profile-json")).not.toBeVisible();
-  await expect(controlPage.locator("#profile-file-dialog")).not.toBeVisible();
-  await controlPage.locator("#profile-file-open").click();
-  await expect(controlPage.locator("#profile-file-dialog")).toBeVisible();
-  await expect(controlPage.locator("#profile-json")).toBeVisible();
-  await expect(controlPage.locator("#profile-file-import")).toBeVisible();
-  await expect(controlPage.locator("#profile-file-export")).toBeVisible();
-  const profileText = await controlPage.locator("#profile-json").inputValue();
-  await controlPage.locator("#profile-file-input").setInputFiles({
+  const entryLayout = await builtIn.first().evaluate((element) => ({
+    width: element.getBoundingClientRect().width,
+    height: element.getBoundingClientRect().height,
+    parentWidth: element.parentElement?.getBoundingClientRect().width ?? 0,
+  }));
+  expect(entryLayout.width).toBeGreaterThan(entryLayout.parentWidth - 2);
+  expect(entryLayout.height).toBeGreaterThanOrEqual(44);
+
+  // List -> detail: focus moves to the site's heading.
+  await controlPage.locator("#site-entry-youtube").click();
+  await expect(controlPage.locator("#site-detail-title")).toBeFocused();
+  await expect(controlPage.locator("#site-detail-title")).toHaveText("YouTube");
+  // Advanced capture rules and the developer Profile start collapsed.
+  await expect(controlPage.locator("#site-capture-parser")).toBeHidden();
+  await expect(controlPage.locator("#site-profile-json")).toBeHidden();
+  await controlPage.locator("#site-developer > summary").click();
+  const json = controlPage.locator("#site-profile-json textarea");
+  await expect(json).toBeVisible();
+  const profileText = await json.inputValue();
+  await controlPage.locator("#site-profile-file").setInputFiles({
     name: "youtube.profile.json",
     mimeType: "application/json",
     buffer: Buffer.from(profileText),
   });
-  await expect(controlPage.locator("#profile-message")).toContainText(
+  await expect(controlPage.locator("#site-profile-message")).toContainText(
     /imported|已导入/iu,
   );
   const downloadPromise = controlPage.waitForEvent("download");
-  await controlPage.locator("#profile-file-export").click();
+  await controlPage.locator("#site-profile-export").click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toBe("youtube.profile.json");
-  await controlPage.locator("#profile-file-close").click();
-  await expect(controlPage.locator("#profile-file-dialog")).not.toBeVisible();
-  await expect(
-    controlPage.locator("#profile-page-auto-translate"),
-  ).toBeDisabled();
-  await controlPage.locator("#profile-page-override").check();
-  await expect(
-    controlPage.locator("#profile-page-auto-translate"),
-  ).toBeEnabled();
-  await controlPage.locator("#profile-page-auto-translate").check();
-  await controlPage.locator("#profile-page-floating-button").uncheck();
-  await expect(controlPage.locator("#profile-json")).toHaveValue(
+
+  // Surface fields appear only after "set separately for this site".
+  await expect(controlPage.locator("#site-page-auto-translate")).toHaveCount(0);
+  await controlPage.locator("#site-page-override button").click();
+  await controlPage.locator("#site-page-auto-translate button").click();
+  await controlPage.locator("#site-page-floating-button button").click();
+  await expect(json).toHaveValue(
     /"autoTranslate": true[\s\S]*"floatingButtonEnabled": false/u,
   );
+
+  await controlPage.locator("#site-capture > summary").click();
   await expect(
-    controlPage.locator("#profile-capture-override"),
-  ).not.toBeChecked();
-  await expect(controlPage.locator("#profile-capture-parser")).toBeDisabled();
-  await controlPage.locator("#profile-capture-override").check();
-  await expect(controlPage.locator("#profile-capture-parser")).toBeVisible();
-  await expect(controlPage.locator("#profile-capture-parser")).toBeEnabled();
-  await expect(controlPage.locator("#profile-json")).toHaveValue(
+    controlPage.locator("#site-capture-customized button"),
+  ).toHaveAttribute("aria-checked", "false");
+  await expect(
+    controlPage.locator("#site-capture-parser select"),
+  ).toBeDisabled();
+  await controlPage.locator("#site-capture-customized button").click();
+  await expect(
+    controlPage.locator("#site-capture-parser select"),
+  ).toBeEnabled();
+  await expect(json).toHaveValue(
     /"subtitleCapture": \{[\s\S]*"customized": true/u,
   );
-  await controlPage.locator("#profile-save").click();
-  await expect(controlPage.locator("#profile-editor-kind")).toHaveAttribute(
-    "data-kind",
-    "override",
-  );
-  controlPage.once("dialog", (dialog) => dialog.accept());
-  await controlPage.locator("#profile-restore").click();
-  await expect(controlPage.locator("#profile-editor-kind")).toHaveAttribute(
-    "data-kind",
-    "builtin",
-  );
+  await controlPage.locator("#site-profile-save").click();
+  const kind = controlPage.locator(".site-detail nt-chip[data-kind]");
+  await expect(kind).toHaveAttribute("data-kind", "override");
+  await controlPage.locator("#site-profile-restore").click();
+  await expect(controlPage.locator("#opt-confirm")).toBeVisible();
+  await controlPage.locator("#opt-confirm-accept").click();
+  await expect(kind).toHaveAttribute("data-kind", "builtin");
+  await controlPage.locator("#site-profile-back").click();
+  await expect(controlPage.locator("#site-entry-youtube")).toBeFocused();
 });
 
 test("strips the browser Origin from extension Provider requests only", async () => {
@@ -1277,116 +1247,99 @@ test("options saves a valid provider through the background settings boundary", 
       ),
     )
     .toBe(false);
-  await controlPage.locator("#profiles-settings-tab").click();
-  const profileItems = controlPage.locator(".profile-catalog-item");
-  await expect(profileItems.first()).toBeVisible();
+  await openOptionsSection(controlPage, "sites");
+  const siteEntries = controlPage.locator(".site-entry");
+  await expect(siteEntries.first()).toBeVisible();
   await expect(
-    controlPage.locator(".profile-catalog-item", {
-      hasText: "Standard HTML5 TextTrack",
-    }),
+    controlPage.locator(".site-entry", { hasText: "Standard HTML5 TextTrack" }),
   ).toHaveCount(0);
-  const profileLayout = await profileItems.first().evaluate((element) => {
-    const style = getComputedStyle(element);
-    const name = element.querySelector("strong");
-    const meta = element.querySelector(":scope > span");
-    return {
-      display: style.display,
-      width: element.getBoundingClientRect().width,
-      parentWidth: element.parentElement?.getBoundingClientRect().width ?? 0,
-      nameDisplay: name ? getComputedStyle(name).display : "missing",
-      metaDisplay: meta ? getComputedStyle(meta).display : "missing",
-    };
-  });
-  expect(profileLayout).toMatchObject({
-    display: "grid",
-    nameDisplay: "block",
-    metaDisplay: "block",
-  });
-  expect(profileLayout.width).toBeGreaterThan(profileLayout.parentWidth - 16);
-  await controlPage.locator("#provider-settings-tab").click();
+  await openOptionsSection(controlPage, "providers");
   await expect(
     controlPage.locator('#fast-provider option[value="openai-compatible"]'),
   ).toHaveCount(0);
   await expect(controlPage.locator("#ai-provider option")).toHaveCount(2);
-  await controlPage.locator("#base-url").fill(providerBaseUrl);
-  await controlPage.locator("#api-key").fill("e2e-options-key");
-  await controlPage.locator("#model").fill("e2e-options-model");
-  await controlPage.locator("#timeout").fill("180");
+  await controlPage.locator("#base-url input").fill(providerBaseUrl);
+  await controlPage.locator("#api-key input").fill("e2e-options-key");
+  await controlPage.locator("#model input").fill("e2e-options-model");
+  if (!(await controlPage.locator("#ai-advanced").getAttribute("open"))) {
+    await controlPage.locator("#ai-advanced > summary").click();
+  }
+  await controlPage.locator('#timeout [role="spinbutton"]').press("End");
+  // Credentials are never autosaved: nothing is written before "Save".
+  await expect(controlPage.locator("#test-message")).not.toBeEmpty();
+  await controlPage.locator("#save-provider").click();
+  await expect(controlPage.locator("#test-message")).toHaveAttribute(
+    "data-tone",
+    "success",
+  );
   const translationMethodValues = TRANSLATION_METHODS.map(
     (method) => method.value,
   );
   expect(translationMethodValues).not.toContain("norixor");
   await expect(controlPage.locator("#norixor-settings-tab")).toHaveCount(0);
-  for (const selector of [
-    "#page-mode",
-    "#selection-translation-mode",
-    "#subtitle-mode",
-  ]) {
+
+  // Everything else autosaves field by field.
+  const segment = (id: string, value: string) =>
+    controlPage.locator(`#${id} .seg[data-value="${value}"]`);
+  await openOptionsSection(controlPage, "page");
+  for (const selector of ["#page-mode", "#image-mode"]) {
     await expect
       .poll(() =>
         controlPage
-          .locator(`${selector} option`)
-          .evaluateAll((options) =>
-            options.map((option) => (option as HTMLOptionElement).value),
+          .locator(`${selector} .seg`)
+          .evaluateAll((buttons) =>
+            buttons.map((button) => (button as HTMLElement).dataset.value),
           ),
       )
-      .toEqual(translationMethodValues);
+      .toEqual(["ai", "fast"]);
   }
-  await expect
-    .poll(() =>
-      controlPage
-        .locator("#image-mode option")
-        .evaluateAll((options) =>
-          options.map((option) => (option as HTMLOptionElement).value),
-        ),
-    )
-    .toEqual(translationMethodValues);
-  await controlPage.locator("#page-settings-tab").click();
-  await controlPage.locator("#page-mode").selectOption("ai");
-  await controlPage.locator("#page-response-mode").selectOption("batch");
-  await controlPage.locator("#selection-settings-tab").click();
+  await segment("page-mode", "ai").click();
+  await segment("page-response-mode", "batch").click();
+  await openOptionsSection(controlPage, "selection");
+  await segment("selection-translation-mode", "fast").click();
+  await openOptionsSection(controlPage, "video");
+  await segment("subtitle-response-mode", "stream").click();
   await controlPage
-    .locator("#selection-translation-mode")
-    .selectOption("fast:google-translate");
-  await controlPage.locator("#video-settings-tab").click();
-  await controlPage.locator("#subtitle-response-mode").selectOption("stream");
-  await controlPage.locator("#subtitle-target-language").selectOption("ja");
-  await controlPage
-    .locator("#subtitle-display-mode")
-    .selectOption("translated");
-  await controlPage.locator("#subtitle-position").selectOption("top");
-  await controlPage.locator("#subtitle-hide-native").focus();
-  await controlPage.locator("#subtitle-hide-native").press("Space");
-  await controlPage.locator("#subtitle-font-scale").fill("1.25");
-  await controlPage.locator("#save-settings").click();
-
-  await expect(controlPage.locator("#save-message")).toHaveAttribute(
-    "data-tone",
-    "success",
+    .locator("#subtitle-target-language select")
+    .selectOption("ja");
+  await segment("subtitle-display-mode", "translated").click();
+  await segment("subtitle-position", "top").click();
+  await controlPage.locator("#subtitle-hide-native button").focus();
+  await controlPage.locator("#subtitle-hide-native button").press("Space");
+  const fontScale = controlPage.locator(
+    '#subtitle-font-scale [role="spinbutton"]',
   );
-  const stored = await controlPage.evaluate(async () => {
-    const value: unknown = await chrome.runtime.sendMessage({
-      type: "SETTINGS_GET",
+  await fontScale.focus();
+  await fontScale.press("Home");
+  await fontScale.press("Enter");
+  for (let step = 0; step < 10; step += 1) {
+    await fontScale.press("ArrowUp");
+  }
+  await fontScale.press("Enter");
+  const readStored = () =>
+    controlPage.evaluate(async () => {
+      const value: unknown = await chrome.runtime.sendMessage({
+        type: "SETTINGS_GET",
+      });
+      if (
+        typeof value !== "object" ||
+        value === null ||
+        !("provider" in value) ||
+        typeof value.provider !== "object" ||
+        value.provider === null ||
+        !("timeoutMs" in value.provider) ||
+        !("subtitles" in value) ||
+        !("page" in value)
+      ) {
+        return null;
+      }
+      return {
+        timeoutMs: value.provider.timeoutMs,
+        page: value.page,
+        subtitles: value.subtitles,
+      };
     });
-    if (
-      typeof value !== "object" ||
-      value === null ||
-      !("provider" in value) ||
-      typeof value.provider !== "object" ||
-      value.provider === null ||
-      !("timeoutMs" in value.provider) ||
-      !("subtitles" in value) ||
-      !("page" in value)
-    ) {
-      return null;
-    }
-    return {
-      timeoutMs: value.provider.timeoutMs,
-      page: value.page,
-      subtitles: value.subtitles,
-    };
-  });
-  expect(stored).toMatchObject({
+  await expect.poll(readStored).toMatchObject({
     timeoutMs: 180_000,
     page: {
       mode: "ai",
@@ -1479,17 +1432,34 @@ test("selection translation sends text only after its compact trigger is clicked
 });
 
 test("options confirms destructive cache and credential clearing", async () => {
-  await controlPage.locator("#provider-settings-tab").click();
+  await openOptionsSection(controlPage, "privacy");
+  const dialog = controlPage.locator("#opt-confirm");
   for (const selector of ["#clear-cache", "#clear-credentials"]) {
-    const dialogPromise = controlPage.waitForEvent("dialog");
-    const clickPromise = controlPage.locator(selector).click();
-    const dialog = await dialogPromise;
-    expect(dialog.type()).toBe("confirm");
-    expect(dialog.message().trim().length).toBeGreaterThan(0);
-    await dialog.dismiss();
-    await clickPromise;
+    await controlPage.locator(selector).click();
+    await expect(dialog).toBeVisible();
+    await expect(controlPage.locator("#opt-confirm-title")).not.toBeEmpty();
+    await expect(controlPage.locator("#opt-confirm-body")).not.toBeEmpty();
+    await expect(controlPage.locator("#opt-confirm-cancel")).toBeFocused();
+    await controlPage.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(controlPage.locator(selector)).toBeFocused();
     await expect(controlPage.locator(selector)).toBeEnabled();
   }
+  // Cancelling kept the stored credentials.
+  const apiKey = await controlPage.evaluate(async () => {
+    const value: unknown = await chrome.runtime.sendMessage({
+      type: "SETTINGS_GET",
+    });
+    return typeof value === "object" &&
+      value !== null &&
+      "provider" in value &&
+      typeof value.provider === "object" &&
+      value.provider !== null &&
+      "apiKey" in value.provider
+      ? value.provider.apiKey
+      : undefined;
+  });
+  expect(apiKey).toBeTruthy();
 });
 
 test("required all-site permission covers configured HTTPS providers", async () => {
@@ -1593,8 +1563,15 @@ test("serializes concurrent page and subtitle quick-setting writes", async () =>
   }
 });
 
-test("popup follows external page settings and preserves them on its next edit", async () => {
+test("popup follows external floating-control settings and preserves them on its next edit", async () => {
   const extensionId = await extensionIdFor(context);
+  const pageUrl = "https://popup-sync.example.net/";
+  await context.route(pageUrl, (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: "<!doctype html><title>Popup sync</title><main><p>Popup sync fixture.</p></main>",
+    }),
+  );
   const original = await controlPage.evaluate(async () => {
     const settings: unknown = await chrome.runtime.sendMessage({
       type: "SETTINGS_GET",
@@ -1604,97 +1581,83 @@ test("popup follows external page settings and preserves them on its next edit",
     }
     return settings;
   });
+  // Applies an external edit the way the options page does (read-modify-write).
+  const editExternally = (floating: boolean, targetLanguage: string) =>
+    controlPage.evaluate(
+      async ({ floating, targetLanguage }) => {
+        const settings: unknown = await chrome.runtime.sendMessage({
+          type: "SETTINGS_GET",
+        });
+        if (
+          typeof settings !== "object" ||
+          settings === null ||
+          !("page" in settings) ||
+          typeof settings.page !== "object" ||
+          settings.page === null ||
+          !("subtitles" in settings) ||
+          typeof settings.subtitles !== "object" ||
+          settings.subtitles === null
+        ) {
+          throw new Error("Missing settings for external popup edit");
+        }
+        await chrome.runtime.sendMessage({
+          type: "SETTINGS_SET",
+          settings: {
+            ...settings,
+            page: {
+              ...settings.page,
+              floatingButtonEnabled: floating,
+              targetLanguage,
+            },
+            subtitles: {
+              ...settings.subtitles,
+              floatingButtonEnabled: floating,
+            },
+          },
+        });
+      },
+      { floating, targetLanguage },
+    );
+  const storedPage = () =>
+    controlPage.evaluate(async () => {
+      const settings: unknown = await chrome.runtime.sendMessage({
+        type: "SETTINGS_GET",
+      });
+      return typeof settings === "object" &&
+        settings !== null &&
+        "page" in settings
+        ? settings.page
+        : null;
+    });
+  const target = await context.newPage();
   const popup = await context.newPage();
   try {
-    await controlPage.evaluate(async () => {
-      const settings: unknown = await chrome.runtime.sendMessage({
-        type: "SETTINGS_GET",
-      });
-      if (
-        typeof settings !== "object" ||
-        settings === null ||
-        !("page" in settings) ||
-        typeof settings.page !== "object" ||
-        settings.page === null
-      ) {
-        throw new Error("Missing initial popup page settings");
-      }
-      await chrome.runtime.sendMessage({
-        type: "SETTINGS_SET",
-        settings: {
-          ...settings,
-          page: {
-            ...settings.page,
-            sourceLanguage: "auto",
-            targetLanguage: "zh-CN",
-            mode: "fast",
-            aiResponseMode: "stream",
-            displayMode: "bilingual",
-          },
-        },
-      });
-    });
+    await editExternally(true, "zh-CN");
+    await target.goto(pageUrl);
     await popup.goto(`chrome-extension://${extensionId}/popup.html`);
-    await expect(popup.locator("#target-language")).toHaveValue("zh-CN");
-
-    await controlPage.evaluate(async () => {
-      const settings: unknown = await chrome.runtime.sendMessage({
-        type: "SETTINGS_GET",
-      });
-      if (
-        typeof settings !== "object" ||
-        settings === null ||
-        !("page" in settings) ||
-        typeof settings.page !== "object" ||
-        settings.page === null
-      ) {
-        throw new Error("Missing externally updated popup page settings");
-      }
-      await chrome.runtime.sendMessage({
-        type: "SETTINGS_SET",
-        settings: {
-          ...settings,
-          page: {
-            ...settings.page,
-            targetLanguage: "es",
-            mode: "ai",
-            aiResponseMode: "batch",
-            displayMode: "translated",
-          },
-        },
-      });
+    // The popup acts on the active tab; make the fixture page the active one
+    // so the popup leaves its restricted (extension page) state.
+    await target.bringToFront();
+    const floating = popup.locator('nt-switch[data-switch="floating"] button');
+    await expect(floating).toHaveAttribute("aria-checked", "true", {
+      timeout: 15_000,
     });
 
-    await expect(popup.locator("#target-language")).toHaveValue("es");
-    await expect(popup.locator("#translation-method")).toHaveValue("ai");
-    await expect(popup.locator("#response-mode")).toHaveValue("batch");
-    await expect(
-      popup.locator('input[name="display-mode"][value="translated"]'),
-    ).toBeChecked();
+    await editExternally(false, "es");
+    await expect(floating).toHaveAttribute("aria-checked", "false");
 
-    await popup.locator("#source-language").selectOption("en");
+    await editExternally(true, "es");
+    await expect(floating).toHaveAttribute("aria-checked", "true");
+
+    await floating.click();
+    await expect(floating).toHaveAttribute("aria-checked", "false");
     await expect
-      .poll(() =>
-        controlPage.evaluate(async () => {
-          const settings: unknown = await chrome.runtime.sendMessage({
-            type: "SETTINGS_GET",
-          });
-          return typeof settings === "object" &&
-            settings !== null &&
-            "page" in settings
-            ? settings.page
-            : null;
-        }),
-      )
-      .toMatchObject({
-        sourceLanguage: "en",
-        targetLanguage: "es",
-        mode: "ai",
-        aiResponseMode: "batch",
-        displayMode: "translated",
-      });
+      .poll(storedPage)
+      .toMatchObject({ floatingButtonEnabled: false, targetLanguage: "es" });
   } finally {
     await popup.close();
+    await target.close();
+    await context.unroute(pageUrl);
     await controlPage.evaluate(async (settings) => {
       await chrome.runtime.sendMessage({ type: "SETTINGS_SET", settings });
     }, original);
@@ -1737,15 +1700,15 @@ test("content-script context cannot read private settings", async () => {
 });
 
 test("options rejects an insecure remote HTTP provider without changing settings", async () => {
-  await controlPage.locator("#provider-settings-tab").click();
-  await controlPage.locator("#base-url").fill("http://remote.example/v1");
-  await controlPage.locator("#save-settings").click();
+  await openOptionsSection(controlPage, "providers");
+  await controlPage.locator("#base-url input").fill("http://remote.example/v1");
+  await controlPage.locator("#save-provider").click();
 
-  await expect(controlPage.locator("#save-message")).toHaveAttribute(
+  await expect(controlPage.locator("#test-message")).toHaveAttribute(
     "data-tone",
     "error",
   );
-  await expect(controlPage.locator("#save-message")).toContainText("HTTPS");
+  await expect(controlPage.locator("#test-message")).toContainText("HTTPS");
   const storedBaseUrl = await controlPage.evaluate(async () => {
     const value: unknown = await chrome.runtime.sendMessage({
       type: "SETTINGS_GET",
@@ -1772,7 +1735,7 @@ test("automatically mounts one unified page and video control", async () => {
       contentType: "text/html",
       body: `<!doctype html>
         <style>
-          noritrans-floating-control {
+          div[data-noritrans-ui="floating-control"] {
             width: 48px;
             max-width: 48px;
             overflow: hidden;
@@ -1788,11 +1751,11 @@ test("automatically mounts one unified page and video control", async () => {
   const page = await context.newPage();
   try {
     await page.goto(pageUrl);
-    const control = page.locator("noritrans-floating-control");
-    await expect(control).toHaveAttribute("data-hidden", "false");
-    await expect(control.locator(".panel")).toBeHidden();
-    await control.locator(".launcher").click();
-    await expect(control.locator(".panel")).toBeVisible();
+    const control = floatingControl(page);
+    await expect(control).toBeVisible();
+    await expect(floatingPanel(control)).toBeHidden();
+    await floatingLauncher(control).click();
+    await expect(floatingPanel(control)).toBeVisible();
     await expect
       .poll(() =>
         control.evaluate((host) => ({
@@ -1811,14 +1774,16 @@ test("automatically mounts one unified page and video control", async () => {
         pointerEvents: "auto",
       });
     expect(
-      (await control.locator(".panel").boundingBox())?.width,
+      (await floatingPanel(control).boundingBox())?.width,
     ).toBeGreaterThanOrEqual(280);
-    await expect(control.locator("#noritrans-page-panel-tab")).toBeFocused();
-    await expect(control.locator('[role="tab"]')).toHaveCount(3);
-    await expect(control.locator("#noritrans-page-panel")).toBeVisible();
-    await control.locator("#noritrans-video-panel-tab").click();
-    await expect(control.locator("#noritrans-video-panel")).toBeVisible();
-    const launcher = control.locator(".launcher");
+    await expect(floatingTab(control, "page")).toBeFocused();
+    // Image translation is a collapsible section of the page tab now, so
+    // only the page and video tabs remain.
+    await expect(control.locator('[role="tab"]')).toHaveCount(2);
+    await expect(floatingTabBody(control, "page")).toBeVisible();
+    await floatingTab(control, "video").click();
+    await expect(floatingTabBody(control, "video")).toBeVisible();
+    const launcher = floatingLauncher(control);
     const launcherBox = await launcher.boundingBox();
     if (!launcherBox) throw new Error("Missing floating launcher geometry");
     await page.mouse.move(
@@ -1832,7 +1797,7 @@ test("automatically mounts one unified page and video control", async () => {
     await page.mouse.up();
     await expect(control).toHaveAttribute("data-docked-edge", "left");
     await expect(control).toHaveAttribute("data-edge-hidden", "true");
-    await expect(control.locator(".panel")).toBeHidden();
+    await expect(floatingPanel(control)).toBeHidden();
     await page.mouse.move(400, 400);
     await expect(control).toHaveAttribute("data-edge-hidden", "true", {
       timeout: 2_000,
@@ -1853,8 +1818,8 @@ test("automatically mounts one unified page and video control", async () => {
     await page.mouse.down();
     await page.mouse.up();
     await expect(control).toHaveAttribute("data-edge-hidden", "false");
-    await expect(control.locator(".panel")).toBeVisible();
-    const reopenedPanel = await control.locator(".panel").boundingBox();
+    await expect(floatingPanel(control)).toBeVisible();
+    const reopenedPanel = await floatingPanel(control).boundingBox();
     expect(reopenedPanel?.width).toBeGreaterThanOrEqual(280);
     await expect
       .poll(() =>
@@ -1876,10 +1841,10 @@ test("automatically mounts one unified page and video control", async () => {
       .toBe(0);
     await page.evaluate(() => sessionStorage.clear());
     await page.reload();
-    const restoredControl = page.locator("noritrans-floating-control");
+    const restoredControl = floatingControl(page);
     await expect(restoredControl).toHaveAttribute("data-docked-edge", "left");
     await expect(restoredControl).toHaveAttribute("data-edge-hidden", "true");
-    const restoredLauncher = restoredControl.locator(".launcher");
+    const restoredLauncher = floatingLauncher(restoredControl);
     await restoredLauncher.focus();
     await restoredLauncher.press("ArrowRight");
     await expect(restoredControl).toHaveAttribute("data-edge-hidden", "false");
@@ -1930,7 +1895,7 @@ test("reinjects an invalidated content script through the runtime handshake", as
   const page = await context.newPage();
   try {
     await page.goto(pageUrl);
-    await expect(page.locator("noritrans-floating-control")).toHaveCount(1);
+    await expect(floatingControl(page)).toHaveCount(1);
     const invalidated = await controlPage.evaluate(async (targetUrl) => {
       const [target] = await chrome.tabs.query({ url: targetUrl });
       if (target?.id === undefined) return false;
@@ -1952,7 +1917,8 @@ test("reinjects an invalidated content script through the runtime handshake", as
       return true;
     }, pageUrl);
     expect(invalidated).toBe(true);
-    await expect(page.locator("noritrans-floating-control")).toHaveCount(0);
+    await expect(floatingControl(page)).toHaveCount(0);
+    // Leftovers of an older build: the legacy control and overlay markers.
     await page.evaluate(() => {
       const staleControl = document.createElement("noritrans-floating-control");
       staleControl.dataset.noritransUi = "unified-floating-control";
@@ -1987,9 +1953,10 @@ test("reinjects an invalidated content script through the runtime handshake", as
     }, pageUrl);
     expect(ensured).toMatchObject({ ok: true });
 
-    await expect(page.locator("noritrans-floating-control")).toHaveCount(1, {
+    await expect(floatingControl(page)).toHaveCount(1, {
       timeout: 12_000,
     });
+    await expect(page.locator("noritrans-floating-control")).toHaveCount(0);
     await expect(
       page.locator('[data-noritrans-ui="subtitle-overlay"]'),
     ).toHaveCount(1);
@@ -2054,36 +2021,21 @@ test("unified page and selection modes persist independently", async () => {
   const page = await context.newPage();
   try {
     await page.goto(pageUrl);
-    const control = page.locator("noritrans-floating-control");
-    await control.locator(".launcher").click();
-    const pagePanel = control.locator("#noritrans-page-panel");
-    const sourceLanguage = pagePanel.locator(
-      'select:has(option[value="auto"])',
+    const control = floatingControl(page);
+    const pagePanel = await openFloatingEditor(
+      await openFloatingTab(control, "page"),
     );
-    const targetLanguage = pagePanel.locator(
-      'select:not(:has(option[value="auto"])):has(option[value="ja"]):has(option[value="zh-CN"])',
-    );
-    const pageMode = pagePanel
-      .locator(
-        'select:has(option[value="fast:chrome-local"]):has(option[value="ai"])',
-      )
-      .nth(0);
-    const selectionMode = pagePanel
-      .locator(
-        'select:has(option[value="fast:chrome-local"]):has(option[value="ai"])',
-      )
-      .nth(1);
-    const selectionEnabled = pagePanel.locator('input[type="checkbox"]').nth(1);
-    const responseMode = pagePanel.locator(
-      'select:has(option[value="stream"]):has(option[value="batch"])',
-    );
-    const displayMode = pagePanel.locator(
-      'select:has(option[value="translated"]):has(option[value="bilingual"])',
-    );
+    const sourceLanguage = floatingSelect(pagePanel, "source");
+    const targetLanguage = floatingSelect(pagePanel, "target");
+    const pageMode = floatingSelect(pagePanel, "method");
+    const responseMode = floatingSelect(pagePanel, "response");
+    const displayMode = pagePanel.locator('nt-segmented[data-field="display"]');
+    // Selection translation is edited on the options page only; the floating
+    // editor must keep its saved values untouched.
+    await expect(pagePanel.locator('[data-field^="selection"]')).toHaveCount(0);
     await expect(pageMode).toHaveValue("fast:chrome-local");
-    await expect(selectionMode).toHaveValue("fast:chrome-local");
-    await expect(selectionEnabled).toBeChecked();
-    await expect(responseMode).toBeDisabled();
+    // The response mode only applies to AI and is not rendered for fast.
+    await expect(responseMode).toHaveCount(0);
     await pageMode.selectOption("fast:bergamot-local");
     await expect(sourceLanguage).toHaveValue("auto");
     await expect(sourceLanguage.locator('option[value="auto"]')).toBeEnabled();
@@ -2091,14 +2043,20 @@ test("unified page and selection modes persist independently", async () => {
       sourceLanguage.locator('option[value="auto"]'),
     ).not.toContainText(/current method unavailable|当前方式不可用/iu);
     await pageMode.selectOption("fast:chrome-local");
+    await expect(pageMode).toHaveValue("fast:chrome-local");
     await sourceLanguage.selectOption("en");
+    await expect(sourceLanguage).toHaveValue("en");
     await targetLanguage.selectOption("ja");
-    await displayMode.selectOption("translated");
+    await expect(targetLanguage).toHaveValue("ja");
+    await displayMode
+      .locator('[role="radio"][data-value="translated"]')
+      .click();
+    await expect(
+      displayMode.locator('[role="radio"][data-value="translated"]'),
+    ).toHaveAttribute("aria-checked", "true");
     await pageMode.selectOption("ai");
     await expect(responseMode).toBeEnabled();
     await responseMode.selectOption("batch");
-    await selectionMode.selectOption("ai");
-    await selectionEnabled.uncheck();
     await expect
       .poll(() =>
         controlPage.evaluate(async () => {
@@ -2144,8 +2102,8 @@ test("unified page and selection modes persist independently", async () => {
         pageMode: "ai",
         pageResponseMode: "batch",
         pageDisplayMode: "translated",
-        selectionTranslationEnabled: false,
-        selectionTranslationMode: "ai",
+        selectionTranslationEnabled: true,
+        selectionTranslationMode: "fast",
         subtitleMode:
           typeof original.subtitles === "object" &&
           original.subtitles !== null &&
@@ -2210,11 +2168,18 @@ test("enables global auto-translate without starting every existing background t
     await backgroundPage.goto(pageBUrl);
     await currentPage.goto(pageAUrl);
     await currentPage.bringToFront();
-    const control = currentPage.locator("noritrans-floating-control");
-    await control.locator(".launcher").click();
-    await control
-      .getByRole("checkbox", { name: /auto translate|自动翻译/iu })
-      .check();
+    const control = floatingControl(currentPage);
+    // "Auto-translate this site" moved into the page tab's "Change" editor.
+    const autoTranslate = floatingSwitch(
+      await openFloatingEditor(await openFloatingTab(control, "page")),
+      "auto",
+    );
+    await expect(autoTranslate).toHaveAccessibleName(
+      /auto[- ]?translate|自动翻译/iu,
+    );
+    await expect(autoTranslate).toHaveAttribute("aria-checked", "false");
+    await autoTranslate.click();
+    await expect(autoTranslate).toHaveAttribute("aria-checked", "true");
     await expect(currentPage.locator("noritrans-translation")).toHaveCount(1);
     await expect(
       currentPage
@@ -2232,9 +2197,9 @@ test("enables global auto-translate without starting every existing background t
     );
 
     await currentPage.bringToFront();
-    await control
-      .getByRole("checkbox", { name: /auto translate|自动翻译/iu })
-      .uncheck();
+    await openFloatingEditor(await openFloatingTab(control, "page"));
+    await autoTranslate.click();
+    await expect(autoTranslate).toHaveAttribute("aria-checked", "false");
     await backgroundPage.evaluate(() => {
       history.pushState({}, "", "/auto-scope-background-disabled");
       const main = document.querySelector("main");
@@ -2269,9 +2234,9 @@ test("mounts the unified translation control on an ordinary HTTPS page", async (
   const page = await context.newPage();
   try {
     await page.goto(pageUrl);
-    const control = page.locator("noritrans-floating-control");
+    const control = floatingControl(page);
     await expect(control).toHaveCount(1);
-    await expect(control).toHaveAttribute("data-hidden", "false");
+    await expect(control).toBeVisible();
   } finally {
     await page.close();
     await context.unroute(pageUrl);
@@ -2296,19 +2261,23 @@ test("restores a control hidden for the current browsing session", async () => {
   const page = await context.newPage();
   try {
     await page.goto(pageUrl);
-    let control = page.locator("noritrans-floating-control");
-    await expect(control).toHaveAttribute("data-hidden", "false");
-    await control.locator(".launcher").click();
-    await control.locator(".panel-menu > summary").click();
-    await control.locator(".panel-menu-popover button:not(.danger)").click();
-    await expect(control).toHaveAttribute("data-hidden", "true");
+    let control = floatingControl(page);
+    await expect(control).toBeVisible();
+    await openFloatingPanel(control);
+    await control.locator(".hd nt-icon-button.more").click();
+    await control
+      .locator('nt-menu [role="menuitem"][data-danger="false"]')
+      .first()
+      .click();
+    await expect(control).toBeHidden();
 
     await page.reload();
-    control = page.locator("noritrans-floating-control");
-    await expect(control).toHaveAttribute("data-hidden", "true");
-    await controlPage.locator("#visibility-settings-tab").click();
+    control = floatingControl(page);
+    await expect(control).toBeAttached();
+    await expect(control).toBeHidden();
+    await openOptionsSection(controlPage, "visibility");
     await controlPage.locator("#restore-session-floating").click();
-    await expect(control).toHaveAttribute("data-hidden", "false");
+    await expect(control).toBeVisible();
     await expect(
       controlPage.locator("#restore-session-floating-message"),
     ).toHaveAttribute("data-tone", "success");
@@ -2344,24 +2313,31 @@ test("re-enables a permanently hidden control from Options on an already open pa
   const page = await context.newPage();
   try {
     await page.goto(pageUrl);
-    const control = page.locator("noritrans-floating-control");
-    await expect(control).toHaveAttribute("data-hidden", "false");
-    await controlPage.locator("#visibility-settings-tab").click();
-    const enabled = controlPage.locator("#floating-control-enabled");
+    const control = floatingControl(page);
+    await expect(control).toBeVisible();
+    await openOptionsSection(controlPage, "visibility");
+    const enabled = controlPage.locator("#floating-control-enabled button");
     await expect(enabled).toBeChecked();
-    await controlPage.locator('label[for="floating-control-enabled"]').click();
+    // The general group autosaves through SETTINGS_PATCH.
+    await enabled.click();
     await expect(enabled).not.toBeChecked();
-    await controlPage.locator("#save-settings").click();
-    await expect(control).toHaveAttribute("data-hidden", "true");
+    await expect(control).toBeHidden();
 
-    await controlPage.locator('label[for="floating-control-enabled"]').click();
+    await enabled.click();
     await expect(enabled).toBeChecked();
-    await controlPage.locator("#save-settings").click();
-    await expect(controlPage.locator("#save-message")).toHaveAttribute(
-      "data-tone",
-      "success",
-    );
-    await expect(control).toHaveAttribute("data-hidden", "false");
+    await expect(enabled).toBeEnabled();
+    await expect(control).toBeVisible();
+
+    // Pill announcements follow the setting on an already open page.
+    const fab = control.locator("nt-pill-fab");
+    await expect(fab).not.toHaveAttribute("silent", /.*/u);
+    const announcements = controlPage.locator("#floating-announcements button");
+    await announcements.click();
+    await expect(announcements).not.toBeChecked();
+    await expect(fab).toHaveAttribute("silent", "");
+    await announcements.click();
+    await expect(announcements).toBeChecked();
+    await expect(fab).not.toHaveAttribute("silent", /.*/u);
   } finally {
     await controlPage.evaluate(async (settings) => {
       await chrome.runtime.sendMessage({ type: "SETTINGS_SET", settings });
@@ -2369,6 +2345,125 @@ test("re-enables a permanently hidden control from Options on an already open pa
     await controlPage.reload();
     await page.close();
     await context.unroute(pageUrl);
+  }
+});
+
+test("shows skipped marks on a real page only while the setting is on", async () => {
+  const pageUrl = "https://example.com/noritrans-skipped-marks";
+  await context.route(pageUrl, (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: `<!doctype html><main>
+        <p id="already">这是一段已经使用简体中文书写的网页内容，不需要再翻译。</p>
+      </main>`,
+    }),
+  );
+  // Automatic on-device source selection is what skips target-language text.
+  const previous = await controlPage.evaluate(async () => {
+    const raw: unknown = await chrome.runtime.sendMessage({
+      type: "SETTINGS_GET",
+    });
+    const stored = raw as {
+      provider: Record<string, unknown>;
+      page: Record<string, unknown>;
+    };
+    const previousSettings = structuredClone(stored);
+    await chrome.runtime.sendMessage({
+      type: "SETTINGS_SET",
+      settings: {
+        ...stored,
+        provider: { ...stored.provider, fastProvider: "chrome-local" },
+        page: {
+          ...stored.page,
+          mode: "fast",
+          sourceLanguage: "auto",
+          targetLanguage: "zh-CN",
+          showSkippedMarks: false,
+        },
+      },
+    });
+    return previousSettings;
+  });
+  const page = await context.newPage();
+  try {
+    await page.goto(pageUrl);
+    const marks = page.locator("noritrans-translation-pending");
+    await sendContentCommand(pageUrl, "PAGE_TRANSLATE");
+    await page.waitForTimeout(500);
+    await expect(marks).toHaveCount(0);
+    await sendContentCommand(pageUrl, "PAGE_RESTORE");
+
+    await openOptionsSection(controlPage, "marks");
+    const toggle = controlPage.locator("#page-show-skipped-marks button");
+    await expect(toggle).toBeVisible();
+    await toggle.click();
+    await expect(toggle).toBeChecked();
+    await expect
+      .poll(() =>
+        controlPage.evaluate(async () => {
+          const raw: unknown = await chrome.runtime.sendMessage({
+            type: "SETTINGS_GET",
+          });
+          return (raw as { page: { showSkippedMarks: boolean } }).page
+            .showSkippedMarks;
+        }),
+      )
+      .toBe(true);
+    await sendContentCommand(pageUrl, "PAGE_TRANSLATE");
+    await expect(marks).toHaveCount(1);
+
+    // Turning it off removes the marks already shown on the open page.
+    await toggle.click();
+    await expect(toggle).not.toBeChecked();
+    await expect(marks).toHaveCount(0);
+  } finally {
+    await page.close();
+    await context.unroute(pageUrl);
+    await controlPage.evaluate(async (settings) => {
+      await chrome.runtime.sendMessage({ type: "SETTINGS_SET", settings });
+    }, previous);
+  }
+});
+
+test("shows the update banner in General and ignores the version", async () => {
+  const extensionId = await extensionIdFor(context);
+  await controlPage.evaluate(async () => {
+    await chrome.storage.local.set({
+      "noritrans:update-state-v1": {
+        latestVersion: "99.0.0",
+        releaseUrl: "https://github.com/Norixor/NoriTrans/releases/tag/v99.0.0",
+        checkedAt: Date.now(),
+      },
+    });
+  });
+  try {
+    await controlPage.goto(
+      `chrome-extension://${extensionId}/options.html#general`,
+    );
+    // A hash-only navigation keeps the document; reload to read the status.
+    await controlPage.reload();
+    const banner = controlPage.locator("#update-banner");
+    await expect(banner).toContainText("99.0.0");
+    await expect(controlPage.locator("#update-status")).toContainText("99.0.0");
+    await expect(controlPage.locator("#extension-version")).toHaveText(
+      /\d+\.\d+\.\d+/u,
+    );
+    await expect(
+      controlPage.locator("#third-party-notices a").first(),
+    ).toHaveAttribute("href", /THIRD_PARTY_NOTICES\.txt$/u);
+    await controlPage.locator("#update-banner-ignore").click();
+    await expect(banner).toHaveCount(0);
+    await expect(controlPage.locator("#update-status")).toContainText(
+      /ignored|忽略/iu,
+    );
+  } finally {
+    await controlPage.evaluate(async () => {
+      await chrome.storage.local.remove([
+        "noritrans:update-state-v1",
+        "noritrans:update-preferences-v1",
+      ]);
+    });
+    await controlPage.goto(`chrome-extension://${extensionId}/options.html`);
   }
 });
 
@@ -2410,12 +2505,15 @@ test("requests optional OCR capture permission without enabling it before consen
   let permissionPage: Page | undefined;
   try {
     await page.goto(pageUrl);
-    const control = page.locator("noritrans-floating-control");
-    await control.locator(".launcher").click();
-    await control.locator("#noritrans-video-panel-tab").click();
-    await control.locator(".ocr-section > summary").click();
+    const control = floatingControl(page);
+    const ocrSection = await openFloatingSection(
+      await openFloatingTab(control, "video"),
+      "ocr",
+    );
+    const ocrToggle = floatingSwitch(ocrSection, "ocr-enabled");
+    await expect(ocrToggle).toHaveAttribute("aria-checked", "false");
     const permissionWindow = permissionContext.waitForEvent("page");
-    await control.locator('.ocr-section input[type="checkbox"]').click();
+    await ocrToggle.click();
     permissionPage = await permissionWindow;
     await permissionPage.waitForLoadState();
 
@@ -2433,10 +2531,8 @@ test("requests optional OCR capture permission without enabling it before consen
       "data-localized",
       "true",
     );
-    await expect(
-      control.locator('.ocr-section input[type="checkbox"]'),
-    ).not.toBeChecked();
-    await expect(control.locator(".ocr-section .status-row")).toContainText(
+    await expect(ocrToggle).toHaveAttribute("aria-checked", "false");
+    await expect(ocrSection.locator('[data-ocr="notice"]')).toContainText(
       /permission|权限/iu,
     );
     await expect
@@ -2465,9 +2561,7 @@ test("requests optional OCR capture permission without enabling it before consen
       )
       .toBe(true);
     await permissionPage.locator("#cancel").click();
-    await expect(
-      control.locator('.ocr-section input[type="checkbox"]'),
-    ).not.toBeChecked();
+    await expect(ocrToggle).toHaveAttribute("aria-checked", "false");
     await expect.poll(() => permissionPage?.isClosed()).toBe(true);
     await expect
       .poll(() =>
@@ -2508,12 +2602,12 @@ test("advanced subtitle picking releases the page after selecting a DOM region",
   const page = await context.newPage();
   try {
     await page.goto(pageUrl);
-    const control = page.locator("noritrans-floating-control");
-    await control.locator(".launcher").click();
-    await control.locator("#noritrans-video-panel-tab").click();
-    await control
-      .locator("#noritrans-video-panel > button.profile-action")
-      .click();
+    const control = floatingControl(page);
+    // "Create site profile" moved into the video tab's "Change" editor.
+    const videoEditor = await openFloatingEditor(
+      await openFloatingTab(control, "video"),
+    );
+    await videoEditor.locator('nt-button[data-field="profile"] button').click();
 
     const wizard = page.locator("noritrans-subtitle-profile-wizard");
     await expect(wizard).toBeVisible();
@@ -2583,7 +2677,7 @@ test("advanced subtitle picking releases the page after selecting a DOM region",
       .toBe(1);
     await wizard.locator("button.close").click();
     await expect(wizard).toHaveCount(0);
-    await expect(control.locator(".launcher")).toBeFocused();
+    await expect(floatingLauncher(control)).toBeFocused();
   } finally {
     await controlPage.evaluate(async (hostname) => {
       const response: unknown = await chrome.runtime.sendMessage({
@@ -2665,7 +2759,7 @@ test("Tencent remains OCR-only and ignores page DOM caption candidates", async (
     const overlay = page.locator('[data-noritrans-ui="subtitle-overlay"]');
     await expect(overlay.locator(".cue-card")).toBeHidden();
 
-    const control = page.locator("noritrans-floating-control");
+    const control = floatingControl(page);
     await page.evaluate(() => {
       const clientWidth = window.innerWidth - 8;
       Object.defineProperty(document.documentElement, "clientWidth", {
@@ -2688,12 +2782,13 @@ test("Tencent remains OCR-only and ignores page DOM caption candidates", async (
     });
     expect(edgeVisibility.scrollbarWidth).toBe(8);
     expect(edgeVisibility.visibleWidth).toBeGreaterThanOrEqual(12);
-    await control.locator(".launcher").click();
-    await control.locator("#noritrans-video-panel-tab").click();
+    const videoBody = await openFloatingTab(control, "video");
     await page.locator(".txp_subtitle_line").evaluate((element) => {
       element.textContent = "Caption after stop";
     });
-    await control.locator(".subtitle-actions .primary").click();
+    // While discovery waits, the card offers "turn subtitle translation off"
+    // (the previous control offered "stop").
+    await floatingAction(videoBody, "disable").click();
     await page.waitForTimeout(300);
     await expect(overlay.locator(".cue-card")).toBeHidden();
   } finally {
@@ -2747,11 +2842,11 @@ test("translates, follows dynamic and SPA content, and restores in a real conten
     await page.goto(pageUrl);
     await sendContentCommand(pageUrl, "PAGE_TRANSLATE");
 
-    const pageWidget = page.locator("noritrans-floating-control");
-    await expect(pageWidget).toHaveAttribute("data-hidden", "false");
-    await expect(pageWidget.locator(".panel")).toBeHidden();
-    await pageWidget.locator(".launcher").click();
-    await expect(pageWidget.locator(".panel")).toBeVisible();
+    const pageWidget = floatingControl(page);
+    await expect(pageWidget).toBeVisible();
+    await expect(floatingPanel(pageWidget)).toBeHidden();
+    await floatingLauncher(pageWidget).click();
+    await expect(floatingPanel(pageWidget)).toBeVisible();
 
     await expect
       .poll(() =>
@@ -3143,11 +3238,9 @@ test("translates cross-origin iframe text and TextTrack with one top-level contr
     await page.goto(pageUrl);
     const embedded = page.frameLocator("#embedded");
     const secondEmbedded = page.frameLocator("#secondary");
-    await expect(page.locator("noritrans-floating-control")).toHaveCount(1);
-    await expect(embedded.locator("noritrans-floating-control")).toHaveCount(0);
-    await expect(
-      secondEmbedded.locator("noritrans-floating-control"),
-    ).toHaveCount(0);
+    await expect(floatingControl(page)).toHaveCount(1);
+    await expect(floatingControl(embedded)).toHaveCount(0);
+    await expect(floatingControl(secondEmbedded)).toHaveCount(0);
 
     await sendContentCommand(pageUrl, "PAGE_TRANSLATE");
     await expect
@@ -3247,18 +3340,14 @@ test("translates cross-origin iframe text and TextTrack with one top-level contr
       ),
     ).toBeVisible();
 
-    const floatingControl = page.locator("noritrans-floating-control");
-    await floatingControl.locator(".launcher").click();
-    await floatingControl.locator("#noritrans-video-panel-tab").click();
-    await floatingControl
-      .locator(".subtitle-actions button:not(.primary)")
-      .click();
+    const topControl = floatingControl(page);
+    const videoBody = await openFloatingTab(topControl, "video");
+    // A finished track offers "turn subtitle translation off" (the previous
+    // control offered "stop"); it must reach every frame's overlay.
+    await floatingAction(videoBody, "disable").click();
     await expect
       .poll(() => subtitleStatus(pageUrl))
-      .toMatchObject({
-        state: "cancelled",
-        total: 2,
-      });
+      .toMatchObject({ state: "disabled" });
     await expect(
       embedded.locator('[data-noritrans-ui="subtitle-overlay"] .cue-card'),
     ).toBeHidden();
@@ -3267,7 +3356,7 @@ test("translates cross-origin iframe text and TextTrack with one top-level contr
         '[data-noritrans-ui="subtitle-overlay"] .cue-card',
       ),
     ).toBeHidden();
-    await floatingControl.locator(".subtitle-actions .primary").click();
+    await floatingAction(videoBody, "enable").click();
     await expect
       .poll(() => subtitleStatus(pageUrl))
       .toMatchObject({
@@ -3601,34 +3690,30 @@ test("shows a safe clickable diagnostic for an invalid Provider response", async
         state: "error",
         completed: 0,
         failed: 1,
-        details: expect.stringContaining(
-          "Unknown compact result ID: unexpected-id",
-        ),
+        details: expect.stringContaining("Unknown result IDs: unexpected-id"),
       });
 
-    const control = page.locator("noritrans-floating-control");
-    await control.locator(".launcher").click();
-    const diagnostic = control.locator("#noritrans-page-panel .diagnostic");
+    const control = floatingControl(page);
+    const pageBody = await openFloatingTab(control, "page");
+    const diagnostic = pageBody.locator("nt-status-card.status details.diag");
     await expect(diagnostic).toBeVisible();
+    // The error is spelled out by the card state, not only by color.
+    await expect(pageBody.locator("nt-status-card.status")).toHaveAttribute(
+      "state",
+      "error",
+    );
     await diagnostic.locator("summary").click();
     await expect(diagnostic.locator("pre")).toContainText(
-      "Unknown compact result ID: unexpected-id",
+      "Unknown result IDs: unexpected-id",
     );
     const diagnosticText = await diagnostic.locator("pre").textContent();
     expect(diagnosticText).not.toContain("INVALID_RESPONSE_DETAILS");
     expect(diagnosticText).not.toContain("e2e-only-key");
-    expect(
-      await diagnostic
-        .locator("summary")
-        .evaluate((summary) =>
-          getComputedStyle(summary, "::before").content.replaceAll('"', ""),
-        ),
-    ).toBe("!");
     await page.keyboard.press("Escape");
     await expect(diagnostic).not.toHaveAttribute("open", "");
-    await expect(control.locator(".panel")).toBeVisible();
+    await expect(floatingPanel(control)).toBeVisible();
     await page.keyboard.press("Escape");
-    await expect(control.locator(".panel")).toBeHidden();
+    await expect(floatingPanel(control)).toBeHidden();
     await expect(page.locator("noritrans-translation")).toHaveCount(0);
   } finally {
     await controlPage.evaluate(async (previous) => {
@@ -3697,10 +3782,10 @@ test("keeps partial stream progress and recovers only its missing IDs", async ()
         failed: 0,
       });
 
-    const control = page.locator("noritrans-floating-control");
-    await control.locator(".launcher").click();
-    const diagnostic = control.locator("#noritrans-page-panel .diagnostic");
-    await expect(diagnostic).toBeHidden();
+    const control = floatingControl(page);
+    const pageBody = await openFloatingTab(control, "page");
+    await expect(pageBody.locator("nt-status-card.status")).toBeVisible();
+    await expect(pageBody.locator("details.diag")).toHaveCount(0);
     await expect(
       page.getByText("已译 PARTIAL_STREAM_DETAILS second.", {
         exact: true,
@@ -3848,9 +3933,8 @@ test("marks a failed block in-page and retries only that block from the marker",
     await expect(overlay).toHaveCount(1);
     await expect(page.locator("noritrans-translation")).toHaveCount(20);
 
-    // The retry marker sits just outside the failed block's right edge.
-    const failedBlock = page.locator("#block-21");
-    await failedBlock.scrollIntoViewIfNeeded();
+    // The retry marker is a keyboard-focusable button in the pending layer.
+    await page.locator("#block-21").scrollIntoViewIfNeeded();
     // Marker positions are re-measured on the next animation frame.
     await page.evaluate(
       () =>
@@ -3858,9 +3942,24 @@ test("marks a failed block in-page and retries only that block from the marker",
           requestAnimationFrame(() => requestAnimationFrame(resolve)),
         ),
     );
-    const box = await failedBlock.boundingBox();
-    if (!box) throw new Error("missing failed block box");
-    await page.mouse.click(box.x + box.width + 6 + 9, box.y + box.height / 2);
+    // The pending layer uses a closed shadow root, so Playwright cannot query
+    // the marker. It is keyboard-focusable: Tab until focus lands inside the
+    // layer (document.activeElement is then the layer host) and press Enter.
+    await page.evaluate(() => {
+      const active = document.activeElement;
+      if (active instanceof HTMLElement) active.blur();
+    });
+    let markerFocused = false;
+    for (let presses = 0; presses < 12 && !markerFocused; presses += 1) {
+      await page.keyboard.press("Tab");
+      markerFocused = await page.evaluate(
+        () =>
+          document.activeElement?.tagName.toLowerCase() ===
+          "noritrans-translation-pending",
+      );
+    }
+    expect(markerFocused).toBe(true);
+    await page.keyboard.press("Enter");
     await expect
       .poll(async () => await pageStatus(pageUrl))
       .toMatchObject({
@@ -4169,19 +4268,35 @@ test("ends empty subtitle discovery and exposes a manual rescan action", async (
         failed: 0,
       });
 
-    const control = page.locator("noritrans-floating-control");
-    await control.locator(".launcher").click();
-    await control.locator("#noritrans-video-panel-tab").click();
-    const start = control.locator(".subtitle-actions .primary");
-    await expect(start).toBeEnabled();
-    await start.click();
+    const control = floatingControl(page);
+    const videoBody = await openFloatingTab(control, "video");
+    // The expanded launcher exposes the panel it controls (Chrome supports
+    // ARIA element reflection across the shadow boundary).
+    expect(
+      await floatingLauncher(control).evaluate((button) => {
+        const reflected = (
+          button as HTMLButtonElement & { ariaControlsElements?: Element[] }
+        ).ariaControlsElements;
+        return reflected?.[0]?.id ?? button.getAttribute("aria-controls");
+      }),
+    ).toBe("nt-floating-panel");
+    // Manual rescan restarts discovery through the card's "rescan" action;
+    // "Try image recognition" alone does not rescan for a track, and the
+    // card never offers to "enable" a feature that is already on.
+    await expect(floatingAction(videoBody, "enable")).toHaveCount(0);
+    const rescan = floatingAction(videoBody, "rescan");
+    await expect(rescan).toBeEnabled();
+    await rescan.click();
     await expect
       .poll(() => subtitleStatus(pageUrl))
       .toMatchObject({
         state: "waiting",
         total: 0,
       });
-    await expect(start).toBeEnabled();
+    // Discovery ends empty again, so the same action comes back.
+    await expect(floatingAction(videoBody, "rescan")).toBeEnabled({
+      timeout: 15_000,
+    });
   } finally {
     await page.close();
     await context.unroute(pageUrl);
@@ -4216,21 +4331,16 @@ test("shows a clickable diagnostic for an invalid subtitle Provider response", a
         total: 1,
         completed: 0,
         failed: 1,
-        details: expect.stringContaining(
-          "Unknown compact result ID: unexpected-id",
-        ),
+        details: expect.stringContaining("Unknown result IDs: unexpected-id"),
       });
 
-    const control = page.locator("noritrans-floating-control");
-    await control.locator(".launcher").click();
-    await control.locator("#noritrans-video-panel-tab").click();
-    const diagnostic = control.locator(
-      "#noritrans-video-panel .diagnostic:not([hidden])",
-    );
+    const control = floatingControl(page);
+    const videoBody = await openFloatingTab(control, "video");
+    const diagnostic = videoBody.locator("nt-status-card.status details.diag");
     await expect(diagnostic).toBeVisible();
     await diagnostic.locator("summary").click();
     await expect(diagnostic.locator("pre")).toContainText(
-      "Unknown compact result ID: unexpected-id",
+      "Unknown result IDs: unexpected-id",
     );
   } finally {
     await page.close();
@@ -4748,7 +4858,7 @@ test("applies native caption visibility and overlay position at runtime", async 
         maxWidth: host.style.getPropertyValue("--noritrans-max-width"),
       }));
     expect(videoAnchoring).toEqual({ x: "440px", maxWidth: "512px" });
-    const quickControl = page.locator("noritrans-floating-control");
+    const quickControl = floatingControl(page);
     await page.locator("#fullscreen").click();
     await expect
       .poll(() =>
@@ -4760,21 +4870,22 @@ test("applies native caption visibility and overlay position at runtime", async 
     await expect(
       page.locator('[data-noritrans-ui="subtitle-overlay"] .cue-card'),
     ).toBeVisible();
-    await expect(quickControl.locator(".launcher")).toBeVisible();
-    await expect(quickControl.locator(".panel")).toBeHidden();
+    await expect(floatingLauncher(quickControl)).toBeVisible();
+    await expect(floatingPanel(quickControl)).toBeHidden();
     await expect
-      .poll(() =>
-        quickControl.evaluate(
-          (element) =>
-            element.parentElement?.getAttribute("data-noritrans-ui") ?? "",
-        ),
-      )
-      .toBe("floating-control-fullscreen-portal");
+      .poll(() => floatingParentSurface(quickControl))
+      .toBe(FLOATING_PORTAL_SURFACE);
+    // A fullscreen <video> cannot host children, so the root-level portal is
+    // inert and the button only shows status.
+    await expect(quickControl.locator(".launcher")).toHaveAttribute(
+      "data-status-only",
+      "",
+    );
     await page.evaluate(() => document.exitFullscreen());
     await expect
       .poll(() => page.evaluate(() => document.fullscreenElement === null))
       .toBe(true);
-    await expect(quickControl.locator(".launcher")).toBeVisible();
+    await expect(floatingLauncher(quickControl)).toBeVisible();
     await expect
       .poll(() =>
         quickControl.evaluate(
@@ -4782,13 +4893,17 @@ test("applies native caption visibility and overlay position at runtime", async 
         ),
       )
       .toBe(true);
-    await expect(quickControl.locator(".panel")).toBeHidden();
-    await quickControl.locator(".launcher").click();
-    await expect(quickControl.locator(".panel")).toBeVisible();
-    await quickControl.locator("#noritrans-video-panel-tab").click();
-    await expect(quickControl.locator("#noritrans-video-panel")).toBeVisible();
-    await quickControl.locator(".header .icon-button").click();
-    await expect(quickControl.locator(".panel")).toBeHidden();
+    await expect(quickControl.locator(".launcher")).not.toHaveAttribute(
+      "data-status-only",
+      /.*/u,
+    );
+    await expect(floatingPanel(quickControl)).toBeHidden();
+    await floatingLauncher(quickControl).click();
+    await expect(floatingPanel(quickControl)).toBeVisible();
+    await floatingTab(quickControl, "video").click();
+    await expect(floatingTabBody(quickControl, "video")).toBeVisible();
+    await quickControl.locator(".hd nt-icon-button.close").click();
+    await expect(floatingPanel(quickControl)).toBeHidden();
 
     await updateSubtitlePreferences({
       hideNativeSubtitles: false,
@@ -4830,11 +4945,12 @@ test("applies native caption visibility and overlay position at runtime", async 
       "visibility",
       "hidden",
     );
-    await quickControl.locator(".launcher").click();
-    await quickControl.locator("#noritrans-video-panel-tab").click();
-    await quickControl
-      .locator(".subtitle-actions button:not(.primary)")
-      .click();
+    // A ready track offers "turn subtitle translation off" as its primary
+    // action (the previous control offered "stop"); native captions return.
+    await floatingAction(
+      await openFloatingTab(quickControl, "video"),
+      "disable",
+    ).click();
     await expect(page.locator(".ytp-caption-segment")).toHaveCSS(
       "visibility",
       "visible",
@@ -4844,6 +4960,81 @@ test("applies native caption visibility and overlay position at runtime", async 
     ).toHaveCount(0);
   } finally {
     await updateSubtitlePreferences(previous);
+    await page.close();
+    await context.unroute(pageUrl);
+  }
+});
+
+test("keeps the floating control interactive inside a fullscreen container", async () => {
+  const pageUrl = "https://www.youtube.com/fullscreen-container-control-e2e";
+  await context.route(pageUrl, (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: '<!doctype html><style>#stage{width:640px;height:360px;background:#18202b;color:#fff}#stage:fullscreen{width:100vw;height:100vh}</style><div id="stage"><p id="stage-text">Fullscreen stage paragraph.</p></div><button id="fullscreen" onclick="document.querySelector(\'#stage\').requestFullscreen()">Fullscreen</button>',
+    }),
+  );
+  const page = await context.newPage();
+  try {
+    await page.goto(pageUrl);
+    const control = floatingControl(page);
+    await openFloatingPanel(control);
+    // Keyboard activation keeps the panel open, so the expanded state from
+    // before fullscreen can be checked after leaving it.
+    await page.locator("#fullscreen").focus();
+    await page.keyboard.press("Enter");
+    await expect
+      .poll(() => page.evaluate(() => document.fullscreenElement?.id ?? ""))
+      .toBe("stage");
+    await expect
+      .poll(() => floatingParentSurface(control))
+      .toBe(FLOATING_PORTAL_SURFACE);
+    expect(
+      await control.evaluate(
+        (host) => host.parentElement?.parentElement?.id ?? "",
+      ),
+    ).toBe("stage");
+    // Entering fullscreen collapses the panel; the button stays interactive.
+    await expect(floatingPanel(control)).toBeHidden();
+    await expect(control.locator(".launcher")).not.toHaveAttribute(
+      "data-status-only",
+      /.*/u,
+    );
+
+    // Real pointer input (no synthetic dispatch): the click must reach the
+    // button through the fullscreen top layer.
+    const launcherBox = await floatingLauncher(control).boundingBox();
+    if (!launcherBox) throw new Error("Missing fullscreen launcher geometry");
+    await page.mouse.click(
+      launcherBox.x + launcherBox.width / 2,
+      launcherBox.y + launcherBox.height / 2,
+    );
+    await expect(floatingPanel(control)).toBeVisible();
+    const pageBody = await openFloatingTab(control, "page");
+    await floatingAction(pageBody, "translate").click();
+    await expect
+      .poll(() => pageStatus(pageUrl))
+      .toMatchObject({ state: "translated", failed: 0 });
+    expect((await pageStatus(pageUrl))?.completed).toBeGreaterThan(0);
+    await expect
+      .poll(() => page.evaluate(() => document.fullscreenElement?.id ?? ""))
+      .toBe("stage");
+    await control.locator(".hd nt-icon-button.close").click();
+    await expect(floatingPanel(control)).toBeHidden();
+
+    await page.evaluate(() => document.exitFullscreen());
+    await expect
+      .poll(() => page.evaluate(() => document.fullscreenElement === null))
+      .toBe(true);
+    await expect
+      .poll(() =>
+        control.evaluate(
+          (host) => host.parentElement === document.documentElement,
+        ),
+      )
+      .toBe(true);
+    // Leaving fullscreen restores the panel that was open before.
+    await expect(floatingPanel(control)).toBeVisible();
+  } finally {
     await page.close();
     await context.unroute(pageUrl);
   }
@@ -5401,12 +5592,12 @@ test("does not download a missing OCR model during the local self-test", async (
   context.on("request", recordRequest);
   try {
     await controlPage.bringToFront();
-    await controlPage.locator("#ocr-runtimes-tab").click();
+    await openOptionsSection(controlPage, "ocr");
     await controlPage.locator("#ocr-self-test").click();
     const message = controlPage.locator("#ocr-test-message");
     await expect(message).toHaveAttribute("data-tone", "error");
     await expect(message).toHaveText(
-      /^(?:The required local OCR language pack is not installed\. Open Settings > OCR runtimes to download it\.|所需的本地 OCR 语言包尚未安装。请打开“设置 > OCR 运行时”下载。)$/u,
+      /^(?:The language pack for the selected recognition language is not installed\. Download it above, then test again\.|所选识别语言的语言包尚未安装。请先在上方下载，再重新测试。)$/u,
     );
     await expect(message).not.toContainText(/ocr_runtime_missing/iu);
     expect(
@@ -5418,6 +5609,24 @@ test("does not download a missing OCR model during the local self-test", async (
     context.off("request", recordRequest);
   }
 });
+
+/** OCR state and visible text: the OCR status card, else the section. */
+function readOcrCard(page: Page): Promise<{ state: string; text: string }> {
+  return page.evaluate((selector) => {
+    const root = document.querySelector(selector)?.shadowRoot;
+    const card = root?.querySelector("nt-status-card[data-ocr-card]");
+    const section = root?.querySelector('[data-section="ocr"]');
+    const text = card
+      ? [card.getAttribute("heading"), card.getAttribute("description")]
+          .filter(Boolean)
+          .join(" ")
+      : (section?.textContent ?? "");
+    return {
+      state: card?.getAttribute("data-ocr-card") ?? "",
+      text: text.replace(/\s+/gu, " ").trim(),
+    };
+  }, FLOATING_CONTROL_SELECTOR);
+}
 
 test("recognizes burned-in subtitles inside a canvas-player iframe", async () => {
   test.skip(
@@ -5585,14 +5794,15 @@ test("recognizes burned-in subtitles inside a canvas-player iframe", async () =>
   try {
     await page.goto(pageUrl);
     await page.bringToFront();
-    const floatingControl = page.locator("noritrans-floating-control");
-    await floatingControl.locator(".launcher").click();
-    await floatingControl.locator("#noritrans-video-panel-tab").click();
-    await floatingControl.locator(".ocr-section > summary").click();
-    const ocrToggle = floatingControl.locator(
-      '.ocr-section input[type="checkbox"]',
+    const ocrControl = floatingControl(page);
+    const ocrSection = await openFloatingSection(
+      await openFloatingTab(ocrControl, "video"),
+      "ocr",
     );
-    if (!(await ocrToggle.isChecked())) await ocrToggle.check();
+    const ocrToggle = floatingSwitch(ocrSection, "ocr-enabled");
+    if ((await ocrToggle.getAttribute("aria-checked")) !== "true") {
+      await ocrToggle.click();
+    }
     await expect
       .poll(() =>
         controlPage.evaluate(async () => {
@@ -5611,8 +5821,8 @@ test("recognizes burned-in subtitles inside a canvas-player iframe", async () =>
         }),
       )
       .toBe(true);
-    await floatingControl
-      .locator(".ocr-section .actions button.primary")
+    await ocrSection
+      .locator('nt-button[data-ocr-action="start"] button')
       .click();
     await page.bringToFront();
     const selector = page.locator("noritrans-ocr-region-selector");
@@ -5788,29 +5998,11 @@ test("recognizes burned-in subtitles inside a canvas-player iframe", async () =>
     await controlPage.bringToFront();
     await page.waitForTimeout(1_200);
     await expect
-      .poll(() =>
-        page.evaluate(
-          () =>
-            document
-              .querySelector("noritrans-floating-control")
-              ?.shadowRoot?.querySelector(".ocr-section .status-row")
-              ?.textContent?.replace(/\s+/gu, " ")
-              .trim() ?? "",
-        ),
-      )
+      .poll(() => readOcrCard(page).then((card) => card.text))
       .toMatch(/paused|已暂停/iu);
     await page.bringToFront();
     await expect
-      .poll(() =>
-        page.evaluate(
-          () =>
-            document
-              .querySelector("noritrans-floating-control")
-              ?.shadowRoot?.querySelector(".ocr-section .status-row")
-              ?.textContent?.replace(/\s+/gu, " ")
-              .trim() ?? "",
-        ),
-      )
+      .poll(() => readOcrCard(page).then((card) => card.text))
       .not.toMatch(/paused|已暂停/iu);
     await page.locator("#fullscreen").click();
     await expect
@@ -5822,19 +6014,11 @@ test("recognizes burned-in subtitles inside a canvas-player iframe", async () =>
         ),
       )
       .toBe(true);
-    await expect(floatingControl).toHaveAttribute(
-      "data-fullscreen-hidden",
-      "false",
-    );
-    await expect(floatingControl.locator(".launcher")).toBeVisible();
+    await expect(ocrControl).toBeVisible();
+    await expect(floatingLauncher(ocrControl)).toBeVisible();
     await expect
-      .poll(() =>
-        floatingControl.evaluate(
-          (element) =>
-            element.parentElement?.getAttribute("data-noritrans-ui") ?? "",
-        ),
-      )
-      .toBe("floating-control-fullscreen-portal");
+      .poll(() => floatingParentSurface(ocrControl))
+      .toBe(FLOATING_PORTAL_SURFACE);
     await page
       .frameLocator("#player")
       .locator("canvas")
@@ -5847,19 +6031,7 @@ test("recognizes burned-in subtitles inside a canvas-player iframe", async () =>
         }
       });
     await expect
-      .poll(
-        () =>
-          page.evaluate(() => {
-            const row = document
-              .querySelector("noritrans-floating-control")
-              ?.shadowRoot?.querySelector(".ocr-section .status-row");
-            return {
-              state: row?.getAttribute("data-state") ?? "",
-              text: row?.textContent?.replace(/\s+/gu, " ").trim() ?? "",
-            };
-          }),
-        { timeout: 25_000 },
-      )
+      .poll(() => readOcrCard(page), { timeout: 25_000 })
       .toMatchObject({
         state: "unavailable",
         text: expect.stringMatching(/protected|受.*保护|DRM/iu),

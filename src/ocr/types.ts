@@ -17,9 +17,39 @@ export type OcrStatusState =
   | "unavailable"
   | "error";
 
+/**
+ * Machine-readable reasons carried by `OcrStatus.reasonCode` when a session
+ * cannot start or stops on a failure. `message` keeps the localized sentence;
+ * surfaces choose wording and actions from the code, never from the text.
+ * Codes follow the `isStatusReasonCode` shape (short snake_case).
+ */
+export const OCR_REASON = {
+  sourceLanguageUnsupported: "ocr_source_language_unsupported",
+  /** The recognition language pack is not installed (Settings download). */
+  runtimeMissing: "ocr_runtime_missing",
+  /** The local recognition engine reported itself unavailable. */
+  engineUnavailable: "ocr_engine_unavailable",
+  startFailed: "ocr_start_failed",
+  videoUnavailable: "ocr_video_unavailable",
+  pictureInPicture: "ocr_picture_in_picture",
+  videoChanged: "ocr_video_changed",
+  capturePermissionRequired: "ocr_capture_permission_required",
+  captureTooLarge: "ocr_capture_too_large",
+  captureFailed: "ocr_capture_failed",
+  /** Same code as `STATUS_REASON.ocrProtectedVideo`. */
+  protectedVideo: "ocr_protected_video",
+  recognitionFailed: "ocr_recognition_failed",
+  /** A non-OCR subtitle track is already available (host rejected start). */
+  existingSubtitles: "ocr_existing_subtitles",
+} as const;
+
+export type OcrReasonCode = (typeof OCR_REASON)[keyof typeof OCR_REASON];
+
 export interface OcrStatus {
   state: OcrStatusState;
   message?: string;
+  /** Set on `unavailable` / `error` states; see `OCR_REASON`. */
+  reasonCode?: OcrReasonCode;
   recognized: number;
   progress?: number;
   /** Current capture box normalized against the visible viewport. */

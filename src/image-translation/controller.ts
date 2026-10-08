@@ -17,6 +17,7 @@ import type { ContentSettings } from "@/src/shared/settings";
 import { NoriTransError } from "@/src/shared/errors";
 import { message } from "@/src/shared/i18n";
 import { runtimeId } from "@/src/shared/runtime-id";
+import { isStatusReasonCode } from "@/src/shared/status-reasons";
 import { ChromeLocalProvider } from "@/src/translation/providers/chrome-local";
 import { subscribeTranslationProgress } from "@/src/translation/progress-channel";
 import { scheduleTranslation } from "@/src/translation/scheduler";
@@ -53,6 +54,12 @@ export interface ImageTranslationStatus {
   completed: number;
   message?: string;
   details?: string;
+  /**
+   * Stable machine-readable reason on `unavailable` / `error` states: an
+   * `image_*` code, `ocr_runtime_missing`, or the Provider failure code.
+   * Surfaces pick actions from it, never from `message`.
+   */
+  reasonCode?: string;
   hasCurrentImage: boolean;
 }
 
@@ -85,6 +92,16 @@ interface ImageRecord {
   boxes: SpatialSegment[];
   controller: AbortController | undefined;
   status: ImageTranslationStatus;
+}
+
+/** Only well-formed codes are exposed; free-form error text never is. */
+function imageReasonCode(
+  code: string,
+): Pick<ImageTranslationStatus, "reasonCode"> {
+  if (/ocr_runtime_missing/u.test(code)) {
+    return { reasonCode: "ocr_runtime_missing" };
+  }
+  return isStatusReasonCode(code) ? { reasonCode: code } : {};
 }
 
 function abortError(): DOMException {
@@ -636,6 +653,7 @@ export class ImageTranslationController {
         total: 0,
         completed: 0,
         message: message("imageStatusNoVisibleImage"),
+        reasonCode: "image_not_visible",
         hasCurrentImage: false,
       });
     }
@@ -651,6 +669,7 @@ export class ImageTranslationController {
         total: 0,
         completed: 0,
         message: message("imageStatusTooManyTasks"),
+        reasonCode: "image_too_many_tasks",
         hasCurrentImage: true,
       });
     }
@@ -758,6 +777,7 @@ export class ImageTranslationController {
         total: record.boxes.length,
         completed: 0,
         message: this.errorMessage(errorCode),
+        ...imageReasonCode(errorCode),
         details: `${errorCode}: ${detail}`.slice(0, 240),
         hasCurrentImage: true,
       });

@@ -14,6 +14,14 @@
   "commandTranslatePage": { "message": "Translate the current page" },
   "commandRestorePage": { "message": "Restore the current page" },
   "popupTitle": { "message": "Translate this page" },
+  "popupPageSettingsLink": { "message": "Languages & method" },
+  "popupVideoSettingsLink": { "message": "Display & position" },
+  "popupFloatingControlScope": {
+    "message": "Applies to every site. Turning it on also brings back a button hidden on this page."
+  },
+  "popupSubtitleDisabledHint": {
+    "message": "Turn it on to detect and translate subtitles on video pages."
+  },
   "openSettings": { "message": "Open settings" },
   "currentStatus": { "message": "Current status" },
   "pageTranslation": { "message": "Page translation" },
@@ -116,6 +124,10 @@
   "stopPageTranslation": { "message": "Stop" },
   "floatingPageQuickActions": { "message": "Page translation quick actions" },
   "subtitleStatusDisabled": { "message": "Subtitle translation is off" },
+  "subtitleLiveTag": { "message": "Live subtitles · Fast translation" },
+  "subtitlePendingTag": { "message": "Translation on the way" },
+  "pageMarkFailedRetry": { "message": "Not translated · Retry" },
+  "pageMarkSkipped": { "message": "Skipped" },
   "subtitleStatusUnavailable": { "message": "No subtitles available" },
   "subtitleStatusWaiting": { "message": "Waiting for subtitles" },
   "subtitleStatusTranslating": { "message": "Translating" },
@@ -1138,5 +1150,569 @@
       "done": { "content": "$1" },
       "total": { "content": "$2" }
     }
+  },
+  "statusTitleDisabledPage": { "message": "Page translation is off" },
+  "statusTitleDisabledSubtitle": { "message": "Subtitle translation is off" },
+  "statusTitleUnavailablePage": { "message": "Not available on this page" },
+  "statusTitleUnavailableSubtitle": { "message": "No readable subtitles" },
+  "statusTitleUnavailableSubtitleLanguage": {
+    "message": "Subtitle language doesn’t match"
+  },
+  "statusTitleIdlePage": { "message": "Ready to translate" },
+  "statusTitleIdleSubtitle": { "message": "Ready to translate subtitles" },
+  "statusTitleScanningPage": { "message": "Checking the page" },
+  "statusTitleWaitingSubtitle": { "message": "Waiting for subtitles" },
+  "statusTitleTranslatingPage": {
+    "message": "Translating $DONE$ of $TOTAL$ blocks",
+    "placeholders": {
+      "done": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
+  "statusTitleTranslatingSubtitle": {
+    "message": "Pre-translating $DONE$ of $TOTAL$ cues",
+    "placeholders": {
+      "done": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
+  "statusTitleRetryingPage": {
+    "message": "Retrying $DONE$ of $COUNT$ blocks",
+    "placeholders": {
+      "done": { "content": "$1" },
+      "count": { "content": "$2" }
+    }
+  },
+  "statusTitleRetryingSubtitle": {
+    "message": "Retrying $DONE$ of $COUNT$ cues",
+    "placeholders": {
+      "done": { "content": "$1" },
+      "count": { "content": "$2" }
+    }
+  },
+  "statusTitleLiveSubtitle": { "message": "Translating live" },
+  "statusTitleReadyPage": {
+    "message": "Translated $TOTAL$ blocks",
+    "placeholders": { "total": { "content": "$1" } }
+  },
+  "statusTitleReadySubtitle": {
+    "message": "Subtitles ready · $TOTAL$ cues",
+    "placeholders": { "total": { "content": "$1" } }
+  },
+  "statusTitlePartialPage": {
+    "message": "$FAILED$ blocks failed · $DONE$ of $TOTAL$ done",
+    "placeholders": {
+      "done": { "content": "$1" },
+      "total": { "content": "$2" },
+      "failed": { "content": "$3" }
+    }
+  },
+  "statusTitlePartialSubtitle": {
+    "message": "$FAILED$ cues failed · $DONE$ of $TOTAL$ done",
+    "placeholders": {
+      "done": { "content": "$1" },
+      "total": { "content": "$2" },
+      "failed": { "content": "$3" }
+    }
+  },
+  "statusTitleCancelled": {
+    "message": "Stopped · $DONE$ of $TOTAL$ kept",
+    "placeholders": {
+      "done": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
+  "statusTitleErrorPage": { "message": "Can’t translate" },
+  "statusTitleErrorSubtitle": { "message": "Can’t translate subtitles" },
+  "statusTrackFull": { "message": "Full subtitles" },
+  "statusTrackStream": { "message": "Live subtitles" },
+  "statusTrackExperimental": { "message": "Experimental" },
+  "statusProgressFailedSoFar": {
+    "message": "$FAILED$ failed so far",
+    "placeholders": { "failed": { "content": "$1" } }
+  },
+  "statusReasonRateLimited": {
+    "message": "The provider is rate limiting (429). Retry the failed items in a moment."
+  },
+  "statusReasonTimeout": { "message": "The provider timed out." },
+  "statusReasonServerError": {
+    "message": "The provider returned a server error (5xx). Try again in a moment."
+  },
+  "statusReasonNetworkError": {
+    "message": "Couldn’t reach the provider. Check your network or the service address."
+  },
+  "statusReasonInvalidResponse": {
+    "message": "The provider returned an incomplete result."
+  },
+  "statusReasonInvalidConfiguration": {
+    "message": "The provider rejected the request or the configuration is invalid (for example an invalid API key). Check your settings."
+  },
+  "statusReasonPermissionRequired": {
+    "message": "Access to this translation service isn’t granted yet. Save it again in settings."
+  },
+  "statusReasonProviderUnavailable": {
+    "message": "The selected translation service isn’t available in this browser."
+  },
+  "statusReasonLanguagePairUnsupported": {
+    "message": "Local translation doesn’t support this language pair."
+  },
+  "statusReasonLanguageDetectionFailed": {
+    "message": "The source language couldn’t be detected. Choose it manually."
+  },
+  "statusReasonLocalModelMissing": {
+    "message": "The required local language pack isn’t downloaded yet."
+  },
+  "statusReasonRequestFailed": {
+    "message": "The translation request failed without a more specific reason."
+  },
+  "statusReasonSettingsUnavailable": {
+    "message": "Couldn’t read the translation settings."
+  },
+  "statusReasonRestrictedPage": {
+    "message": "Browser pages, the Web Store and restricted frames can’t be read."
+  },
+  "statusReasonNoTrack": {
+    "message": "No readable subtitles found. Check again, or try image recognition."
+  },
+  "statusReasonNoVideo": { "message": "There’s no usable video on this page." },
+  "statusReasonLanguageMismatch": {
+    "message": "This video’s subtitles are in a different language from the one set in settings."
+  },
+  "statusReasonStreamFallback": {
+    "message": "Only the visible line can be read, so fast translation is used."
+  },
+  "statusReasonStreamFallbackRefresh": {
+    "message": "Only the visible line can be read, so fast translation is used. Reloading the page may load the full subtitles."
+  },
+  "statusReasonOcrLocalOnly": {
+    "message": "Subtitles are read from the picture and translated locally with fast translation only."
+  },
+  "statusReasonOcrTranslationUnavailable": {
+    "message": "Text was recognized, but local translation can’t prepare this language pair. The recognized text is kept."
+  },
+  "statusReasonOcrProtectedVideo": {
+    "message": "The selected area stays black; the video may be protected."
+  },
+  "statusReasonPageChanged": {
+    "message": "The page changed while translating; some text couldn’t be applied."
+  },
+  "statusReasonUnknown": {
+    "message": "Something unrecognized went wrong (diagnostic ID: $CODE$). Expand the diagnostics for details.",
+    "placeholders": { "code": { "content": "$1" } }
+  },
+  "statusReasonUnspecified": {
+    "message": "No specific reason was reported. Expand the diagnostics for details."
+  },
+  "statusActionTranslate": { "message": "Translate page" },
+  "statusActionEnable": { "message": "Turn on" },
+  "statusActionStop": { "message": "Stop" },
+  "statusActionRetryBlocks": {
+    "message": "Retry $COUNT$ items",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "statusActionRetryCues": {
+    "message": "Retry $COUNT$ cues",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "statusActionResume": { "message": "Continue" },
+  "statusActionRestore": { "message": "Show original" },
+  "statusActionDisableSubtitles": {
+    "message": "Turn off subtitle translation"
+  },
+  "statusActionOpenProviderSettings": {
+    "message": "Open translation service settings"
+  },
+  "statusActionUseAutoDetect": { "message": "Use auto-detect" },
+  "statusActionTryOcr": { "message": "Try image recognition (experimental)" },
+  "statusActionRescan": { "message": "Check for subtitles again" },
+  "statusActionSwitchDisplay": { "message": "Change display" },
+  "statusActionStarting": { "message": "Starting…" },
+  "statusActionEnabling": { "message": "Turning on…" },
+  "statusActionStopping": { "message": "Stopping…" },
+  "statusActionRetrying": { "message": "Retrying…" },
+  "statusActionResuming": { "message": "Continuing…" },
+  "floatingSettingsChange": { "message": "Change" },
+  "floatingSettingsDone": { "message": "Done" },
+  "floatingPageSettings": { "message": "Page settings" },
+  "floatingVideoSettings": { "message": "Subtitle settings" },
+  "floatingVideoDisabledHint": {
+    "message": "Turn it on to detect this video’s subtitles."
+  },
+  "floatingVideoDisabledSettingsHint": {
+    "message": "Turn it on in Settings → Video subtitles."
+  },
+  "floatingVideoOpenSubtitleSettings": { "message": "Open subtitle settings" },
+  "floatingVideoFastFallbackSummary": {
+    "message": " (fast translation for now)"
+  },
+  "floatingVideoStreamFastNote": {
+    "message": "No full subtitle track yet, so fast translation is used. AI translation starts automatically once the full track is available."
+  },
+  "floatingVideoOcrFastNote": {
+    "message": "Recognized subtitles use local fast translation only and are never sent to AI."
+  },
+  "floatingVideoOpacityDecrease": { "message": "Decrease background opacity" },
+  "floatingVideoOpacityIncrease": { "message": "Increase background opacity" },
+  "floatingOcrTitle": { "message": "Image recognition (experimental)" },
+  "floatingOcrSettings": { "message": "Image recognition settings" },
+  "floatingOcrStateOff": { "message": "Off" },
+  "floatingOcrStateReady": { "message": "Ready" },
+  "floatingOcrStateNotReady": { "message": "Needs a language pack" },
+  "floatingOcrStateRunning": { "message": "Running" },
+  "floatingOcrStateStopped": { "message": "Stopped" },
+  "floatingOcrStateBlocked": { "message": "Subtitles available" },
+  "floatingOcrStateProblem": { "message": "Needs attention" },
+  "floatingOcrPrivacy": {
+    "message": "Screenshots and text recognition stay on this device and are never uploaded. Recognized text is translated on this device only and is never sent to AI or a cloud translation service."
+  },
+  "floatingOcrEnable": { "message": "Turn on image recognition" },
+  "floatingOcrEnableHint": {
+    "message": "Chrome asks for screenshot permission when you turn this on. Only the area you select is read."
+  },
+  "floatingOcrSourceLanguage": { "message": "Text language in the picture" },
+  "floatingOcrTranslator": { "message": "On-device translator" },
+  "floatingOcrReselect": { "message": "Reselect area" },
+  "floatingOcrDismiss": { "message": "Dismiss" },
+  "floatingOcrSelectingTitle": { "message": "Select the subtitle area" },
+  "floatingOcrEnablingTitle": { "message": "Turning on image recognition" },
+  "floatingOcrPreparingTitle": { "message": "Preparing image recognition" },
+  "floatingOcrPreparingHint": {
+    "message": "Loading recognition on this device. It starts automatically when ready."
+  },
+  "floatingOcrRunningTitle": { "message": "Recognizing subtitles" },
+  "floatingOcrStoppedTitle": { "message": "Image recognition stopped" },
+  "floatingOcrUnavailableTitle": {
+    "message": "Image recognition can’t run here"
+  },
+  "floatingOcrNotReadyTitle": {
+    "message": "Image recognition isn’t set up yet"
+  },
+  "floatingOcrRuntimeMissing": {
+    "message": "A recognition language pack is needed. Download it in Settings under “Image recognition (experimental)”; nothing is downloaded from here."
+  },
+  "floatingOcrRuntimeReady": {
+    "message": "The recognition language pack is ready."
+  },
+  "floatingOcrOpenSettings": { "message": "Open image recognition settings" },
+  "floatingOcrTrackAvailable": {
+    "message": "This video already has readable subtitles, so image recognition won’t start and won’t interfere with them."
+  },
+  "floatingOcrReasonLanguageUnsupported": {
+    "message": "The selected picture text language can’t be recognized yet. Choose another language."
+  },
+  "floatingOcrReasonEngineUnavailable": {
+    "message": "Recognition couldn’t load on this device, or its language pack is missing. Check the language pack in Settings. No screenshot was uploaded."
+  },
+  "floatingOcrReasonStartFailed": {
+    "message": "Image recognition can’t start on this page."
+  },
+  "floatingOcrReasonNoVideo": {
+    "message": "There’s no visible video to recognize."
+  },
+  "floatingOcrReasonPictureInPicture": {
+    "message": "Picture-in-picture video can’t be recognized. Move the video back into the page first."
+  },
+  "floatingOcrReasonVideoChanged": {
+    "message": "The playing video changed. Select the area again."
+  },
+  "floatingOcrReasonPermission": {
+    "message": "Stopped: screenshot permission is missing. Allow it in the NoriTrans window that opened, then select the area again."
+  },
+  "floatingOcrReasonCaptureTooLarge": {
+    "message": "The screen is too large to process on this device. Make the window smaller, then select the area again."
+  },
+  "floatingOcrReasonCaptureFailed": {
+    "message": "Stopped: the screen couldn’t be captured. Keep this tab in front, then select the area again."
+  },
+  "floatingOcrReasonRecognitionFailed": {
+    "message": "Stopped: text recognition failed on this device. Select the area again."
+  },
+  "floatingOcrActionFailed": {
+    "message": "The image recognition request didn’t go through. Try again."
+  },
+  "floatingOcrDetails": { "message": "View diagnostics" },
+  "floatingImageTitle": { "message": "Image translation (experimental)" },
+  "floatingImageSettings": { "message": "Image translation settings" },
+  "floatingImageStateOff": { "message": "Off" },
+  "floatingImageStateWaiting": { "message": "Pick an image" },
+  "floatingImageStateReady": { "message": "Ready" },
+  "floatingImageStateRunning": { "message": "Running" },
+  "floatingImageStateDone": { "message": "Done" },
+  "floatingImageStateStopped": { "message": "Stopped" },
+  "floatingImageStateProblem": { "message": "Needs attention" },
+  "floatingImageNoImageTitle": { "message": "No image selected yet" },
+  "floatingImageErrorTitle": { "message": "Can’t translate this image" },
+  "floatingImageCount": {
+    "message": "$DONE$ / $TOTAL$",
+    "placeholders": {
+      "done": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
+  "floatingImageOpenSettings": { "message": "Open language pack settings" },
+  "floatingImageActionFailed": {
+    "message": "The image translation request didn’t go through. Try again."
+  },
+  "floatingPairUnavailable": {
+    "message": "This translation method can’t translate between these languages. Change the languages or the method."
+  },
+  "floatingHideAlwaysMenu": { "message": "Always hide…" },
+  "floatingHideAlwaysTitle": { "message": "Always hide the floating control?" },
+  "floatingHideAlwaysBody": {
+    "message": "It will stop appearing on every site. To bring it back, open Settings → General → Show the floating control."
+  },
+  "floatingCancel": { "message": "Cancel" },
+  "optGroupServices": { "message": "Translation services" },
+  "optGroupServicesLead": {
+    "message": "Web page and subtitle text is only sent to the services configured here."
+  },
+  "optGroupPage": { "message": "Web pages" },
+  "optGroupPageLead": {
+    "message": "Defaults for page translation. Changes made in the floating control are saved here too."
+  },
+  "optGroupVideo": { "message": "Video subtitles" },
+  "optGroupVideoLead": {
+    "message": "Supported sites read the subtitle track automatically. Sites that only expose the current line fall back to fast translation and say so."
+  },
+  "optGroupSites": { "message": "Sites" },
+  "optGroupSitesLead": {
+    "message": "Per-site overrides and developer subtitle profiles."
+  },
+  "optGroupPrivacy": { "message": "Privacy & data" },
+  "optGroupPrivacyLead": {
+    "message": "Where your text goes, why these permissions are needed, and how to clear stored data."
+  },
+  "optGroupGeneral": { "message": "General" },
+  "optGroupGeneralLead": {
+    "message": "Interface language, the floating control and updates."
+  },
+  "optAutosaveHint": {
+    "message": "Changes save automatically · service credentials need “Save”"
+  },
+  "optAutosaveSaving": { "message": "Saving…" },
+  "optAutosaveSaved": { "message": "All changes saved" },
+  "optAutosaveFailed": {
+    "message": "Could not save; the previous value was restored"
+  },
+  "optAiServiceTitle": { "message": "AI translation service" },
+  "optPreset": { "message": "Preset" },
+  "optPresetHelp": {
+    "message": "Fills in the address and protocol; nothing is saved until you click Save."
+  },
+  "optPresetOpenAi": { "message": "OpenAI" },
+  "optPresetAnthropic": { "message": "Anthropic Claude" },
+  "optPresetCustom": { "message": "Custom compatible service" },
+  "optApiKeyLocalOnly": { "message": "Stored on this device only" },
+  "optConnection": { "message": "Connection" },
+  "optSendsTo": {
+    "message": "AI text is sent to $ORIGIN$",
+    "placeholders": { "origin": { "content": "$1" } }
+  },
+  "optSaveAndTest": { "message": "Save and test connection" },
+  "optSaveOnly": { "message": "Save only" },
+  "optUnsavedProvider": {
+    "message": "Unsaved service changes. Click Save to apply them."
+  },
+  "optProviderSaved": { "message": "Service settings saved." },
+  "optProviderModelMissing": {
+    "message": "Enter a model name (up to 256 characters)."
+  },
+  "optProviderTimeoutInvalid": {
+    "message": "The timeout must be between 5 and 180 seconds."
+  },
+  "optProviderPromptMissing": {
+    "message": "The system prompt cannot be empty."
+  },
+  "optAiAdvanced": { "message": "Advanced: protocol, timeout, system prompt" },
+  "optSecondsUnit": { "message": " s" },
+  "optDecrease": { "message": "Decrease" },
+  "optIncrease": { "message": "Increase" },
+  "optSystemPromptHelp": {
+    "message": "Changing it stops reusing earlier cached translations."
+  },
+  "optFastTitle": { "message": "Fast translation" },
+  "optFastChip": { "message": "Live subtitles and fast mode" },
+  "optFastMethod": { "message": "Method" },
+  "optFastStaysLocal": {
+    "message": "$PROVIDER$ · text stays on this device",
+    "placeholders": { "provider": { "content": "$1" } }
+  },
+  "optFastSendsToCloud": {
+    "message": "$PROVIDER$ · text is sent to this cloud service",
+    "placeholders": { "provider": { "content": "$1" } }
+  },
+  "optCloudKey": { "message": "Service key" },
+  "optSaveKeys": { "message": "Save key" },
+  "optOfflineComponents": { "message": "Offline components (language packs)" },
+  "optLanguages": { "message": "Languages" },
+  "optModeFast": { "message": "Fast" },
+  "optPageDefaults": { "message": "Defaults" },
+  "optPageModeHelp": {
+    "message": "AI translation uses page context; fast translation is quicker."
+  },
+  "optPageMore": { "message": "More page features" },
+  "optSiteRulesHint": {
+    "message": "Sites are added from the floating control on each page. For other per-site settings, use"
+  },
+  "optOpenSites": { "message": "Sites" },
+  "optImageTranslationTitle": { "message": "Image translation (experimental)" },
+  "optImageRuntimeMissing": {
+    "message": "Image translation needs at least one recognition language pack."
+  },
+  "optOpenRecognitionPacks": { "message": "Open recognition language packs" },
+  "optSubtitleEnabledHelp": {
+    "message": "When off, subtitles are not detected and the video tab shows “Off”."
+  },
+  "optSubtitleAiFullOnly": {
+    "message": "AI translation is used only when the complete subtitle track is available. Sites that only expose the current line always use fast translation."
+  },
+  "optSubtitlePositionCustom": { "message": "Custom" },
+  "optSubtitleHideNativeHelp": {
+    "message": "Site profiles can override this per site."
+  },
+  "optVideoQuickChip": { "message": "Also adjustable on the video page" },
+  "optImageRecognition": { "message": "Image recognition (experimental)" },
+  "optImageRecognitionEnabled": { "message": "Allow image recognition" },
+  "optImageRecognitionHelp": {
+    "message": "When a video has no readable subtitles, select an area of the picture to recognize and translate it on this device. Screenshots are never uploaded."
+  },
+  "optRecognitionLanguage": { "message": "Recognition language" },
+  "optRecognitionStaysLocal": {
+    "message": "Recognized locally; text is translated only on this device."
+  },
+  "optDataFlowTitle": { "message": "Where data goes" },
+  "optWhatIsSent": { "message": "What is sent" },
+  "optWhatIsSentBody": {
+    "message": "Only the text segments or subtitle lines that need translating. Full page HTML, cookies, sign-in data and video content are never sent."
+  },
+  "optWhereItGoes": { "message": "Current destinations" },
+  "optDestinationAi": { "message": "AI translation" },
+  "optDestinationFast": { "message": "Fast translation" },
+  "optHostPermission": { "message": "Site access" },
+  "optHostPermissionBody": {
+    "message": "NoriTrans requests access to all HTTPS sites ($PATTERN$) so the floating control can appear and pages and videos can be translated without clicking the extension first. It reads page text only to translate it.",
+    "placeholders": { "pattern": { "content": "$1" } }
+  },
+  "optLocalProviderPermission": { "message": "Local services" },
+  "optLocalPermissionGranted": {
+    "message": "Access to localhost and 127.0.0.1 is granted for a local AI service."
+  },
+  "optLocalPermissionNotGranted": {
+    "message": "Not granted. It is requested only when you save a localhost or 127.0.0.1 service address."
+  },
+  "optDataStorage": { "message": "Stored on this device" },
+  "optDataStorageBody": {
+    "message": "Settings and API keys stay in this browser’s extension storage and are not synced. Translation cache and language packs are kept in the extension’s local database."
+  },
+  "optClearCredentialsEllipsis": { "message": "Clear credentials…" },
+  "optClearCacheTitle": { "message": "Clear the translation cache?" },
+  "optClearCacheImpact": {
+    "message": "Cached page and subtitle translations on this device are deleted. Pages and videos are translated again the next time, which can use more time and service quota. API keys are kept."
+  },
+  "optClearCredentialsTitle": { "message": "Clear saved credentials?" },
+  "optClearCredentialsImpact": {
+    "message": "The AI service API key and cloud translation keys are deleted from this device. AI and cloud fast translation stop working until you enter them again. The translation cache is kept."
+  },
+  "optCancel": { "message": "Cancel" },
+  "optPageMarksTitle": { "message": "In-page marks" },
+  "optShowSkippedMarks": { "message": "Show \"skipped\" marks" },
+  "optShowSkippedMarksHelp": {
+    "message": "Marks blocks left unchanged because they are already in the target language or no local language pack covers them."
+  },
+  "optInterfaceTitle": { "message": "Interface" },
+  "optFloatingAnnouncements": { "message": "Status pill" },
+  "optFloatingAnnouncementsHelp": {
+    "message": "The collapsed button briefly expands with a short status when translation starts, finishes or needs attention."
+  },
+  "optUpdateStatus": { "message": "Status" },
+  "optAboutTitle": { "message": "About" },
+  "optVersion": { "message": "Version" },
+  "optThirdPartyNotices": { "message": "Third-party notices" },
+  "optThirdPartyNoticesHelp": {
+    "message": "Licenses of the components bundled for on-device translation and recognition."
+  },
+  "optNoticesTranslation": { "message": "On-device translation components" },
+  "optNoticesRecognition": { "message": "Image recognition components" },
+  "optSiteBack": { "message": "All sites" },
+  "optSiteDiscardTitle": { "message": "Discard changes to this site?" },
+  "optSiteDiscardBody": {
+    "message": "Edits you have not saved are lost. The site keeps its saved settings."
+  },
+  "optSiteDiscard": { "message": "Discard" },
+  "optSiteDeleteImpact": {
+    "message": "This site goes back to the global settings. Bundled capture rules are not affected."
+  },
+  "optSiteRestoreImpact": {
+    "message": "The local capture rules and this site's own settings are removed; the bundled version is used again."
+  },
+  "optSiteUnsaved": { "message": "Unsaved changes" },
+  "optSiteSaveHint": {
+    "message": "Site settings are checked and applied when you save."
+  },
+  "optRtOcrPacksTitle": { "message": "Recognition language packs" },
+  "optRtOcrPacksHelp": {
+    "message": "Needed to recognize text in video frames and images on this device."
+  },
+  "optRtOcrEmpty": {
+    "message": "No recognition language packs are available."
+  },
+  "optRtOcrProgressLabel": {
+    "message": "$PACK$ download progress: $PERCENT$%",
+    "placeholders": {
+      "pack": { "content": "$1" },
+      "percent": { "content": "$2" }
+    }
+  },
+  "optRtOcrPermissionDenied": {
+    "message": "Download access was not granted, so no language pack was downloaded. Click Download again and allow access to continue."
+  },
+  "optRtOcrDeleteTitle": { "message": "Delete language pack?" },
+  "optRtOcrDeleteBody": {
+    "message": "$PACK$ will be removed from this device. Image recognition for its languages stops working until you download it again.",
+    "placeholders": { "pack": { "content": "$1" } }
+  },
+  "optRtSelfTest": { "message": "Test image recognition" },
+  "optRtSelfTestPreparing": { "message": "Preparing image recognition…" },
+  "optRtSelfTestLoading": {
+    "message": "Loading image recognition: $PERCENT$%",
+    "placeholders": { "percent": { "content": "$1" } }
+  },
+  "optRtSelfTestSucceeded": {
+    "message": "Image recognition works on this device. Recognized: $SAMPLE$",
+    "placeholders": { "sample": { "content": "$1" } }
+  },
+  "optRtSelfTestFailed": {
+    "message": "Image recognition could not start. Reload the extension and try again."
+  },
+  "optRtSelfTestPackMissing": {
+    "message": "The language pack for the selected recognition language is not installed. Download it above, then test again."
+  },
+  "optRtSelfTestSourceUnsupported": {
+    "message": "Image recognition does not support the selected source language. Choose a supported language in Image recognition (experimental)."
+  },
+  "optRtDiagnosticDetails": { "message": "Technical details" },
+  "optRtLocalPacksTitle": { "message": "Offline language packs" },
+  "optRtLocalPermissionDenied": {
+    "message": "Download access was not granted, so no language pack was downloaded. Click Download again and allow access to continue."
+  },
+  "optRtLocalIntegrityFailed": {
+    "message": "The downloaded language pack failed its integrity check and was not installed. Try downloading it again."
+  },
+  "optRtLocalDeleteTitle": { "message": "Delete offline language pack?" },
+  "optRtLocalDeleteBody": {
+    "message": "Both directions of $PAIR$ will be removed from this device. Offline translation for this pair stops working until you download it again.",
+    "placeholders": { "pair": { "content": "$1" } }
+  },
+  "optFloatingSessionRestoreHelp": {
+    "message": "Brings back controls closed with “Hide on this page” on all open pages. For “Always hide,” turn on “Show floating control” above."
+  },
+  "optSiteCaptureHelp": {
+    "message": "Choose where this site's subtitles come from. The complete Profile can be edited under “Developer Profile” below."
+  },
+  "optRecognitionPrivacyNote": {
+    "message": "Frames, screenshots and recognized text stay on this device. Recognized text is translated on the device only and is never sent to an AI service."
+  },
+  "optRecognitionProviderLocalOnly": {
+    "message": "Recognized text uses only the selected on-device translator and is never sent to a cloud service."
   }
 }

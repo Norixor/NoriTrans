@@ -1100,6 +1100,42 @@ describe("PageTranslationSession", () => {
     session.restore();
   });
 
+  it("marks skipped target-language blocks only when skipped marks are enabled", async () => {
+    document.body.innerHTML =
+      '<main><p id="source">中文页面内容</p><p id="target">Already in English</p></main>';
+    const session = new PageTranslationSession(vi.fn());
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.provider.fastProvider = "bergamot-local";
+    settings.page.sourceLanguage = "auto";
+    settings.page.targetLanguage = "en";
+    settings.page.displayMode = "translated";
+    const skippedCount = () =>
+      (session as unknown as { renderer: { skipped: Map<unknown, unknown> } })
+        .renderer.skipped.size;
+
+    // Off by default: nothing is drawn for the skipped block.
+    await session.translate(settings);
+    expect(skippedCount()).toBe(0);
+    expect(document.querySelector("noritrans-translation-pending")).toBeNull();
+    session.restore();
+
+    settings.page.showSkippedMarks = true;
+    await session.translate(settings);
+    expect(skippedCount()).toBe(1);
+    expect(
+      document.querySelector("noritrans-translation-pending"),
+    ).not.toBeNull();
+
+    // Turning the setting off mid-session removes the marks already shown.
+    session.updateSettings({
+      ...settings,
+      page: { ...settings.page, showSkippedMarks: false },
+    });
+    expect(skippedCount()).toBe(0);
+    expect(document.querySelector("noritrans-translation-pending")).toBeNull();
+    session.restore();
+  });
+
   it("routes a Google-like mixed page by segment instead of its zh-HK declaration", async () => {
     vi.stubGlobal("chrome", {
       i18n: {
@@ -1398,6 +1434,7 @@ describe("PageTranslationSession", () => {
       completed: 0,
       failed: 1,
       details: "Provider=bergamot-local; Missing packs=ko-en.",
+      reasonCode: "bergamot_package_missing",
     });
     session.restore();
   });

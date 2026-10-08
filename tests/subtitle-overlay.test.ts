@@ -892,3 +892,184 @@ describe("subtitle overlay display modes", () => {
     overlay.destroy();
   });
 });
+
+describe("subtitle overlay tags and theme", () => {
+  function overlayRoot(): ShadowRoot {
+    const root = document.querySelector<HTMLElement>(
+      '[data-noritrans-ui="subtitle-overlay"]',
+    )?.shadowRoot;
+    if (!root) throw new Error("missing subtitle overlay");
+    return root;
+  }
+
+  function part(selector: string): HTMLElement {
+    const element = overlayRoot().querySelector<HTMLElement>(selector);
+    if (!element) throw new Error(`missing ${selector}`);
+    return element;
+  }
+
+  /** Manual clock driving the injected timer seam. */
+  function manualTimers() {
+    let now = 0;
+    let nextId = 1;
+    const pending = new Map<number, { at: number; callback: () => void }>();
+    return {
+      timers: {
+        setTimeout(callback: () => void, delayMs: number): number {
+          const id = nextId++;
+          pending.set(id, { at: now + delayMs, callback });
+          return id;
+        },
+        clearTimeout(id: number): void {
+          pending.delete(id);
+        },
+      },
+      advance(ms: number): void {
+        now += ms;
+        for (const [id, entry] of [...pending]) {
+          if (entry.at > now) continue;
+          pending.delete(id);
+          entry.callback();
+        }
+      },
+    };
+  }
+
+  it("keeps translated-only mode blank, then shows a pending tag after 1.5s", () => {
+    const clock = manualTimers();
+    const overlay = new SubtitleOverlay(
+      { ...DEFAULT_SETTINGS.subtitles, displayMode: "translated" },
+      undefined,
+      { timers: clock.timers },
+    );
+    overlay.showCue("Late line");
+    const tag = part('.tag[data-kind="pending"]');
+
+    expect(part(".cue-card").hidden).toBe(true);
+    expect(part(".overlay").hidden).toBe(true);
+    clock.advance(1_000);
+    // Playback ticks re-render the same cue; they must not restart the wait.
+    overlay.showCue("Late line");
+    clock.advance(499);
+    expect(tag.hidden).toBe(true);
+    clock.advance(1);
+    expect(tag.hidden).toBe(false);
+    expect(tag.getAttribute("role")).toBe("status");
+    expect(tag.textContent).toBe("subtitlePendingTag");
+    expect(tag.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
+    expect(part(".overlay").hidden).toBe(false);
+    expect(part(".original").hidden).toBe(true);
+
+    overlay.showCue("Late line", "迟到的译文");
+    expect(tag.hidden).toBe(true);
+    expect(part(".translated").hidden).toBe(false);
+    expect(part(".original").hidden).toBe(true);
+    overlay.destroy();
+  });
+
+  it("never shows the pending tag for a translation that arrives in time or outside translated-only mode", () => {
+    const clock = manualTimers();
+    const overlay = new SubtitleOverlay(
+      { ...DEFAULT_SETTINGS.subtitles, displayMode: "translated" },
+      undefined,
+      { timers: clock.timers },
+    );
+    const tag = part('.tag[data-kind="pending"]');
+    overlay.showCue("Quick line");
+    clock.advance(1_200);
+    overlay.showCue("Quick line", "及时译文");
+    clock.advance(5_000);
+    expect(tag.hidden).toBe(true);
+
+    overlay.showCue("Cleared line");
+    overlay.clearCue();
+    clock.advance(5_000);
+    expect(tag.hidden).toBe(true);
+
+    overlay.updateSettings({
+      ...DEFAULT_SETTINGS.subtitles,
+      displayMode: "original",
+    });
+    overlay.showCue("Original only");
+    clock.advance(5_000);
+    expect(tag.hidden).toBe(true);
+    expect(part(".cue-card").dataset.layout).toBe("original");
+    overlay.destroy();
+  });
+
+  it("shows the live-subtitle tag once per stream track for four seconds", () => {
+    const clock = manualTimers();
+    const overlay = new SubtitleOverlay(
+      { ...DEFAULT_SETTINGS.subtitles, displayMode: "bilingual" },
+      undefined,
+      { timers: clock.timers },
+    );
+    const tag = part('.tag[data-kind="live"]');
+
+    overlay.setStatus("translating", 0, 0, {
+      completeness: "stream",
+      source: "dom",
+    });
+    // Armed, but waits for a visible cue instead of floating over nothing.
+    expect(tag.hidden).toBe(true);
+    overlay.showCue("Live line", "实时译文");
+    expect(tag.hidden).toBe(false);
+    expect(tag.textContent).toBe("subtitleLiveTag");
+    expect(tag.querySelector("svg")?.dataset.glyph).toBe("partial");
+
+    // A cue ending must not cut the tag short; its own timer collapses it.
+    overlay.hide();
+    expect(part(".cue-card").hidden).toBe(true);
+    expect(tag.hidden).toBe(false);
+    clock.advance(3_999);
+    expect(tag.hidden).toBe(false);
+    clock.advance(1);
+    expect(tag.hidden).toBe(true);
+    expect(part(".overlay").hidden).toBe(true);
+
+    overlay.setStatus("ready", 3, 3, { completeness: "stream", source: "dom" });
+    overlay.showCue("Next line", "下一句");
+    expect(tag.hidden).toBe(true);
+
+    // A new session re-arms it; full and OCR tracks never show it.
+    overlay.setStatus("waiting");
+    overlay.setStatus("translating", 0, 0, {
+      completeness: "stream",
+      source: "dom",
+    });
+    expect(tag.hidden).toBe(false);
+    overlay.setStatus("translating", 0, 9, { completeness: "full" });
+    expect(tag.hidden).toBe(true);
+    overlay.setStatus("waiting");
+    overlay.setStatus("translating", 0, 0, {
+      completeness: "stream",
+      source: "ocr",
+    });
+    overlay.showCue("OCR line", "识别译文");
+    expect(tag.hidden).toBe(true);
+    overlay.destroy();
+  });
+
+  it("scopes tokens to a dark theme wrapper instead of the shadow host", () => {
+    const overlay = new SubtitleOverlay({
+      ...DEFAULT_SETTINGS.subtitles,
+      displayMode: "bilingual",
+    });
+    overlay.showCue("Source", "译文");
+    const style = overlayRoot().querySelector("style")?.textContent ?? "";
+    const hostRule = /:host\s*\{[^}]*\}/u.exec(style)?.[0] ?? "";
+
+    expect(hostRule).not.toContain("--nt-");
+    expect(style).toContain('.nt-theme[data-theme="dark"]');
+    expect(part(".nt-theme").dataset.theme).toBe("dark");
+    expect(part(".nt-theme").contains(part(".overlay"))).toBe(true);
+    expect(part(".cue-card").dataset.layout).toBe("bilingual");
+    overlay.showNotice("Translation failed for this line.");
+    expect(part(".notice").textContent).toBe(
+      "Translation failed for this line.",
+    );
+    overlay.clearNotice("Translation failed for this line.");
+    expect(part(".notice").hidden).toBe(true);
+    overlay.destroy();
+  });
+});

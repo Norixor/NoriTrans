@@ -1,3 +1,6 @@
+// Must stay the first import: the custom-elements polyfill has to be
+// evaluated before any module that loads `lit` (the floating control).
+import { ensureInjectedUi } from "@/src/ui/inject";
 import {
   deleteSharedSubtitleTrack,
   getSharedCachedTranslation,
@@ -9,7 +12,10 @@ import {
 import { sha256 } from "@/src/cache/keys";
 import {
   isContentSettings,
+  isOptionsPageOpenResponse,
+  isSubtitleContentSettingResponse,
   type ContentCommand,
+  type SubtitleContentSettingCommand,
   type PageStatus,
   type SubtitleStatus,
 } from "@/src/messaging/protocol";
@@ -41,9 +47,9 @@ import {
 import { runtimeId } from "@/src/shared/runtime-id";
 import { removeStaleRuntimeUi } from "@/src/shared/runtime-ui-cleanup";
 import {
-  UnifiedFloatingControl,
-  type UnifiedFloatingControlOptions,
-} from "@/src/shared/unified-floating-control";
+  FloatingControl,
+  type FloatingControlOptions,
+} from "@/src/ui/floating";
 import { createSubtitleAdapters } from "@/src/subtitles/adapters";
 import { SUBTITLE_DISCOVERY_CONTROL_EVENT } from "@/src/subtitles/adapters/captured";
 import { ProfileDomSubtitleAdapter } from "@/src/subtitles/adapters/profile-dom";
@@ -742,6 +748,12 @@ export default defineContentScript({
       );
       return;
     }
+    const injectedUi = ensureInjectedUi();
+    if (!injectedUi.ok) {
+      console.warn(
+        `[NoriTrans] floating control unavailable: ${injectedUi.code}`,
+      );
+    }
     let siteProfiles = await loadSiteProfiles();
     let profileWizard: SubtitleProfileWizard | undefined;
     const floatingHiddenKey = (): string =>
@@ -808,8 +820,8 @@ export default defineContentScript({
       );
     };
     const refreshAggregatedStatusUi = (): void => {
-      floatingControl.updatePageStatus(aggregatePageStatus());
-      floatingControl.updateSubtitleStatus(aggregateSubtitleStatus());
+      floatingControl?.updatePageStatus(aggregatePageStatus());
+      floatingControl?.updateSubtitleStatus(aggregateSubtitleStatus());
     };
 
     const pageSession = new PageTranslationSession((status) => {
@@ -901,7 +913,7 @@ export default defineContentScript({
       return ocrSession.start();
     };
 
-    const floatingControlRef: { current?: UnifiedFloatingControl } = {};
+    const floatingControlRef: { current?: FloatingControl | undefined } = {};
     const imageController = new ImageTranslationController({
       settings,
       onStatus: (status) =>
@@ -931,7 +943,33 @@ export default defineContentScript({
       imageController.updateSettings(settings);
       floatingControlRef.current?.updateSettings(settings);
     };
-    const floatingControlOptions: UnifiedFloatingControlOptions = {
+    const adoptSubtitleSettingsResponse = async (
+      response: unknown,
+    ): Promise<void> => {
+      await adoptQuickSettingsResponse(response);
+      setSubtitleDiscoveryEnabled(
+        settings.subtitles.enabled,
+        settings.subtitles.sourceLanguage,
+      );
+      controller.updateSettings(
+        settings.subtitles,
+        providerCacheContext(settings),
+        settings.provider,
+      );
+      topSubtitleStatus = controller.getStatus();
+      syncNativeSubtitleVisibility(topSubtitleStatus);
+      ocrSession.setSourceLanguage(settings.ocr.sourceLanguage);
+    };
+    const setSubtitleContentSetting = async (
+      command: SubtitleContentSettingCommand,
+    ): Promise<void> => {
+      const response: unknown = await browser.runtime.sendMessage(command);
+      if (!isSubtitleContentSettingResponse(response) || !response.ok) {
+        throw new Error(runtimeErrorToken("settings_save_failed"));
+      }
+      await adoptSubtitleSettingsResponse(response);
+    };
+    const floatingControlOptions: FloatingControlOptions = {
       settings,
       onPageTranslate: () => broadcastContentCommand("PAGE_TRANSLATE"),
       onPageRetryFailed: () => broadcastContentCommand("PAGE_RETRY_FAILED"),
@@ -1002,21 +1040,18 @@ export default defineContentScript({
           fontScale: patch.fontScale,
           backgroundOpacity: patch.backgroundOpacity,
         });
-        await adoptQuickSettingsResponse(response);
-        setSubtitleDiscoveryEnabled(
-          settings.subtitles.enabled,
-          settings.subtitles.sourceLanguage,
-        );
-        controller.updateSettings(
-          settings.subtitles,
-          providerCacheContext(settings),
-          settings.provider,
-        );
-        topSubtitleStatus = controller.getStatus();
-        syncNativeSubtitleVisibility(topSubtitleStatus);
-        ocrSession.setSourceLanguage(settings.ocr.sourceLanguage);
+        await adoptSubtitleSettingsResponse(response);
       },
+      onSubtitleEnabledChange: (enabled) =>
+        setSubtitleContentSetting({ type: "SUBTITLE_ENABLED_SET", enabled }),
+      onSubtitlePositionChange: (preset) =>
+        setSubtitleContentSetting({
+          type: "SUBTITLE_POSITION_PRESET_SET",
+          preset,
+        }),
       onSubtitleStart: () => broadcastContentCommand("SUBTITLE_START"),
+      onSubtitleRetryFailed: () =>
+        broadcastContentCommand("SUBTITLE_RETRY_FAILED"),
       onSubtitleCancel: () => broadcastContentCommand("SUBTITLE_CANCEL"),
       onCreateProfile: () => {
         profileWizard?.destroy();
@@ -1106,14 +1141,38 @@ export default defineContentScript({
           throw new Error(runtimeErrorToken("settings_save_failed"));
         }
       },
+      // A web page cannot navigate to the (not web-accessible) options page,
+      // so the background opens it.
+      onOpenSettings: (section) => {
+        void browser.runtime
+          .sendMessage({
+            type: "OPTIONS_PAGE_OPEN",
+            ...(section ? { section } : {}),
+          })
+          .then((response: unknown) => {
+            if (!isOptionsPageOpenResponse(response) || !response.ok) {
+              console.warn("[NoriTrans] options page could not be opened");
+            }
+          })
+          .catch(() => {
+            console.warn("[NoriTrans] options page could not be opened");
+          });
+      },
     };
-    const createFloatingControl = (): UnifiedFloatingControl => {
+    const createFloatingControl = (): FloatingControl | undefined => {
+      // Without usable custom elements the page keeps working without the
+      // control; the reason was logged once at startup.
+      if (!injectedUi.ok) return undefined;
       floatingControlOptions.settings = settings;
-      return new UnifiedFloatingControl(floatingControlOptions);
+      floatingControlOptions.announcements = settings.floating.announcements;
+      const control = new FloatingControl(floatingControlOptions);
+      if (control.mount.ok) return control;
+      control.destroy();
+      return undefined;
     };
     let floatingControl = createFloatingControl();
     floatingControlRef.current = floatingControl;
-    floatingControl.updateImageStatus(imageController.getStatus());
+    floatingControl?.updateImageStatus(imageController.getStatus());
 
     const ocrAdapter = new OcrSubtitleAdapter();
     const controller = new SubtitleController({
@@ -1188,7 +1247,7 @@ export default defineContentScript({
           controller.showNotice(status.message);
         }
         ocrWasRunning = running;
-        floatingControl.updateOcrStatus(status);
+        floatingControl?.updateOcrStatus(status);
         controller.setOcrCaptureRegion(status.region ?? null);
       },
       onMediaTarget: (target) => controller.setOcrMediaTarget(target),
@@ -1201,9 +1260,9 @@ export default defineContentScript({
       },
       filterRecognizedText: (text) => controller.filterOcrFeedbackText(text),
     });
-    floatingControl.updateOcrStatus(ocrSession.getStatus());
-    if (floatingEnabled()) floatingControl.show();
-    else floatingControl.hide();
+    floatingControl?.updateOcrStatus(ocrSession.getStatus());
+    if (floatingEnabled()) floatingControl?.show();
+    else floatingControl?.hide();
     void controller.start().catch(() => {
       topSubtitleStatus = {
         state: "error",
@@ -1263,8 +1322,8 @@ export default defineContentScript({
       });
       profileWizard?.destroy();
       profileWizard = undefined;
-      if (floatingEnabled()) floatingControl.show();
-      else floatingControl.hide();
+      if (floatingEnabled()) floatingControl?.show();
+      else floatingControl?.hide();
       if (navigationTimer !== undefined) window.clearTimeout(navigationTimer);
       if (shouldRestart) {
         navigationTimer = window.setTimeout(() => {
@@ -1362,7 +1421,7 @@ export default defineContentScript({
           if (sessionStorage.getItem(floatingHiddenKey()) !== null) {
             throw new Error(runtimeErrorToken("settings_save_failed"));
           }
-          if (floatingEnabled()) floatingControl.show();
+          if (floatingEnabled()) floatingControl?.show();
           return { ok: true, restored };
         }
         case "SUBTITLE_STATUS":
@@ -1447,16 +1506,19 @@ export default defineContentScript({
           if (languageChanged) {
             imageController.refreshLocale();
             delete floatingControlRef.current;
-            floatingControl.destroy();
+            floatingControl?.destroy();
             floatingControl = createFloatingControl();
             floatingControlRef.current = floatingControl;
-            floatingControl.updateImageStatus(imageController.getStatus());
+            floatingControl?.updateImageStatus(imageController.getStatus());
             refreshAggregatedStatusUi();
           } else {
-            floatingControl.updateSettings(settings);
+            floatingControl?.updateSettings(settings);
+            floatingControl?.setAnnouncementsEnabled(
+              settings.floating.announcements,
+            );
           }
-          if (floatingEnabled()) floatingControl.show();
-          else floatingControl.hide();
+          if (floatingEnabled()) floatingControl?.show();
+          else floatingControl?.hide();
           if (
             pageSession.getStatus().state !== "idle" &&
             pageTranslationConfigurationChanged(previousSettings, settings)
@@ -1509,7 +1571,7 @@ export default defineContentScript({
       selectionTranslation.destroy();
       profileWizard?.destroy();
       nativeSubtitleVisibility.destroy();
-      floatingControl.destroy();
+      floatingControl?.destroy();
       ocrSession.destroy();
       imageController.destroy();
       controller.stop();

@@ -1,3 +1,4 @@
+import { message } from "@/src/shared/i18n";
 import { PageRenderer } from "@/src/page/renderer";
 import { scanPageSegments, type PageSegment } from "@/src/page/scanner";
 import { createProtectedText } from "@/src/translation/protected-text";
@@ -684,8 +685,17 @@ describe("PageRenderer", () => {
     ).failed.get(failedSegment)?.indicator;
     if (!marker) throw new Error("missing failed marker");
     expect(marker.tagName).toBe("BUTTON");
-    expect(marker.getAttribute("aria-label")).toBe("Retry this block");
-    expect(marker.tabIndex).toBe(-1);
+    // Keyboard reachable; named by its visible text (shape + words), with
+    // the owner's longer label as its description.
+    expect(marker.tabIndex).toBe(0);
+    expect(marker.textContent).toBe(message("pageMarkFailedRetry"));
+    expect(marker.getAttribute("aria-label")).toBeNull();
+    expect(marker.title).toBe("Retry this block");
+    expect(marker.getAttribute("aria-description")).toBe("Retry this block");
+    expect(marker.querySelector("svg")?.getAttribute("aria-hidden")).toBe(
+      "true",
+    );
+    expect(overlay?.getAttribute("aria-hidden")).toBeNull();
     marker.click();
     expect(onRetryFailed).toHaveBeenCalledWith(failedSegment);
 
@@ -694,6 +704,37 @@ describe("PageRenderer", () => {
     expect(renderer.failedSegments()).toEqual([]);
     renderer.clearPending();
     expect(document.querySelector("noritrans-translation-pending")).toBeNull();
+  });
+
+  it("shows skipped marks only after they are enabled", () => {
+    document.body.innerHTML = "<main><p>Skipped block</p></main>";
+    const paragraph = document.querySelector("p");
+    const node = paragraph?.firstChild;
+    if (!paragraph || !(node instanceof Text)) throw new Error("fixture");
+    const renderer = new PageRenderer();
+    const skippedSegment = segment(paragraph, node);
+
+    renderer.markSkipped([skippedSegment]);
+    expect(document.querySelector("noritrans-translation-pending")).toBeNull();
+
+    renderer.setSkippedMarksEnabled(true);
+    renderer.markSkipped([skippedSegment]);
+    const mark = (
+      renderer as unknown as {
+        skipped: Map<PageSegment, { indicator: HTMLElement }>;
+      }
+    ).skipped.get(skippedSegment)?.indicator;
+    expect(mark?.textContent).toBe(message("pageMarkSkipped"));
+    expect(mark?.querySelector("svg")?.dataset.glyph).toBe("skipped");
+
+    // Queuing the block replaces the passive mark; disabling clears the rest.
+    renderer.markPending([skippedSegment]);
+    expect(mark?.isConnected).toBe(false);
+    renderer.clearPending();
+    renderer.markSkipped([skippedSegment]);
+    renderer.setSkippedMarksEnabled(false);
+    expect(document.querySelector("noritrans-translation-pending")).toBeNull();
+    renderer.restore();
   });
 
   it("keeps a static waiting ring and forced-colors styling for indicators", () => {

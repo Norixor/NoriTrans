@@ -176,12 +176,18 @@ describe("subtitle profile wizard", () => {
   });
 
   it("restores a collapsed shadow control to its visible launcher", () => {
-    const control = document.createElement("noritrans-floating-control");
+    const control = document.createElement("div");
+    control.dataset.noritransUi = "floating-control";
     const root = control.attachShadow({ mode: "open" });
     const panel = document.createElement("div");
     const trigger = document.createElement("button");
-    const launcher = document.createElement("button");
+    // The launcher is a plain container; the focusable collapsed button
+    // (`nt-pill-fab`, which delegates focus) lives inside it.
+    const launcher = document.createElement("div");
     launcher.className = "launcher";
+    const fab = document.createElement("nt-pill-fab");
+    fab.tabIndex = 0;
+    launcher.append(fab);
     panel.append(trigger);
     root.append(panel, launcher);
     document.body.append(control);
@@ -192,7 +198,7 @@ describe("subtitle profile wizard", () => {
     wizard.start();
     wizard.destroy();
 
-    expect(root.activeElement).toBe(launcher);
+    expect(root.activeElement).toBe(fab);
   });
 
   it("temporarily hides the subtitle overlay so manual picking stays clickable", () => {

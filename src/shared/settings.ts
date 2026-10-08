@@ -70,6 +70,8 @@ export interface PageSettings {
   autoTranslateSitePatterns: string[];
   autoTranslateExcludedSitePatterns: string[];
   floatingButtonEnabled: boolean;
+  /** Shows a passive "skipped" mark beside blocks left untranslated. */
+  showSkippedMarks: boolean;
   selectionTranslationEnabled: boolean;
   selectionTranslationSourceLanguage: string;
   selectionTranslationTargetLanguage: string;
@@ -101,6 +103,12 @@ export interface SubtitleSettings {
   modelOverride?: string;
 }
 
+/** Floating control preferences shared by the web page and video tabs. */
+export interface FloatingSettings {
+  /** The collapsed button expands into a short text pill on status changes. */
+  announcements: boolean;
+}
+
 export interface OcrSettings {
   enabled: boolean;
   sourceLanguage: string;
@@ -125,6 +133,7 @@ export interface AppSettings {
   subtitles: SubtitleSettings;
   ocr: OcrSettings;
   imageTranslation: ImageTranslationSettings;
+  floating: FloatingSettings;
 }
 
 export type ContentProviderSettings = Omit<
@@ -139,6 +148,7 @@ export interface ContentSettings {
   subtitles: SubtitleSettings;
   ocr: OcrSettings;
   imageTranslation: ImageTranslationSettings;
+  floating: FloatingSettings;
   activeSiteProfile?: { id: string; name: string };
 }
 
@@ -187,6 +197,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     autoTranslateSitePatterns: [],
     autoTranslateExcludedSitePatterns: [],
     floatingButtonEnabled: true,
+    showSkippedMarks: false,
     selectionTranslationEnabled: true,
     selectionTranslationSourceLanguage: "auto",
     selectionTranslationTargetLanguage: "zh-CN",
@@ -223,6 +234,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
     modelOverride: "",
     displayMode: "translated",
   },
+  floating: {
+    announcements: true,
+  },
 };
 
 export function isAllowedProviderBaseUrl(value: string): boolean {
@@ -257,6 +271,7 @@ export function toContentSettings(settings: AppSettings): ContentSettings {
     subtitles: { ...settings.subtitles },
     ocr: { ...settings.ocr },
     imageTranslation: { ...settings.imageTranslation },
+    floating: { ...settings.floating },
   };
 }
 
@@ -274,6 +289,7 @@ export function mergeSettings(value: unknown): AppSettings {
   const imageTranslation = isRecord(value.imageTranslation)
     ? value.imageTranslation
     : {};
+  const floating = isRecord(value.floating) ? value.floating : {};
 
   const legacyAiFastProvider = provider.fastProvider === "openai-compatible";
   const fastProvider: FastProviderId =
@@ -397,6 +413,10 @@ export function mergeSettings(value: unknown): AppSettings {
         typeof page.floatingButtonEnabled === "boolean"
           ? page.floatingButtonEnabled
           : DEFAULT_SETTINGS.page.floatingButtonEnabled,
+      showSkippedMarks:
+        typeof page.showSkippedMarks === "boolean"
+          ? page.showSkippedMarks
+          : DEFAULT_SETTINGS.page.showSkippedMarks,
       selectionTranslationEnabled: removedSelectionRoute
         ? false
         : typeof page.selectionTranslationEnabled === "boolean"
@@ -525,6 +545,12 @@ export function mergeSettings(value: unknown): AppSettings {
         imageTranslation.displayMode === "bilingual"
           ? "bilingual"
           : "translated",
+    },
+    floating: {
+      announcements:
+        typeof floating.announcements === "boolean"
+          ? floating.announcements
+          : DEFAULT_SETTINGS.floating.announcements,
     },
   };
 }

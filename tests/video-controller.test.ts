@@ -1555,6 +1555,7 @@ describe("SubtitleController", () => {
         state: "ready",
         completeness: "stream",
         message: "subtitleFastFallbackNetflixRefresh",
+        reasonCode: "stream_fallback_refresh",
       }),
     );
     controller.stop();
@@ -1602,6 +1603,7 @@ describe("SubtitleController", () => {
         completed: 2,
         failed: 0,
         message: "subtitleFastFallbackNoFullTrack",
+        reasonCode: "stream_fallback",
       }),
     );
     const translateCalls = runtime.sendMessage.mock.calls
@@ -2768,6 +2770,7 @@ describe("SubtitleController", () => {
         completed: 0,
         failed: 1,
         message: "runtimeErrorRequestFailed",
+        reasonCode: "request_failed",
       }),
     );
     adapter.emit(track);
@@ -5826,12 +5829,14 @@ describe("SubtitleController", () => {
         expect(skipped.getStatus()).toMatchObject({
           state: "unavailable",
           message: "subtitleSourceLanguageMismatch",
+          reasonCode: "source_language_mismatch",
         });
         expect(missing.getStatus()).toEqual({
           state: "unavailable",
           total: 0,
           completed: 0,
           failed: 0,
+          reasonCode: "subtitle_no_track",
         });
         expect(invalidTag.getStatus().message).toBeUndefined();
       } finally {

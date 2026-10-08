@@ -27,7 +27,7 @@ import {
 import { OcrSampler } from "@/src/ocr/sampler";
 import { filterOcrSubtitleText, OcrSession } from "@/src/ocr/session";
 import { OcrSubtitleAdapter } from "@/src/ocr/subtitle-adapter";
-import type { OcrCaptureResponse } from "@/src/ocr/types";
+import { OCR_REASON, type OcrCaptureResponse } from "@/src/ocr/types";
 import { DEFAULT_SETTINGS, mergeSettings } from "@/src/shared/settings";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -117,6 +117,7 @@ describe("experimental image subtitle OCR", () => {
       state: "unavailable",
       recognized: 0,
       message: "ocrSourceLanguageUnsupported",
+      reasonCode: OCR_REASON.sourceLanguageUnsupported,
     });
     expect(availability).not.toHaveBeenCalled();
   });
@@ -253,6 +254,7 @@ describe("experimental image subtitle OCR", () => {
       state: "error",
       recognized: 0,
       message: "ocrRuntimeMissing",
+      reasonCode: OCR_REASON.runtimeMissing,
     });
     expect(destroy).toHaveBeenCalled();
   });
@@ -569,6 +571,7 @@ describe("experimental image subtitle OCR", () => {
         state: "unavailable",
         recognized: 0,
         message: "ocrPictureInPictureUnsupported",
+        reasonCode: OCR_REASON.pictureInPicture,
       });
       expect(selector.select).not.toHaveBeenCalled();
       expect(capture).not.toHaveBeenCalled();
@@ -830,6 +833,7 @@ describe("experimental image subtitle OCR", () => {
       state: "error",
       recognized: 0,
       message: "ocrRecognitionFailed",
+      reasonCode: OCR_REASON.recognitionFailed,
     });
     expect(onStopped).toHaveBeenCalledTimes(1);
     session.destroy();
@@ -1050,6 +1054,7 @@ describe("experimental image subtitle OCR", () => {
     expect(session.getStatus()).toMatchObject({
       state: "unavailable",
       message: "ocrVideoChanged",
+      reasonCode: OCR_REASON.videoChanged,
       recognized: 0,
     });
     await expect(adapter.collect()).resolves.toBeNull();
@@ -1172,10 +1177,8 @@ describe("experimental image subtitle OCR", () => {
     cueCard.getBoundingClientRect = () => new DOMRect(80, 280, 480, 50);
     root.append(cueCard);
     document.body.append(overlayHost);
-    const floatingControl = document.createElement(
-      "noritrans-floating-control",
-    );
-    floatingControl.dataset.noritransUi = "unified-floating-control";
+    const floatingControl = document.createElement("div");
+    floatingControl.dataset.noritransUi = "floating-control";
     floatingControl.style.visibility = "visible";
     document.body.append(floatingControl);
 
@@ -1425,6 +1428,8 @@ describe("experimental image subtitle OCR", () => {
       message: "ocrInactiveTabPaused",
       recognized: 0,
     });
+    // A pause is not a failure, so it carries no reason code.
+    expect(session.getStatus().reasonCode).toBeUndefined();
     expect(await adapter.collect()).toBeNull();
 
     await vi.advanceTimersByTimeAsync(500);
@@ -1465,6 +1470,7 @@ describe("experimental image subtitle OCR", () => {
     expect(session.getStatus()).toMatchObject({
       state: "unavailable",
       message: "ocrCaptureTooLarge",
+      reasonCode: OCR_REASON.captureTooLarge,
     });
     session.destroy();
   });
@@ -1613,6 +1619,7 @@ describe("experimental image subtitle OCR", () => {
     expect(session.getStatus()).toMatchObject({
       state: "unavailable",
       message: "ocrProtectedVideoUnsupported",
+      reasonCode: OCR_REASON.protectedVideo,
     });
     expect(onStopped).toHaveBeenCalledOnce();
     await expect(adapter.collect()).resolves.toBeNull();
@@ -1704,6 +1711,7 @@ describe("experimental image subtitle OCR", () => {
     expect(session.getStatus()).toMatchObject({
       state: "unavailable",
       message: "ocrProtectedVideoUnsupported",
+      reasonCode: OCR_REASON.protectedVideo,
     });
     session.destroy();
   });
@@ -1802,6 +1810,7 @@ describe("experimental image subtitle OCR", () => {
       state: "unavailable",
       recognized: 0,
       message: "existing subtitles",
+      reasonCode: OCR_REASON.existingSubtitles,
     });
     expect(onStatus).toHaveBeenLastCalledWith(
       expect.objectContaining({ state: "unavailable" }),

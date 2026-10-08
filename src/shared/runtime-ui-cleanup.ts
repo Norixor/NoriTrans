@@ -1,4 +1,9 @@
 const TRANSIENT_UI_MARKERS = new Set([
+  "floating-control",
+  "floating-control-portal",
+  // Hosts of the previous floating control (releases up to 0.1.151). An
+  // extension update orphans their DOM on already open pages; the re-injected
+  // content script removes it through these markers. Nothing creates them now.
   "floating-control-fullscreen-portal",
   "native-subtitle-visibility",
   "ocr-fullscreen-portal",
@@ -7,6 +12,7 @@ const TRANSIENT_UI_MARKERS = new Set([
   "subtitle-fullscreen-portal",
   "subtitle-overlay",
   "subtitle-profile-wizard",
+  // Legacy, see "floating-control-fullscreen-portal" above.
   "unified-floating-control",
 ]);
 

@@ -5,6 +5,14 @@ import {
   type ContentSettings,
 } from "@/src/shared/settings";
 import { normalizeAutoTranslateSitePattern } from "@/src/shared/auto-translate-sites";
+export {
+  isSettingsPatchMessage,
+  isSettingsPatchResponse,
+  type SettingsPatch,
+  type SettingsPatchMessage,
+  type SettingsPatchResponse,
+} from "@/src/shared/settings-patch";
+import { isStatusReasonCode } from "@/src/shared/status-reasons";
 import type {
   TranslationFailure,
   TranslationRequest,
@@ -204,6 +212,40 @@ export type BackgroundCommand =
   | { type: "CACHE_CLEAR" }
   | { type: "CACHE_STATS" };
 
+/** Subtitle position presets the floating control may pick (`custom` comes from dragging). */
+export const SUBTITLE_POSITION_PRESETS = ["top", "center", "bottom"] as const;
+export type SubtitlePositionPreset = (typeof SUBTITLE_POSITION_PRESETS)[number];
+
+/**
+ * The only subtitle settings a top-frame content script may write directly.
+ * They are deliberately kept out of `BackgroundCommand`: the background
+ * handles them before the generic command path so that malformed payloads
+ * and foreign senders get a stable result code instead of no response.
+ */
+export type SubtitleContentSettingCommand =
+  | { type: "SUBTITLE_ENABLED_SET"; enabled: boolean }
+  | { type: "SUBTITLE_POSITION_PRESET_SET"; preset: SubtitlePositionPreset };
+
+export type SubtitleContentSettingType = SubtitleContentSettingCommand["type"];
+
+/** Machine-readable outcome codes for `SubtitleContentSettingCommand`. */
+export type SubtitleContentSettingCode =
+  | "subtitle_setting_saved"
+  | "subtitle_setting_invalid_payload"
+  | "subtitle_setting_sender_rejected"
+  | "subtitle_setting_save_failed";
+
+export type SubtitleContentSettingResponse =
+  | {
+      ok: true;
+      code: "subtitle_setting_saved";
+      settings: ContentSettings;
+    }
+  | {
+      ok: false;
+      code: Exclude<SubtitleContentSettingCode, "subtitle_setting_saved">;
+    };
+
 /** Final response for one background-managed translation request. */
 export interface TranslationResponse {
   ok: boolean;
@@ -240,6 +282,12 @@ export interface PageStatus {
   failed: number;
   message?: string;
   details?: string;
+  /**
+   * Stable machine-readable reason behind `message` (see
+   * `src/shared/status-reasons.ts`). Optional: absent means no specific
+   * reason is known, never "no problem".
+   */
+  reasonCode?: string;
 }
 
 /**
@@ -265,6 +313,8 @@ export interface SubtitleStatus {
   failed: number;
   message?: string;
   details?: string;
+  /** Stable machine-readable reason behind `message`; see `PageStatus`. */
+  reasonCode?: string;
 }
 
 export type { OcrCaptureResponse, OcrStatus };
@@ -375,7 +425,8 @@ export function isPageStatusValue(value: unknown): value is PageStatus {
     (value.message === undefined ||
       (typeof value.message === "string" && value.message.length <= 1_000)) &&
     (value.details === undefined ||
-      (typeof value.details === "string" && value.details.length <= 4_000))
+      (typeof value.details === "string" && value.details.length <= 4_000)) &&
+    (value.reasonCode === undefined || isStatusReasonCode(value.reasonCode))
   );
 }
 
@@ -409,7 +460,8 @@ export function isSubtitleStatusValue(value: unknown): value is SubtitleStatus {
     (value.message === undefined ||
       (typeof value.message === "string" && value.message.length <= 1_000)) &&
     (value.details === undefined ||
-      (typeof value.details === "string" && value.details.length <= 4_000))
+      (typeof value.details === "string" && value.details.length <= 4_000)) &&
+    (value.reasonCode === undefined || isStatusReasonCode(value.reasonCode))
   );
 }
 
@@ -964,4 +1016,120 @@ export function isContentCommand(value: unknown): value is ContentCommand {
     default:
       return false;
   }
+}
+
+export function isSubtitlePositionPreset(
+  value: unknown,
+): value is SubtitlePositionPreset {
+  return (
+    typeof value === "string" &&
+    (SUBTITLE_POSITION_PRESETS as readonly string[]).includes(value)
+  );
+}
+
+/** True for any message that claims a `SubtitleContentSettingCommand` type. */
+export function isSubtitleContentSettingMessage(
+  value: unknown,
+): value is { type: SubtitleContentSettingType } {
+  return (
+    isRecord(value) &&
+    (value.type === "SUBTITLE_ENABLED_SET" ||
+      value.type === "SUBTITLE_POSITION_PRESET_SET")
+  );
+}
+
+/** Strict payload check: exactly the declared fields, nothing else. */
+export function isSubtitleContentSettingCommand(
+  value: unknown,
+): value is SubtitleContentSettingCommand {
+  if (!isRecord(value) || Object.keys(value).length !== 2) return false;
+  switch (value.type) {
+    case "SUBTITLE_ENABLED_SET":
+      return typeof value.enabled === "boolean";
+    case "SUBTITLE_POSITION_PRESET_SET":
+      return isSubtitlePositionPreset(value.preset);
+    default:
+      return false;
+  }
+}
+
+export function isSubtitleContentSettingResponse(
+  value: unknown,
+): value is SubtitleContentSettingResponse {
+  if (!isRecord(value)) return false;
+  if (value.ok === true) {
+    return (
+      value.code === "subtitle_setting_saved" &&
+      isContentSettings(value.settings)
+    );
+  }
+  return (
+    value.ok === false &&
+    (value.code === "subtitle_setting_invalid_payload" ||
+      value.code === "subtitle_setting_sender_rejected" ||
+      value.code === "subtitle_setting_save_failed")
+  );
+}
+
+/** Options-page sections a content script may open (`options.html#<id>`). */
+export const OPTIONS_PAGE_SECTIONS = [
+  "providers",
+  "visibility",
+  "ocr",
+  "image",
+  "video",
+] as const;
+export type OptionsPageSection = (typeof OPTIONS_PAGE_SECTIONS)[number];
+
+/**
+ * Opens the options page for a content script. Web pages cannot navigate to
+ * `chrome-extension://…/options.html` (it is not web-accessible), so the
+ * floating control asks the background to open the tab. Handled before the
+ * generic command path, like `SubtitleContentSettingCommand`.
+ */
+export interface OptionsPageOpenCommand {
+  type: "OPTIONS_PAGE_OPEN";
+  section?: OptionsPageSection;
+}
+
+export type OptionsPageOpenResponse =
+  | { ok: true; code: "options_page_opened" }
+  | {
+      ok: false;
+      code:
+        | "options_page_invalid_payload"
+        | "options_page_sender_rejected"
+        | "options_page_open_failed";
+    };
+
+export function isOptionsPageOpenMessage(
+  value: unknown,
+): value is { type: "OPTIONS_PAGE_OPEN" } {
+  return isRecord(value) && value.type === "OPTIONS_PAGE_OPEN";
+}
+
+export function isOptionsPageOpenCommand(
+  value: unknown,
+): value is OptionsPageOpenCommand {
+  if (!isRecord(value) || value.type !== "OPTIONS_PAGE_OPEN") return false;
+  const keys = Object.keys(value);
+  if (keys.length === 1) return true;
+  return (
+    keys.length === 2 &&
+    typeof value.section === "string" &&
+    (OPTIONS_PAGE_SECTIONS as readonly string[]).includes(value.section)
+  );
+}
+
+export function isOptionsPageOpenResponse(
+  value: unknown,
+): value is OptionsPageOpenResponse {
+  if (!isRecord(value)) return false;
+  if (value.ok === true) return value.code === "options_page_opened";
+  return (
+    value.ok === false &&
+    (value.code === "options_page_invalid_payload" ||
+      value.code === "options_page_sender_rejected" ||
+      value.code === "options_page_open_failed")
+  );
 }

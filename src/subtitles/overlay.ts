@@ -7,6 +7,16 @@ import type {
 } from "@/src/shared/settings";
 import { message } from "@/src/shared/i18n";
 import { cleanTranslatedText } from "@/src/translation/output";
+import { NT_THEME_WRAPPER_CLASS } from "@/src/ui/tokens/tokens";
+import { createStatusGlyph } from "@/src/ui/dom/status-glyph";
+import { SUBTITLE_OVERLAY_STYLE } from "@/src/subtitles/overlay-style";
+import {
+  LIVE_TAG_DURATION_MS,
+  OverlayTag,
+  PENDING_TAG_DELAY_MS,
+  windowTimers,
+  type OverlayTimers,
+} from "@/src/subtitles/overlay-tags";
 
 export type SubtitleOverlayState =
   | "waiting"
@@ -19,6 +29,17 @@ export type SubtitleOverlayState =
   | "unavailable";
 
 const MAX_OVERLAY_CUE_CHARACTERS = 1_000;
+
+/** Track facts the overlay needs for its transient tags. */
+export interface SubtitleOverlayTrackInfo {
+  completeness?: "full" | "stream" | undefined;
+  source?: string | undefined;
+}
+
+export interface SubtitleOverlayOptions {
+  /** Timer seam for the live/pending tags; defaults to `window` timers. */
+  timers?: OverlayTimers;
+}
 
 function normalizedVisibleCueText(text: string): string {
   return text
@@ -57,154 +78,6 @@ function likelySameVisibleCueText(left: string, right: string): boolean {
   const distance = previous[right.length] ?? longestLength;
   return 1 - distance / longestLength >= 0.88;
 }
-
-const STYLE = `
-  :host {
-    all: initial;
-    position: fixed !important;
-    z-index: 2147483646 !important;
-    inset: 0 !important;
-    display: block !important;
-    width: auto !important;
-    height: auto !important;
-    min-width: 0 !important;
-    min-height: 0 !important;
-    max-width: none !important;
-    max-height: none !important;
-    overflow: visible !important;
-    contain: none !important;
-    writing-mode: horizontal-tb !important;
-    text-orientation: mixed !important;
-    pointer-events: none !important;
-  }
-  :host([hidden]) { display: none !important; }
-  :host([data-dragging="true"]) { pointer-events: auto !important; }
-  .overlay {
-    position: fixed;
-    z-index: 2147483646;
-    left: var(--noritrans-anchor-x, 50vw);
-    top: var(--noritrans-anchor-y, 82vh);
-    transform: translate(-50%, -100%);
-    width: var(--noritrans-max-width, 80vw);
-    max-width: var(--noritrans-max-width, 80vw);
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    justify-items: center;
-    gap: 6px;
-    pointer-events: none;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    text-align: center;
-  }
-  :host([data-position="top"]) .overlay {
-    transform: translate(-50%, 0);
-  }
-  :host([data-position="center"]) .overlay {
-    transform: translate(-50%, -50%);
-  }
-  :host([data-position="custom"]) .overlay {
-    transform: translate(-50%, -50%);
-  }
-  :host([data-ocr-safe-side="above"]) .overlay {
-    transform: translate(-50%, -100%);
-  }
-  :host([data-ocr-safe-side="below"]) .overlay {
-    transform: translate(-50%, 0);
-  }
-  .ocr-region-guide {
-    position: fixed;
-    left: var(--noritrans-ocr-left, 0);
-    top: var(--noritrans-ocr-top, 0);
-    width: var(--noritrans-ocr-width, 0);
-    height: var(--noritrans-ocr-height, 0);
-    box-sizing: border-box;
-    display: none;
-    border: 2px dashed rgb(139 92 246 / 88%);
-    background: rgb(139 92 246 / 8%);
-    box-shadow: 0 0 0 1px rgb(255 255 255 / 55%) inset;
-    pointer-events: none;
-  }
-  :host([data-dragging="true"][data-has-ocr-region="true"]) .ocr-region-guide {
-    display: block;
-  }
-  .cue-card {
-    width: max-content;
-    min-width: 0;
-    max-width: 100%;
-    box-sizing: border-box;
-    padding: 8px 14px;
-    border-radius: 8px;
-    background: rgb(8 10 14 / var(--noritrans-opacity, 0.78));
-    color: #fff;
-    box-shadow: 0 1px 3px rgb(0 0 0 / 45%);
-    font-size: calc(18px * var(--noritrans-scale, 1));
-    line-height: 1.42;
-    max-height: min(45vh, 320px);
-    overflow: hidden;
-    overflow-wrap: anywhere;
-    pointer-events: auto;
-    cursor: grab;
-    touch-action: none;
-    user-select: none;
-    white-space: pre-wrap;
-  }
-  .cue-card:active,
-  .cue-card[data-dragging="true"] { cursor: grabbing; }
-  .cue-card[data-saving="true"] { cursor: wait; }
-  .cue-card:focus-visible {
-    outline: 3px solid #93c5fd;
-    outline-offset: 2px;
-  }
-  .cue {
-    min-width: 0;
-    max-width: 100%;
-    overflow: hidden;
-    color: inherit;
-    font: inherit;
-    line-height: inherit;
-    white-space: nowrap;
-    overflow-wrap: normal;
-    word-break: normal;
-    hyphens: none;
-  }
-  .cue-text { display: inline-block; width: max-content; min-width: 100%; }
-  @media (prefers-reduced-motion: reduce) {
-    .cue[data-overflow="true"] { overflow-x: auto; touch-action: pan-x; }
-  }
-  .cue + .cue:not([hidden]) { margin-top: 3px; }
-  .original { color: #f4f6f8; }
-  .translated { color: #fff; font-weight: 600; }
-  .status {
-    display: none;
-  }
-  .status[data-visible="true"] {
-    display: block;
-    max-width: min(520px, 80vw);
-    padding: 4px 8px;
-    border-radius: 6px;
-    background: rgb(127 29 29 / 92%);
-    color: #fff;
-    font: 600 13px/1.4 system-ui, sans-serif;
-    text-align: center;
-  }
-  .notice {
-    max-width: min(520px, 80vw);
-    padding: 8px 12px;
-    border: 1px solid rgb(254 202 202 / 72%);
-    border-radius: 8px;
-    background: rgb(69 10 10 / 94%);
-    color: #fff;
-    box-shadow: 0 4px 18px rgb(0 0 0 / 38%);
-    font: 600 14px/1.45 system-ui, sans-serif;
-    overflow-wrap: anywhere;
-    pointer-events: auto;
-    text-align: center;
-  }
-  .overlay[hidden], .cue-card[hidden], .original[hidden], .translated[hidden], .notice[hidden] { display: none; }
-  @media (max-width: 600px) {
-    .cue-card { font-size: calc(16px * var(--noritrans-scale, 1)); padding: 7px 10px; }
-  }
-  @media (prefers-reduced-motion: reduce) { .overlay { scroll-behavior: auto; } }
-`;
 
 function stateMessage(state: SubtitleOverlayState): string {
   switch (state) {
@@ -265,6 +138,14 @@ export class SubtitleOverlay {
   private readonly ocrRegionGuide: HTMLDivElement;
   private readonly status: HTMLDivElement;
   private readonly notice: HTMLDivElement;
+  private readonly noticeText: HTMLSpanElement;
+  private readonly liveTag: OverlayTag;
+  private readonly pendingTag: OverlayTag;
+  /** Set when a stream track starts; consumed by the next visible cue. */
+  private liveTagArmed = false;
+  private lastCompleteness: "full" | "stream" | undefined;
+  /** `hide()` was called and no cue has been shown since. */
+  private cueSuppressed = false;
   private displayMode: SubtitleDisplayMode;
   private showOriginalFallback = false;
   private customPosition: SubtitleCustomPosition;
@@ -306,27 +187,47 @@ export class SubtitleOverlay {
     private readonly onPositionChange?: (
       position: SubtitleCustomPosition,
     ) => Promise<void> | void,
+    options: SubtitleOverlayOptions = {},
   ) {
     this.host.dataset.noritransUi = "subtitle-overlay";
     this.fullscreenPortal.dataset.noritransUi = "subtitle-fullscreen-portal";
     this.fullscreenPortal.setAttribute("popover", "manual");
-    Object.assign(this.fullscreenPortal.style, {
+    // The portal lives in the page's light DOM, so page rules such as
+    // `div { border: … !important }` or `[popover] { display: none }` would
+    // otherwise reach it. Important inline declarations win over both. The
+    // portal is only connected while open, so forcing `display` is safe.
+    for (const [property, value] of Object.entries({
+      display: "block",
       position: "fixed",
       inset: "0",
       width: "100vw",
       height: "100vh",
-      maxWidth: "none",
-      maxHeight: "none",
+      "max-width": "none",
+      "max-height": "none",
       margin: "0",
       padding: "0",
       border: "0",
       background: "transparent",
-      pointerEvents: "none",
+      opacity: "1",
+      "pointer-events": "none",
       overflow: "visible",
-    });
+    })) {
+      this.fullscreenPortal.style.setProperty(property, value, "important");
+    }
+    // Same shape as src/ui/inject/fullscreen.ts: a slot-only shadow root
+    // whose inner important rule removes page-generated ::before/::after.
+    const portalRoot = this.fullscreenPortal.attachShadow({ mode: "open" });
+    const portalStyle = document.createElement("style");
+    portalStyle.textContent =
+      ":host::before, :host::after { content: none !important; display: none !important; }";
+    portalRoot.append(portalStyle, document.createElement("slot"));
     const root = this.host.attachShadow({ mode: "open" });
     const style = document.createElement("style");
-    style.textContent = STYLE;
+    style.textContent = SUBTITLE_OVERLAY_STYLE;
+    // Tokens live on this wrapper, not on :host (see overlay-style.ts).
+    const theme = document.createElement("div");
+    theme.className = NT_THEME_WRAPPER_CLASS;
+    theme.dataset.theme = "dark";
     this.container = document.createElement("div");
     this.container.className = "overlay";
     this.container.hidden = true;
@@ -356,6 +257,24 @@ export class SubtitleOverlay {
     this.notice.hidden = true;
     this.notice.setAttribute("role", "alert");
     this.notice.setAttribute("aria-live", "assertive");
+    this.noticeText = document.createElement("span");
+    this.noticeText.className = "notice-text";
+    this.notice.append(createStatusGlyph("error"), this.noticeText);
+
+    const timers = options.timers ?? windowTimers;
+    const tagChanged = (): void => this.renderVisibility();
+    this.liveTag = new OverlayTag(
+      "live",
+      () => message("subtitleLiveTag"),
+      timers,
+      tagChanged,
+    );
+    this.pendingTag = new OverlayTag(
+      "pending",
+      () => message("subtitlePendingTag"),
+      timers,
+      tagChanged,
+    );
 
     this.cueCard.append(this.original, this.translated);
     for (const cue of [this.original, this.translated]) {
@@ -371,8 +290,15 @@ export class SubtitleOverlay {
     }
     this.reducedMotion?.addEventListener("change", this.scheduleCueScroll);
 
-    this.container.append(this.cueCard, this.status, this.notice);
-    root.append(style, this.ocrRegionGuide, this.container);
+    this.container.append(
+      this.cueCard,
+      this.liveTag.element,
+      this.pendingTag.element,
+      this.status,
+      this.notice,
+    );
+    theme.append(this.ocrRegionGuide, this.container);
+    root.append(style, theme);
     this.displayMode = settings.displayMode;
     this.customPosition = settings.customPosition;
     this.updateSettings(settings);
@@ -395,6 +321,8 @@ export class SubtitleOverlay {
     const dragLabel = message("subtitleDragHandle");
     this.cueCard.setAttribute("aria-label", dragLabel);
     this.cueCard.title = dragLabel;
+    this.liveTag.refreshLocale();
+    this.pendingTag.refreshLocale();
   }
 
   private readonly mount = (): void => {
@@ -607,6 +535,7 @@ export class SubtitleOverlay {
       return;
     }
     this.showOriginalFallback = options.showOriginalFallback === true;
+    this.cueSuppressed = false;
     if (
       this.original.textContent !==
       originalText.slice(0, MAX_OVERLAY_CUE_CHARACTERS)
@@ -628,6 +557,10 @@ export class SubtitleOverlay {
     );
     this.container.hidden = false;
     this.renderVisibility();
+    if (this.liveTagArmed && !this.cueCard.hidden) {
+      this.liveTagArmed = false;
+      this.liveTag.showFor(LIVE_TAG_DURATION_MS);
+    }
     requestAnimationFrame(() => this.updateAnchor());
   }
 
@@ -642,7 +575,13 @@ export class SubtitleOverlay {
     this.renderVisibility();
   }
 
-  setStatus(state: SubtitleOverlayState, completed = 0, total = 0): void {
+  setStatus(
+    state: SubtitleOverlayState,
+    completed = 0,
+    total = 0,
+    track: SubtitleOverlayTrackInfo = {},
+  ): void {
+    this.updateLiveTag(state, track);
     if (this.status.dataset.positionError === "true") return;
     this.status.dataset.state = state;
     const base = stateMessage(state);
@@ -654,7 +593,7 @@ export class SubtitleOverlay {
     const normalized = text.trim().slice(0, 500);
     if (!normalized) return;
     if (this.noticeTimer !== undefined) window.clearTimeout(this.noticeTimer);
-    this.notice.textContent = normalized;
+    this.noticeText.textContent = normalized;
     this.notice.hidden = false;
     this.renderVisibility();
     this.mount();
@@ -662,7 +601,7 @@ export class SubtitleOverlay {
       () => {
         this.noticeTimer = undefined;
         this.notice.hidden = true;
-        this.notice.textContent = "";
+        this.noticeText.textContent = "";
         this.renderVisibility();
       },
       Math.max(1_000, durationMs),
@@ -672,7 +611,7 @@ export class SubtitleOverlay {
   clearNotice(expectedText?: string): void {
     if (
       expectedText !== undefined &&
-      this.notice.textContent !== expectedText
+      this.noticeText.textContent !== expectedText
     ) {
       return;
     }
@@ -681,7 +620,7 @@ export class SubtitleOverlay {
       this.noticeTimer = undefined;
     }
     this.notice.hidden = true;
-    this.notice.textContent = "";
+    this.noticeText.textContent = "";
     this.renderVisibility();
   }
 
@@ -694,13 +633,55 @@ export class SubtitleOverlay {
     );
   }
 
+  /**
+   * Hides the current cue until the next `showCue`. Notices and a running
+   * live-subtitle tag stay up; their own timers collapse them.
+   */
   hide(): void {
-    this.container.hidden = this.notice.hidden;
+    this.cueSuppressed = true;
+    this.renderVisibility();
     this.stopCueScrolls();
+  }
+
+  /**
+   * Arms the "live subtitles · fast translation" tag once per stream track:
+   * a track entering `stream` shows it on the next visible cue. A new session
+   * (no track yet) or a full track re-arms the transition. OCR tracks skip it
+   * so the tag never sits where the recognizer could read it back.
+   */
+  private updateLiveTag(
+    state: SubtitleOverlayState,
+    track: SubtitleOverlayTrackInfo,
+  ): void {
+    const completeness = track.completeness;
+    if (completeness === undefined) {
+      if (state === "waiting" || state === "unavailable") {
+        this.lastCompleteness = undefined;
+        this.liveTagArmed = false;
+        this.liveTag.hide();
+      }
+      return;
+    }
+    const entersStream =
+      completeness === "stream" && this.lastCompleteness !== "stream";
+    this.lastCompleteness = completeness;
+    if (completeness !== "stream") {
+      this.liveTagArmed = false;
+      this.liveTag.hide();
+      return;
+    }
+    if (!entersStream || track.source === "ocr") return;
+    if (!this.container.hidden && !this.cueCard.hidden) {
+      this.liveTag.showFor(LIVE_TAG_DURATION_MS);
+    } else {
+      this.liveTagArmed = true;
+    }
   }
 
   destroy(): void {
     this.disposed = true;
+    this.pendingTag.hide();
+    this.liveTag.hide();
     this.stopCueScrolls();
     this.cueResizeObserver?.disconnect();
     this.reducedMotion?.removeEventListener("change", this.scheduleCueScroll);
@@ -1208,15 +1189,40 @@ export class SubtitleOverlay {
   private renderVisibility(): void {
     const hasOriginal = this.original.textContent !== "";
     const hasTranslated = this.translated.textContent !== "";
-    const visibility = subtitleCueVisibility(
+    const cueVisibility = subtitleCueVisibility(
       this.displayMode,
       hasOriginal,
       hasTranslated,
       this.showOriginalFallback,
     );
+    const visibility = this.cueSuppressed
+      ? { original: false, translated: false }
+      : cueVisibility;
     this.original.hidden = !visibility.original;
     this.translated.hidden = !visibility.translated;
     this.cueCard.hidden = !visibility.original && !visibility.translated;
+    this.cueCard.dataset.layout =
+      visibility.original && visibility.translated
+        ? "bilingual"
+        : visibility.original
+          ? "original"
+          : "translated";
+    // Translated-only mode never falls back to the source line while the
+    // translation is late: it stays blank, then says the translation is
+    // coming. OCR capture regions skip the tag so it cannot be recognized.
+    const awaitingTranslation =
+      this.displayMode === "translated" &&
+      hasOriginal &&
+      !hasTranslated &&
+      !cueVisibility.original &&
+      !this.cueSuppressed &&
+      !this.ocrRegion &&
+      !this.disposed;
+    if (awaitingTranslation) {
+      this.pendingTag.showAfter(PENDING_TAG_DELAY_MS);
+    } else {
+      this.pendingTag.hide();
+    }
     const nativePictureInPictureActive =
       this.mediaTarget instanceof HTMLVideoElement &&
       (
@@ -1226,7 +1232,11 @@ export class SubtitleOverlay {
       ).pictureInPictureElement === this.mediaTarget;
     this.container.hidden =
       nativePictureInPictureActive ||
-      (!visibility.original && !visibility.translated && this.notice.hidden);
+      (!visibility.original &&
+        !visibility.translated &&
+        this.notice.hidden &&
+        !this.pendingTag.visible &&
+        !this.liveTag.visible);
     this.scheduleCueScroll();
   }
 }

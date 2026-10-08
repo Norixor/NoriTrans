@@ -93,11 +93,7 @@ export function selectOcrMediaTarget(): HTMLElement | null {
         "canvas,iframe",
       ),
     )
-      .filter(
-        (element) =>
-          !element.closest("[data-noritrans-ui]") &&
-          !element.closest("noritrans-floating-control"),
-      )
+      .filter((element) => !element.closest("[data-noritrans-ui]"))
       .map((element, index) => ({
         element,
         index: candidates.length + index,

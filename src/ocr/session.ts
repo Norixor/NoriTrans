@@ -26,8 +26,10 @@ import { OcrSampler } from "@/src/ocr/sampler";
 import type { OcrSubtitleAdapter } from "@/src/ocr/subtitle-adapter";
 import {
   OCR_BACKGROUND_TARGET,
+  OCR_REASON,
   OCR_SAMPLE_INTERVAL_MS,
   type OcrCaptureResponse,
+  type OcrReasonCode,
   type OcrStatus,
 } from "@/src/ocr/types";
 import { browser } from "wxt/browser";
@@ -81,14 +83,22 @@ function diagnosticMessage(key: string, error: unknown): string {
   return detail ? `${message(key)} (${detail.slice(0, 240)})` : message(key);
 }
 
-function ocrStartErrorMessage(error: unknown): string {
+function ocrStartFailure(
+  error: unknown,
+): Pick<OcrStatus, "message" | "reasonCode"> {
   if (
     error instanceof Error &&
     error.message.startsWith("ocr_runtime_missing:")
   ) {
-    return message("ocrRuntimeMissing");
+    return {
+      message: message("ocrRuntimeMissing"),
+      reasonCode: OCR_REASON.runtimeMissing,
+    };
   }
-  return diagnosticMessage("ocrStartFailed", error);
+  return {
+    message: diagnosticMessage("ocrStartFailed", error),
+    reasonCode: OCR_REASON.startFailed,
+  };
 }
 
 function releasePreparedFrame(frame: PreparedOcrFrame): void {
@@ -156,8 +166,8 @@ function hideInjectedUiForCapture(): () => void {
     if (
       surface === "subtitle-overlay" ||
       surface === "subtitle-fullscreen-portal" ||
-      surface === "unified-floating-control" ||
-      surface === "floating-control-fullscreen-portal"
+      surface === "floating-control" ||
+      surface === "floating-control-portal"
     ) {
       continue;
     }
@@ -394,7 +404,10 @@ export class OcrSession {
   };
   private readonly handleIframeLoad = (): void => {
     if (!this.iframe || !this.lifecycle) return;
-    this.stopWithUnavailable(message("ocrVideoChanged"));
+    this.stopWithUnavailable(
+      message("ocrVideoChanged"),
+      OCR_REASON.videoChanged,
+    );
   };
   private readonly mediaResizeObserver =
     typeof ResizeObserver === "undefined"
@@ -482,6 +495,7 @@ export class OcrSession {
         state: "unavailable",
         recognized: 0,
         message: message("ocrSourceLanguageUnsupported"),
+        reasonCode: OCR_REASON.sourceLanguageUnsupported,
       });
       return this.getStatus();
     }
@@ -499,7 +513,7 @@ export class OcrSession {
       this.setStatus({
         state: "error",
         recognized: 0,
-        message: ocrStartErrorMessage(error),
+        ...ocrStartFailure(error),
       });
       this.onStopped?.();
       return this.getStatus();
@@ -513,6 +527,7 @@ export class OcrSession {
         state: "unavailable",
         recognized: 0,
         message: message("ocrLocalUnavailable"),
+        reasonCode: OCR_REASON.engineUnavailable,
       });
       return this.getStatus();
     }
@@ -523,6 +538,7 @@ export class OcrSession {
         state: "unavailable",
         recognized: 0,
         message: message("ocrVideoUnavailable"),
+        reasonCode: OCR_REASON.videoUnavailable,
       });
       return this.getStatus();
     }
@@ -532,6 +548,7 @@ export class OcrSession {
         state: "unavailable",
         recognized: 0,
         message: message("ocrPictureInPictureUnsupported"),
+        reasonCode: OCR_REASON.pictureInPicture,
       });
       return this.getStatus();
     }
@@ -615,7 +632,10 @@ export class OcrSession {
           if (!signal.aborted && !isAbortError(error)) {
             this.consecutiveSampleErrors += 1;
             if (this.consecutiveSampleErrors >= MAX_CONSECUTIVE_SAMPLE_ERRORS) {
-              this.stopWithError(message("ocrRecognitionFailed"));
+              this.stopWithError(
+                message("ocrRecognitionFailed"),
+                OCR_REASON.recognitionFailed,
+              );
             } else {
               this.setStatusWithProjectedRegion({
                 state: "capturing",
@@ -647,6 +667,7 @@ export class OcrSession {
           state: "error",
           recognized: 0,
           message: message("ocrVideoChanged"),
+          reasonCode: OCR_REASON.videoChanged,
         });
         this.onStopped?.();
       } else {
@@ -657,7 +678,7 @@ export class OcrSession {
         this.setStatus({
           state: "error",
           recognized: 0,
-          message: ocrStartErrorMessage(effectiveError),
+          ...ocrStartFailure(effectiveError),
         });
         this.onStopped?.();
       }
@@ -665,8 +686,11 @@ export class OcrSession {
     return this.getStatus();
   }
 
-  rejectStart(reason: string): OcrStatus {
-    this.stopWithUnavailable(reason);
+  rejectStart(
+    reason: string,
+    reasonCode: OcrReasonCode = OCR_REASON.existingSubtitles,
+  ): OcrStatus {
+    this.stopWithUnavailable(reason, reasonCode);
     return this.getStatus();
   }
 
@@ -768,7 +792,14 @@ export class OcrSession {
             : capture.message
               ? `${message("ocrCaptureUnavailable")} (${capture.message})`
               : message("ocrCaptureUnavailable");
-      this.stopWithUnavailable(reason);
+      this.stopWithUnavailable(
+        reason,
+        capture.error === "permission_required"
+          ? OCR_REASON.capturePermissionRequired
+          : capture.error === "capture_too_large"
+            ? OCR_REASON.captureTooLarge
+            : OCR_REASON.captureFailed,
+      );
       return;
     }
     if (this.inactiveTabPaused) {
@@ -824,13 +855,19 @@ export class OcrSession {
         !this.seenNonBlackFrame &&
         this.blackFramesWithPlayback >= MAX_CONSECUTIVE_BLACK_FRAMES
       ) {
-        this.stopWithUnavailable(message("ocrProtectedVideoUnsupported"));
+        this.stopWithUnavailable(
+          message("ocrProtectedVideoUnsupported"),
+          OCR_REASON.protectedVideo,
+        );
       } else if (
         this.iframe &&
         this.seenNonBlackFrame &&
         this.blackFrames >= MAX_CONSECUTIVE_BLACK_FRAMES
       ) {
-        this.stopWithUnavailable(message("ocrProtectedVideoUnsupported"));
+        this.stopWithUnavailable(
+          message("ocrProtectedVideoUnsupported"),
+          OCR_REASON.protectedVideo,
+        );
       } else {
         this.setStatusWithProjectedRegion({
           state: "active",
@@ -1014,7 +1051,7 @@ export class OcrSession {
     return "pending";
   }
 
-  private stopWithUnavailable(reason: string): void {
+  private stopWithUnavailable(reason: string, reasonCode: OcrReasonCode): void {
     const recognized = this.recognized;
     this.lifecycle?.abort();
     this.lifecycle = undefined;
@@ -1024,12 +1061,17 @@ export class OcrSession {
     void this.engine.endSession?.();
     this.clearMediaTarget();
     this.resetTimelineIdentity();
-    this.setStatus({ state: "unavailable", recognized, message: reason });
+    this.setStatus({
+      state: "unavailable",
+      recognized,
+      message: reason,
+      reasonCode,
+    });
     this.onTrackUpdated?.();
     this.onStopped?.();
   }
 
-  private stopWithError(reason: string): void {
+  private stopWithError(reason: string, reasonCode: OcrReasonCode): void {
     const recognized = this.recognized;
     this.lifecycle?.abort();
     this.lifecycle = undefined;
@@ -1039,7 +1081,7 @@ export class OcrSession {
     void this.engine.endSession?.();
     this.clearMediaTarget();
     this.resetTimelineIdentity();
-    this.setStatus({ state: "error", recognized, message: reason });
+    this.setStatus({ state: "error", recognized, message: reason, reasonCode });
     this.onTrackUpdated?.();
     this.onStopped?.();
   }
@@ -1146,7 +1188,10 @@ export class OcrSession {
     const mediaTarget = this.mediaTarget;
     if (!mediaTarget) return null;
     if (!ocrMediaTargetIsCurrent(mediaTarget)) {
-      this.stopWithUnavailable(message("ocrVideoChanged"));
+      this.stopWithUnavailable(
+        message("ocrVideoChanged"),
+        OCR_REASON.videoChanged,
+      );
       return null;
     }
     const source = ocrMediaTargetSource(mediaTarget);
@@ -1167,7 +1212,10 @@ export class OcrSession {
     const mediaTarget = this.mediaTarget;
     if (!mediaTarget) return false;
     if (!ocrMediaTargetIsCurrent(mediaTarget)) {
-      this.stopWithUnavailable(message("ocrVideoChanged"));
+      this.stopWithUnavailable(
+        message("ocrVideoChanged"),
+        OCR_REASON.videoChanged,
+      );
       return false;
     }
     const source = ocrMediaTargetSource(mediaTarget);

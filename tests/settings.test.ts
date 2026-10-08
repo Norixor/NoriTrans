@@ -6,6 +6,31 @@ import {
 import { describe, expect, it } from "vitest";
 
 describe("settings compatibility", () => {
+  it("defaults skipped marks off and pill announcements on, keeping stored choices", () => {
+    expect(DEFAULT_SETTINGS.page.showSkippedMarks).toBe(false);
+    expect(DEFAULT_SETTINGS.floating.announcements).toBe(true);
+    // Settings stored before these keys existed get the defaults.
+    const legacy = mergeSettings({ page: { mode: "ai" }, subtitles: {} });
+    expect(legacy.page.showSkippedMarks).toBe(false);
+    expect(legacy.floating).toEqual({ announcements: true });
+    const stored = mergeSettings({
+      page: { showSkippedMarks: true },
+      floating: { announcements: false },
+    });
+    expect(stored.page.showSkippedMarks).toBe(true);
+    expect(stored.floating.announcements).toBe(false);
+    // Malformed values fall back to the defaults.
+    const malformed = mergeSettings({
+      page: { showSkippedMarks: "yes" },
+      floating: { announcements: 0 },
+    });
+    expect(malformed.page.showSkippedMarks).toBe(false);
+    expect(malformed.floating.announcements).toBe(true);
+    expect(toContentSettings(stored).floating).toEqual({
+      announcements: false,
+    });
+  });
+
   it("enables selection translation by default", () => {
     expect(DEFAULT_SETTINGS.page.selectionTranslationEnabled).toBe(true);
     expect(

@@ -2,6 +2,9 @@ import {
   isBackgroundCommand,
   isContentCommand,
   isContentSettings,
+  isSubtitleContentSettingCommand,
+  isSubtitleContentSettingMessage,
+  isSubtitleContentSettingResponse,
   isTranslationProgressMessage,
 } from "@/src/messaging/protocol";
 import {
@@ -654,6 +657,88 @@ describe("runtime message validation", () => {
         displayMode: "translated",
         hideNativeSubtitles: true,
       }),
+    ).toBe(false);
+  });
+});
+
+describe("subtitle content setting messages", () => {
+  it("accepts exactly the declared payloads", () => {
+    expect(
+      isSubtitleContentSettingCommand({
+        type: "SUBTITLE_ENABLED_SET",
+        enabled: false,
+      }),
+    ).toBe(true);
+    for (const preset of ["top", "center", "bottom"]) {
+      expect(
+        isSubtitleContentSettingCommand({
+          type: "SUBTITLE_POSITION_PRESET_SET",
+          preset,
+        }),
+      ).toBe(true);
+    }
+  });
+
+  it("rejects malformed payloads and smuggled fields", () => {
+    for (const value of [
+      { type: "SUBTITLE_ENABLED_SET", enabled: "true" },
+      { type: "SUBTITLE_ENABLED_SET", enabled: 1 },
+      { type: "SUBTITLE_ENABLED_SET" },
+      { type: "SUBTITLE_POSITION_PRESET_SET", preset: "custom" },
+      { type: "SUBTITLE_POSITION_PRESET_SET", preset: "left" },
+      { type: "SUBTITLE_POSITION_PRESET_SET", preset: { x: 0.5 } },
+      {
+        type: "SUBTITLE_ENABLED_SET",
+        enabled: true,
+        provider: { apiKey: "leak" },
+      },
+      {
+        type: "SUBTITLE_POSITION_PRESET_SET",
+        preset: "top",
+        settings: DEFAULT_SETTINGS,
+      },
+    ]) {
+      expect(isSubtitleContentSettingCommand(value)).toBe(false);
+    }
+  });
+
+  it("keeps these commands out of the generic background command path", () => {
+    const command = { type: "SUBTITLE_ENABLED_SET", enabled: true };
+    expect(isSubtitleContentSettingMessage(command)).toBe(true);
+    expect(
+      isSubtitleContentSettingMessage({
+        type: "SUBTITLE_POSITION_PRESET_SET",
+        preset: "nope",
+      }),
+    ).toBe(true);
+    expect(isSubtitleContentSettingMessage({ type: "SETTINGS_SET" })).toBe(
+      false,
+    );
+    expect(isBackgroundCommand(command)).toBe(false);
+  });
+
+  it("validates responses by result code", () => {
+    expect(
+      isSubtitleContentSettingResponse({
+        ok: true,
+        code: "subtitle_setting_saved",
+        settings: toContentSettings(DEFAULT_SETTINGS),
+      }),
+    ).toBe(true);
+    expect(
+      isSubtitleContentSettingResponse({
+        ok: false,
+        code: "subtitle_setting_sender_rejected",
+      }),
+    ).toBe(true);
+    expect(
+      isSubtitleContentSettingResponse({
+        ok: true,
+        code: "subtitle_setting_saved",
+      }),
+    ).toBe(false);
+    expect(
+      isSubtitleContentSettingResponse({ ok: false, code: "unknown" }),
     ).toBe(false);
   });
 });

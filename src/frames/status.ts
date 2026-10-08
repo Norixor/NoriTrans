@@ -1,9 +1,30 @@
 import type { PageStatus, SubtitleStatus } from "@/src/messaging/protocol";
+import { STATUS_REASON } from "@/src/shared/status-reasons";
 
 function firstMessage(
   statuses: readonly (PageStatus | SubtitleStatus)[],
 ): string | undefined {
   return statuses.find((status) => status.message)?.message;
+}
+
+/**
+ * Picks the reason that explains the chosen `message`: the frame that supplied
+ * the message also supplies its code (possibly none, meaning unknown), so the
+ * two never describe different frames. Without any message, the first frame
+ * with a code wins, except that "no video here" yields to a more specific
+ * reason, because the video usually lives in another frame.
+ */
+function firstReasonCode(
+  statuses: readonly (PageStatus | SubtitleStatus)[],
+): string | undefined {
+  const carrier = statuses.find((status) => status.message);
+  if (carrier) return carrier.reasonCode;
+  const codes = statuses.flatMap((status) =>
+    status.reasonCode ? [status.reasonCode] : [],
+  );
+  return (
+    codes.find((code) => code !== STATUS_REASON.subtitleNoVideo) ?? codes[0]
+  );
 }
 
 function firstDetails(
@@ -42,6 +63,7 @@ export function aggregatePageStatuses(
   }
   const message = firstMessage(statuses);
   const details = firstDetails(statuses);
+  const reasonCode = firstReasonCode(statuses);
   return {
     state,
     total,
@@ -49,6 +71,7 @@ export function aggregatePageStatuses(
     failed,
     ...(message ? { message } : {}),
     ...(details ? { details } : {}),
+    ...(reasonCode ? { reasonCode } : {}),
   };
 }
 
@@ -75,12 +98,15 @@ export function aggregateSubtitleStatuses(
     // Keep the reason a frame found no usable track (for example a subtitle
     // language that differs from the configured source language).
     const message = disabled ? undefined : firstMessage(statuses);
+    // A disabled feature performs no detection, so it has no reason to report.
+    const reasonCode = disabled ? undefined : firstReasonCode(statuses);
     return {
       state: disabled ? "disabled" : "unavailable",
       total: 0,
       completed: 0,
       failed: 0,
       ...(message ? { message } : {}),
+      ...(reasonCode ? { reasonCode } : {}),
     };
   }
   const total = active.reduce((sum, status) => sum + status.total, 0);
@@ -110,6 +136,7 @@ export function aggregateSubtitleStatuses(
   );
   const message = firstMessage(active);
   const details = firstDetails(active);
+  const reasonCode = firstReasonCode(active);
   return {
     state,
     total,
@@ -125,5 +152,6 @@ export function aggregateSubtitleStatuses(
       : {}),
     ...(message ? { message } : {}),
     ...(details ? { details } : {}),
+    ...(reasonCode ? { reasonCode } : {}),
   };
 }

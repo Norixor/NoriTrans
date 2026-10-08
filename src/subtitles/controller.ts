@@ -58,6 +58,7 @@ import { browser } from "wxt/browser";
 import { runtimeId } from "@/src/shared/runtime-id";
 import type { TranslationRequestPriority } from "@/src/shared/translation-request-gate";
 import { localizeRuntimeError } from "@/src/shared/runtime-errors";
+import { failureReasonCode, STATUS_REASON } from "@/src/shared/status-reasons";
 import {
   detectDominantSourceLanguage,
   dominantScriptSourceLanguageHint,
@@ -714,6 +715,8 @@ export class SubtitleController {
   private trackResetTimer: number | undefined;
   private translationFailureMessage: string | undefined;
   private translationFailureDetails: string | undefined;
+  /** Machine-readable reason paired with `translationFailureMessage`. */
+  private translationFailureReasonCode: string | undefined;
   /** Language of a track skipped for the current media by the source setting. */
   private sourceLanguageMismatch: string | undefined;
   private video: HTMLVideoElement | null = null;
@@ -2155,6 +2158,7 @@ export class SubtitleController {
           this.overlay.clearNotice(unavailableMessage);
           this.translationFailureMessage = undefined;
           this.translationFailureDetails = undefined;
+          this.translationFailureReasonCode = undefined;
         }
         if (destination === "primary") {
           this.setStatus({
@@ -2247,6 +2251,9 @@ export class SubtitleController {
               response.error.message,
               message,
             );
+            this.translationFailureReasonCode = failureReasonCode(
+              response.error,
+            );
             this.translationFailureDetails =
               response.error.details ??
               `Provider error code: ${response.error.code}. This subtitle batch received ${processedCueIds.size} of ${cues.length} requested result IDs; ${cues.length - processedCueIds.size} result IDs were missing when the request failed.`;
@@ -2254,6 +2261,7 @@ export class SubtitleController {
             this.translationFailureMessage = message(
               "runtimeErrorInvalidResponse",
             );
+            this.translationFailureReasonCode = "invalid_response";
             this.translationFailureDetails = `The translation response envelope was invalid or incomplete. Response type: ${Array.isArray(response) ? "array" : typeof response}.`;
           }
           if (destination === "primary") {
@@ -2268,6 +2276,9 @@ export class SubtitleController {
       if (run !== this.session) return;
       const validated = validateResults(cues, results);
       if (!validated) {
+        if (!this.translationFailureMessage) {
+          this.translationFailureReasonCode = "invalid_response";
+        }
         this.translationFailureMessage ||= message(
           "runtimeErrorInvalidResponse",
         );
@@ -2306,9 +2317,20 @@ export class SubtitleController {
           const unavailableMessage = message("ocrLocalTranslationUnavailable");
           if (!this.overlay.hasVisibleTranslation()) {
             this.translationFailureMessage = unavailableMessage;
+            this.translationFailureReasonCode =
+              STATUS_REASON.ocrLocalTranslationUnavailable;
             this.overlay.showNotice(unavailableMessage);
           }
         } else if (destination === "primary") {
+          if (!this.translationFailureMessage) {
+            // The local fast path rejects with a DOMException on its own
+            // deadline; anything else without a known reason stays generic.
+            this.translationFailureReasonCode =
+              failureReasonCode(error) ??
+              (error instanceof DOMException && error.name === "TimeoutError"
+                ? "request_timeout"
+                : "request_failed");
+          }
           this.translationFailureMessage ||= message(
             "runtimeErrorRequestFailed",
           );
@@ -2447,6 +2469,7 @@ export class SubtitleController {
         total: 0,
         completed: 0,
         failed: 0,
+        reasonCode: STATUS_REASON.subtitleNoVideo,
       });
       this.overlay.hide();
     }
@@ -2527,6 +2550,9 @@ export class SubtitleController {
       completed: 0,
       failed: 0,
       ...(reason ? { message: reason } : {}),
+      reasonCode: reason
+        ? STATUS_REASON.sourceLanguageMismatch
+        : STATUS_REASON.subtitleNoTrack,
     });
   }
 
@@ -2572,6 +2598,7 @@ export class SubtitleController {
     this.session += 1;
     this.translationFailureMessage = undefined;
     this.translationFailureDetails = undefined;
+    this.translationFailureReasonCode = undefined;
     for (const controller of this.localControllers) controller.abort();
     this.localControllers.clear();
     for (const id of this.pendingRequestIds) {
@@ -2878,15 +2905,26 @@ export class SubtitleController {
                 ? "subtitleFastFallbackNetflixRefresh"
                 : "subtitleFastFallbackNoFullTrack",
             ),
+            reasonCode:
+              status.source === "netflix-manifest"
+                ? STATUS_REASON.streamFallbackRefresh
+                : STATUS_REASON.streamFallback,
           }
         : status;
+    // The failure message replaces any earlier one, so its reason must too:
+    // an unknown failure reason is omitted rather than left mismatched.
+    const withoutReason: SubtitleStatus = { ...statusWithFallback };
+    delete withoutReason.reasonCode;
     const visibleStatus: SubtitleStatus =
       statusWithFallback.failed > 0 && this.translationFailureMessage
         ? {
-            ...statusWithFallback,
+            ...withoutReason,
             message: this.translationFailureMessage,
             ...(this.translationFailureDetails
               ? { details: this.translationFailureDetails }
+              : {}),
+            ...(this.translationFailureReasonCode
+              ? { reasonCode: this.translationFailureReasonCode }
               : {}),
           }
         : statusWithFallback;
@@ -2900,6 +2938,9 @@ export class SubtitleController {
         : status.state === "disabled"
           ? "unavailable"
           : status.state;
-    this.overlay.setStatus(overlayState, status.completed, status.total);
+    this.overlay.setStatus(overlayState, status.completed, status.total, {
+      completeness: status.completeness,
+      source: status.source,
+    });
   }
 }

@@ -10,6 +10,8 @@ import {
 } from "@/src/cache/database";
 import {
   isBackgroundCommand,
+  isOptionsPageOpenMessage,
+  isSubtitleContentSettingMessage,
   type BackgroundCommand,
   type OcrCaptureResponse,
   type TranslationProgressMessage,
@@ -120,6 +122,13 @@ import {
   initializeUpdateChecker,
   setAutomaticUpdateChecks,
 } from "@/src/update/checker";
+import { verifiedContentHostname } from "@/src/shared/content-sender";
+import { handleSubtitleContentSetting } from "@/src/shared/subtitle-content-settings";
+import { handleOptionsPageOpen } from "@/src/shared/options-page-open";
+import {
+  handleSettingsPatch,
+  isSettingsPatchMessage,
+} from "@/src/shared/settings-patch";
 
 // Eight active requests per tab, one of which only urgent (playback-critical)
 // requests may use so long page batches cannot starve subtitles.
@@ -929,33 +938,6 @@ async function restoreSessionHiddenFloatingControls(): Promise<{
     return isFloatingSessionShowResponse(value) && value.restored;
   }).length;
   return { ok: true, restored };
-}
-
-function verifiedContentHostname(
-  sender: Browser.runtime.MessageSender,
-  allowSubframe = false,
-): string | undefined {
-  try {
-    if (
-      (!allowSubframe && sender.frameId !== 0) ||
-      sender.tab?.id === undefined ||
-      !sender.url
-    ) {
-      return undefined;
-    }
-    const frameUrl = new URL(sender.url);
-    if (frameUrl.protocol !== "https:" && frameUrl.protocol !== "http:") {
-      return undefined;
-    }
-    if (!allowSubframe) {
-      if (!sender.tab.url) return undefined;
-      const tabUrl = new URL(sender.tab.url);
-      if (frameUrl.origin !== tabUrl.origin) return undefined;
-    }
-    return frameUrl.hostname.toLowerCase().replace(/\.$/u, "");
-  } catch {
-    return undefined;
-  }
 }
 
 function allowedOcrClientSender(
@@ -2007,6 +1989,48 @@ export default defineBackground(() => {
       if (shouldRejectMalformedOcrBackgroundMessage(message)) {
         sendResponse({ ok: false, error: "ocr_invalid_request" });
         return false;
+      }
+      if (isSettingsPatchMessage(message)) {
+        // Handled before the generic command gate so every outcome, including
+        // a rejected sender, returns a stable `settings_patch_*` code.
+        void handleSettingsPatch(message, sender, {
+          extension: {
+            id: browser.runtime.id,
+            baseUrl: browser.runtime.getURL(""),
+          },
+          rejectedPageUrls: [OCR_OFFSCREEN_URL],
+          mutateSettings,
+        }).then(sendResponse);
+        return true;
+      }
+      if (isSubtitleContentSettingMessage(message)) {
+        void handleSubtitleContentSetting(message, sender, {
+          extension: {
+            id: browser.runtime.id,
+            baseUrl: browser.runtime.getURL(""),
+          },
+          mutateSettings,
+          contentSettings: (updated) =>
+            contentSettingsForSender(updated, sender),
+        }).then(sendResponse);
+        return true;
+      }
+      if (isOptionsPageOpenMessage(message)) {
+        void handleOptionsPageOpen(message, sender, {
+          extension: {
+            id: browser.runtime.id,
+            baseUrl: browser.runtime.getURL(""),
+          },
+          openTab: async (path, from) => {
+            await browser.tabs.create({
+              url: browser.runtime.getURL(`/${path}` as "/options.html"),
+              ...(from.tab?.id === undefined
+                ? {}
+                : { openerTabId: from.tab.id }),
+            });
+          },
+        }).then(sendResponse);
+        return true;
       }
       if (!isBackgroundCommand(message)) return undefined;
       if (

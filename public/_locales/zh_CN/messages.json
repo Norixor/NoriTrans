@@ -12,6 +12,14 @@
   "commandTranslatePage": { "message": "翻译当前页面" },
   "commandRestorePage": { "message": "恢复当前页面原文" },
   "popupTitle": { "message": "翻译当前页面" },
+  "popupPageSettingsLink": { "message": "更改语言与方式" },
+  "popupVideoSettingsLink": { "message": "显示与位置" },
+  "popupFloatingControlScope": {
+    "message": "对所有网站生效；开启时也会恢复本页隐藏的按钮。"
+  },
+  "popupSubtitleDisabledHint": {
+    "message": "开启后，会在视频页面自动检测并翻译字幕。"
+  },
   "openSettings": { "message": "打开设置" },
   "currentStatus": { "message": "当前状态" },
   "pageTranslation": { "message": "网页翻译" },
@@ -106,6 +114,10 @@
   "stopPageTranslation": { "message": "停止" },
   "floatingPageQuickActions": { "message": "网页翻译快捷操作" },
   "subtitleStatusDisabled": { "message": "字幕翻译已关闭" },
+  "subtitleLiveTag": { "message": "实时字幕 · 快速翻译" },
+  "subtitlePendingTag": { "message": "译文准备中" },
+  "pageMarkFailedRetry": { "message": "没有翻译 · 重试" },
+  "pageMarkSkipped": { "message": "已跳过" },
   "subtitleStatusUnavailable": { "message": "未发现可用字幕" },
   "subtitleStatusWaiting": { "message": "等待字幕" },
   "subtitleStatusTranslating": { "message": "正在翻译" },
@@ -1026,5 +1038,515 @@
       "done": { "content": "$1" },
       "total": { "content": "$2" }
     }
+  },
+  "statusTitleDisabledPage": { "message": "网页翻译已关闭" },
+  "statusTitleDisabledSubtitle": { "message": "字幕翻译已关闭" },
+  "statusTitleUnavailablePage": { "message": "此页面不支持翻译" },
+  "statusTitleUnavailableSubtitle": { "message": "此视频没有可读取的字幕" },
+  "statusTitleUnavailableSubtitleLanguage": { "message": "字幕语言与设置不符" },
+  "statusTitleIdlePage": { "message": "可翻译此页" },
+  "statusTitleIdleSubtitle": { "message": "可翻译字幕" },
+  "statusTitleScanningPage": { "message": "正在检测页面内容" },
+  "statusTitleWaitingSubtitle": { "message": "等待字幕出现" },
+  "statusTitleTranslatingPage": {
+    "message": "正在翻译 $DONE$ / $TOTAL$ 段",
+    "placeholders": {
+      "done": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
+  "statusTitleTranslatingSubtitle": {
+    "message": "正在预翻译 $DONE$ / $TOTAL$ 条",
+    "placeholders": {
+      "done": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
+  "statusTitleRetryingPage": {
+    "message": "正在重试 $DONE$ / $COUNT$ 段",
+    "placeholders": {
+      "done": { "content": "$1" },
+      "count": { "content": "$2" }
+    }
+  },
+  "statusTitleRetryingSubtitle": {
+    "message": "正在重试 $DONE$ / $COUNT$ 条",
+    "placeholders": {
+      "done": { "content": "$1" },
+      "count": { "content": "$2" }
+    }
+  },
+  "statusTitleLiveSubtitle": { "message": "实时翻译中" },
+  "statusTitleReadyPage": {
+    "message": "已翻译 $TOTAL$ 段",
+    "placeholders": { "total": { "content": "$1" } }
+  },
+  "statusTitleReadySubtitle": {
+    "message": "字幕已就绪 $TOTAL$ 条",
+    "placeholders": { "total": { "content": "$1" } }
+  },
+  "statusTitlePartialPage": {
+    "message": "已翻译 $DONE$ / $TOTAL$ · $FAILED$ 段失败",
+    "placeholders": {
+      "done": { "content": "$1" },
+      "total": { "content": "$2" },
+      "failed": { "content": "$3" }
+    }
+  },
+  "statusTitlePartialSubtitle": {
+    "message": "已翻译 $DONE$ / $TOTAL$ · $FAILED$ 条失败",
+    "placeholders": {
+      "done": { "content": "$1" },
+      "total": { "content": "$2" },
+      "failed": { "content": "$3" }
+    }
+  },
+  "statusTitleCancelled": {
+    "message": "已停止 · 保留 $DONE$ / $TOTAL$",
+    "placeholders": {
+      "done": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
+  "statusTitleErrorPage": { "message": "无法翻译" },
+  "statusTitleErrorSubtitle": { "message": "无法翻译字幕" },
+  "statusTrackFull": { "message": "完整字幕" },
+  "statusTrackStream": { "message": "实时字幕" },
+  "statusTrackExperimental": { "message": "实验" },
+  "statusProgressFailedSoFar": {
+    "message": "已有 $FAILED$ 项失败",
+    "placeholders": { "failed": { "content": "$1" } }
+  },
+  "statusReasonRateLimited": {
+    "message": "翻译服务限流（429）。稍候再重试失败项。"
+  },
+  "statusReasonTimeout": { "message": "连接翻译服务超时。" },
+  "statusReasonServerError": {
+    "message": "翻译服务返回了服务器错误（5xx）。稍候再重试。"
+  },
+  "statusReasonNetworkError": {
+    "message": "无法连接翻译服务，请检查网络或服务地址。"
+  },
+  "statusReasonInvalidResponse": { "message": "翻译服务返回了不完整的结果。" },
+  "statusReasonInvalidConfiguration": {
+    "message": "翻译服务拒绝了请求或配置无效（例如 API Key 无效）。请在设置中检查。"
+  },
+  "statusReasonPermissionRequired": {
+    "message": "尚未授权访问当前翻译服务，请在设置中重新保存。"
+  },
+  "statusReasonProviderUnavailable": {
+    "message": "当前翻译服务在此浏览器中不可用。"
+  },
+  "statusReasonLanguagePairUnsupported": {
+    "message": "本地翻译不支持当前语言组合。"
+  },
+  "statusReasonLanguageDetectionFailed": {
+    "message": "无法自动识别源语言，请手动选择源语言。"
+  },
+  "statusReasonLocalModelMissing": { "message": "尚未下载所需的本地语言包。" },
+  "statusReasonRequestFailed": {
+    "message": "翻译请求失败，未获得更具体的原因。"
+  },
+  "statusReasonSettingsUnavailable": { "message": "无法读取翻译设置。" },
+  "statusReasonRestrictedPage": {
+    "message": "浏览器内部页面、扩展商店和受限 iframe 不允许扩展读取内容。"
+  },
+  "statusReasonNoTrack": {
+    "message": "未发现可读取的字幕。可重新检测，或尝试图像识别。"
+  },
+  "statusReasonNoVideo": { "message": "此页面没有可用的视频。" },
+  "statusReasonLanguageMismatch": {
+    "message": "视频提供的字幕语言与设置的字幕语言不符。"
+  },
+  "statusReasonStreamFallback": {
+    "message": "只能读取正在显示的字幕，已回退快速翻译。"
+  },
+  "statusReasonStreamFallbackRefresh": {
+    "message": "只能读取正在显示的字幕，已回退快速翻译。刷新页面后可能获取完整字幕。"
+  },
+  "statusReasonOcrLocalOnly": {
+    "message": "通过图像识别读取画面字幕，只使用本地快速翻译。"
+  },
+  "statusReasonOcrTranslationUnavailable": {
+    "message": "已识别文字，但本地翻译无法准备当前语言组合。识别原文已保留。"
+  },
+  "statusReasonOcrProtectedVideo": {
+    "message": "所选区域持续为黑屏，视频可能受版权保护。"
+  },
+  "statusReasonPageChanged": {
+    "message": "页面在翻译期间发生变化，部分译文未能写入。"
+  },
+  "statusReasonUnknown": {
+    "message": "出现了未识别的问题（诊断标识：$CODE$）。可展开诊断查看详情。",
+    "placeholders": { "code": { "content": "$1" } }
+  },
+  "statusReasonUnspecified": {
+    "message": "没有获得具体原因。可展开诊断查看详情。"
+  },
+  "statusActionTranslate": { "message": "翻译此页" },
+  "statusActionEnable": { "message": "开启" },
+  "statusActionStop": { "message": "停止" },
+  "statusActionRetryBlocks": {
+    "message": "重试 $COUNT$ 项",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "statusActionRetryCues": {
+    "message": "重试 $COUNT$ 条",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "statusActionResume": { "message": "继续" },
+  "statusActionRestore": { "message": "恢复原文" },
+  "statusActionDisableSubtitles": { "message": "关闭字幕翻译" },
+  "statusActionOpenProviderSettings": { "message": "打开翻译服务设置" },
+  "statusActionUseAutoDetect": { "message": "改为自动检测" },
+  "statusActionTryOcr": { "message": "试试图像识别（实验）" },
+  "statusActionRescan": { "message": "重新检测字幕" },
+  "statusActionSwitchDisplay": { "message": "切换显示方式" },
+  "statusActionStarting": { "message": "正在开始…" },
+  "statusActionEnabling": { "message": "正在开启…" },
+  "statusActionStopping": { "message": "正在停止…" },
+  "statusActionRetrying": { "message": "正在重试…" },
+  "statusActionResuming": { "message": "正在继续…" },
+  "floatingSettingsChange": { "message": "更改" },
+  "floatingSettingsDone": { "message": "收起" },
+  "floatingPageSettings": { "message": "网页设置" },
+  "floatingVideoSettings": { "message": "字幕设置" },
+  "floatingVideoDisabledHint": { "message": "开启后会检测这个视频的字幕。" },
+  "floatingVideoDisabledSettingsHint": {
+    "message": "可在“设置 → 视频字幕”中开启。"
+  },
+  "floatingVideoOpenSubtitleSettings": { "message": "打开字幕设置" },
+  "floatingVideoFastFallbackSummary": { "message": "（当前用快速翻译）" },
+  "floatingVideoStreamFastNote": {
+    "message": "未获取完整字幕，已回退快速翻译。获得完整字幕后会自动改用 AI 翻译。"
+  },
+  "floatingVideoOcrFastNote": {
+    "message": "图像识别的字幕只用本地快速翻译，不会发送给 AI。"
+  },
+  "floatingVideoOpacityDecrease": { "message": "降低背景不透明度" },
+  "floatingVideoOpacityIncrease": { "message": "提高背景不透明度" },
+  "floatingOcrTitle": { "message": "图像识别（实验）" },
+  "floatingOcrSettings": { "message": "图像识别设置" },
+  "floatingOcrStateOff": { "message": "已关闭" },
+  "floatingOcrStateReady": { "message": "可开始" },
+  "floatingOcrStateNotReady": { "message": "需要语言包" },
+  "floatingOcrStateRunning": { "message": "进行中" },
+  "floatingOcrStateStopped": { "message": "已停止" },
+  "floatingOcrStateBlocked": { "message": "已有字幕" },
+  "floatingOcrStateProblem": { "message": "需要处理" },
+  "floatingOcrPrivacy": {
+    "message": "截图和文字识别都在本机完成，不会上传；识别出的文字只用本机翻译，不会发送给 AI 或云端翻译服务。"
+  },
+  "floatingOcrEnable": { "message": "启用图像识别" },
+  "floatingOcrEnableHint": {
+    "message": "开启时 Chrome 会请求截图权限；只读取你框选的画面区域。"
+  },
+  "floatingOcrSourceLanguage": { "message": "画面文字语言" },
+  "floatingOcrTranslator": { "message": "本机翻译方式" },
+  "floatingOcrReselect": { "message": "重新框选" },
+  "floatingOcrDismiss": { "message": "关闭" },
+  "floatingOcrSelectingTitle": { "message": "在画面上框选字幕区域" },
+  "floatingOcrEnablingTitle": { "message": "正在开启图像识别" },
+  "floatingOcrPreparingTitle": { "message": "正在准备图像识别" },
+  "floatingOcrPreparingHint": {
+    "message": "正在本机加载识别组件，完成后自动开始。"
+  },
+  "floatingOcrRunningTitle": { "message": "图像识别进行中" },
+  "floatingOcrStoppedTitle": { "message": "图像识别已停止" },
+  "floatingOcrUnavailableTitle": { "message": "无法使用图像识别" },
+  "floatingOcrNotReadyTitle": { "message": "图像识别还没准备好" },
+  "floatingOcrRuntimeMissing": {
+    "message": "还需要下载识别语言包。请在设置的“图像识别（实验）”中下载；浮窗不会自动下载。"
+  },
+  "floatingOcrRuntimeReady": { "message": "识别语言包已就绪。" },
+  "floatingOcrOpenSettings": { "message": "打开图像识别设置" },
+  "floatingOcrTrackAvailable": {
+    "message": "这个视频已有可读取的字幕，图像识别不会启动，以免干扰现有字幕。"
+  },
+  "floatingOcrReasonLanguageUnsupported": {
+    "message": "暂不支持识别所选的画面文字语言，请改选其他语言。"
+  },
+  "floatingOcrReasonEngineUnavailable": {
+    "message": "无法在本机加载识别组件或识别语言包，请在设置中检查语言包。没有上传任何截图。"
+  },
+  "floatingOcrReasonStartFailed": { "message": "这个页面无法启动图像识别。" },
+  "floatingOcrReasonNoVideo": { "message": "当前没有可见的视频画面可供识别。" },
+  "floatingOcrReasonPictureInPicture": {
+    "message": "无法识别画中画里的视频，请先把视频放回网页内。"
+  },
+  "floatingOcrReasonVideoChanged": {
+    "message": "正在播放的视频已切换，请重新框选。"
+  },
+  "floatingOcrReasonPermission": {
+    "message": "没有截图权限，已停止识别。请在 NoriTrans 打开的授权窗口中允许后重新框选。"
+  },
+  "floatingOcrReasonCaptureTooLarge": {
+    "message": "画面尺寸过大，无法在本机处理。请缩小窗口后重新框选。"
+  },
+  "floatingOcrReasonCaptureFailed": {
+    "message": "无法截取当前画面，已停止识别。请保持此标签页在前台后重新框选。"
+  },
+  "floatingOcrReasonRecognitionFailed": {
+    "message": "本机文字识别失败，已停止。请重新框选。"
+  },
+  "floatingOcrActionFailed": { "message": "图像识别操作没有完成，请重试。" },
+  "floatingOcrDetails": { "message": "查看诊断" },
+  "floatingImageTitle": { "message": "图片翻译（实验）" },
+  "floatingImageSettings": { "message": "图片翻译设置" },
+  "floatingImageStateOff": { "message": "已关闭" },
+  "floatingImageStateWaiting": { "message": "选择图片" },
+  "floatingImageStateReady": { "message": "可翻译" },
+  "floatingImageStateRunning": { "message": "进行中" },
+  "floatingImageStateDone": { "message": "已完成" },
+  "floatingImageStateStopped": { "message": "已停止" },
+  "floatingImageStateProblem": { "message": "需要处理" },
+  "floatingImageNoImageTitle": { "message": "还没有选择图片" },
+  "floatingImageErrorTitle": { "message": "无法翻译这张图片" },
+  "floatingImageCount": {
+    "message": "$DONE$ / $TOTAL$",
+    "placeholders": {
+      "done": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
+  "floatingImageOpenSettings": { "message": "打开识别语言包设置" },
+  "floatingImageActionFailed": { "message": "图片翻译操作没有完成，请重试。" },
+  "floatingPairUnavailable": {
+    "message": "当前翻译方式不支持所选语言，请更改语言或翻译方式。"
+  },
+  "floatingHideAlwaysMenu": { "message": "永久隐藏…" },
+  "floatingHideAlwaysTitle": { "message": "永久隐藏浮动控制？" },
+  "floatingHideAlwaysBody": {
+    "message": "之后所有网站都不再显示。可在“设置 → 通用设置 → 显示浮动控制”中重新开启。"
+  },
+  "floatingCancel": { "message": "取消" },
+  "optGroupServices": { "message": "翻译服务" },
+  "optGroupServicesLead": {
+    "message": "网页和字幕文本只会发送到这里配置的服务。"
+  },
+  "optGroupPage": { "message": "网页翻译" },
+  "optGroupPageLead": {
+    "message": "网页翻译的默认值；浮动控制里的修改也会写回这里。"
+  },
+  "optGroupVideo": { "message": "视频字幕" },
+  "optGroupVideoLead": {
+    "message": "支持的网站会自动读取字幕轨道；只能读取当前字幕的站点回退到快速翻译并明确提示。"
+  },
+  "optGroupSites": { "message": "站点" },
+  "optGroupSitesLead": {
+    "message": "每个站点的覆盖设置与开发者字幕 Profile。"
+  },
+  "optGroupPrivacy": { "message": "隐私与数据" },
+  "optGroupPrivacyLead": {
+    "message": "你的文本去了哪里、为什么需要这些权限，以及如何清除本机数据。"
+  },
+  "optGroupGeneral": { "message": "通用" },
+  "optGroupGeneralLead": { "message": "界面语言、浮动控制与更新。" },
+  "optAutosaveHint": { "message": "更改会自动保存 · 服务凭据需点击“保存”" },
+  "optAutosaveSaving": { "message": "正在保存…" },
+  "optAutosaveSaved": { "message": "更改已保存" },
+  "optAutosaveFailed": { "message": "保存失败，已恢复为之前的值" },
+  "optAiServiceTitle": { "message": "AI 精译服务" },
+  "optPreset": { "message": "预设" },
+  "optPresetHelp": { "message": "只填写地址与协议；点击保存后才生效。" },
+  "optPresetOpenAi": { "message": "OpenAI" },
+  "optPresetAnthropic": { "message": "Anthropic Claude" },
+  "optPresetCustom": { "message": "自定义兼容服务" },
+  "optApiKeyLocalOnly": { "message": "只保存在本机" },
+  "optConnection": { "message": "连接" },
+  "optSendsTo": {
+    "message": "AI 翻译文本将发送到 $ORIGIN$",
+    "placeholders": { "origin": { "content": "$1" } }
+  },
+  "optSaveAndTest": { "message": "保存并测试连接" },
+  "optSaveOnly": { "message": "仅保存" },
+  "optUnsavedProvider": {
+    "message": "服务设置有未保存的修改，点击保存后生效。"
+  },
+  "optProviderSaved": { "message": "服务设置已保存。" },
+  "optProviderModelMissing": {
+    "message": "请输入模型名称（最多 256 个字符）。"
+  },
+  "optProviderTimeoutInvalid": {
+    "message": "请求超时必须在 5 到 180 秒之间。"
+  },
+  "optProviderPromptMissing": { "message": "系统提示词不能为空。" },
+  "optAiAdvanced": { "message": "高级：接口协议、超时、系统提示词" },
+  "optSecondsUnit": { "message": " 秒" },
+  "optDecrease": { "message": "减少" },
+  "optIncrease": { "message": "增加" },
+  "optSystemPromptHelp": { "message": "修改后不再复用旧缓存。" },
+  "optFastTitle": { "message": "快速翻译" },
+  "optFastChip": { "message": "实时字幕与快速模式" },
+  "optFastMethod": { "message": "方式" },
+  "optFastStaysLocal": {
+    "message": "$PROVIDER$ · 文本不出本机",
+    "placeholders": { "provider": { "content": "$1" } }
+  },
+  "optFastSendsToCloud": {
+    "message": "$PROVIDER$ · 文本会发送到该云端服务",
+    "placeholders": { "provider": { "content": "$1" } }
+  },
+  "optCloudKey": { "message": "服务密钥" },
+  "optSaveKeys": { "message": "保存密钥" },
+  "optOfflineComponents": { "message": "本地离线组件（语言包）" },
+  "optLanguages": { "message": "语言" },
+  "optModeFast": { "message": "快速翻译" },
+  "optPageDefaults": { "message": "默认行为" },
+  "optPageModeHelp": { "message": "AI 精译结合上下文；快速翻译速度更快。" },
+  "optPageMore": { "message": "更多网页功能" },
+  "optSiteRulesHint": {
+    "message": "站点从各网页的浮动控制中添加；其他按站点的设置请前往"
+  },
+  "optOpenSites": { "message": "站点" },
+  "optImageTranslationTitle": { "message": "图片翻译（实验）" },
+  "optImageRuntimeMissing": { "message": "图片翻译需要至少一个识别语言包。" },
+  "optOpenRecognitionPacks": { "message": "打开识别语言包" },
+  "optSubtitleEnabledHelp": {
+    "message": "关闭后不再检测字幕，视频 Tab 显示“已关闭”。"
+  },
+  "optSubtitleAiFullOnly": {
+    "message": "只有获取到完整字幕轨道时才使用 AI 精译；只能读取当前字幕的站点始终使用快速翻译。"
+  },
+  "optSubtitlePositionCustom": { "message": "自定义" },
+  "optSubtitleHideNativeHelp": { "message": "站点设置可单独覆盖。" },
+  "optVideoQuickChip": { "message": "视频页也可快速调整" },
+  "optImageRecognition": { "message": "图像识别（实验）" },
+  "optImageRecognitionEnabled": { "message": "允许图像识别" },
+  "optImageRecognitionHelp": {
+    "message": "没有可读字幕时框选画面区域，在本机识别并本地翻译；截图不上传。"
+  },
+  "optRecognitionLanguage": { "message": "识别语言" },
+  "optRecognitionStaysLocal": { "message": "在本机识别，文字只在本机翻译。" },
+  "optDataFlowTitle": { "message": "数据去向" },
+  "optWhatIsSent": { "message": "发送的内容" },
+  "optWhatIsSentBody": {
+    "message": "只发送需要翻译的文本段落或字幕句子，不发送整页 HTML、Cookie、登录信息或视频内容。"
+  },
+  "optWhereItGoes": { "message": "当前去向" },
+  "optDestinationAi": { "message": "AI 精译" },
+  "optDestinationFast": { "message": "快速翻译" },
+  "optHostPermission": { "message": "网站访问权限" },
+  "optHostPermissionBody": {
+    "message": "扩展声明了 $PATTERN$ 访问权限：这样才能在你不点击扩展的情况下显示浮动控制，并翻译所有 HTTPS 网页与视频。扩展只为翻译而读取网页文本。",
+    "placeholders": { "pattern": { "content": "$1" } }
+  },
+  "optLocalProviderPermission": { "message": "本地服务权限" },
+  "optLocalPermissionGranted": {
+    "message": "已授予 localhost 与 127.0.0.1 访问权限，用于本地 AI 服务。"
+  },
+  "optLocalPermissionNotGranted": {
+    "message": "未授予。只有保存 localhost 或 127.0.0.1 服务地址时才会请求。"
+  },
+  "optDataStorage": { "message": "本机存放" },
+  "optDataStorageBody": {
+    "message": "设置与 API Key 保存在本浏览器的扩展存储中，不会同步；翻译缓存与语言包保存在扩展的本地数据库中。"
+  },
+  "optClearCredentialsEllipsis": { "message": "清除凭据…" },
+  "optClearCacheTitle": { "message": "清除翻译缓存？" },
+  "optClearCacheImpact": {
+    "message": "将删除本机缓存的网页与字幕译文。之后需要重新翻译，可能耗费更多时间和服务额度。API Key 不受影响。"
+  },
+  "optClearCredentialsTitle": { "message": "清除已保存的凭据？" },
+  "optClearCredentialsImpact": {
+    "message": "将从本机删除 AI 服务 API Key 与云端快速翻译密钥。重新填写前，AI 精译和云端快速翻译将无法使用。翻译缓存不受影响。"
+  },
+  "optCancel": { "message": "取消" },
+  "optPageMarksTitle": { "message": "页面标记" },
+  "optShowSkippedMarks": { "message": "显示“已跳过”标记" },
+  "optShowSkippedMarksHelp": {
+    "message": "在因已是目标语言或缺少本地语言包而未翻译的段落旁显示标记。"
+  },
+  "optInterfaceTitle": { "message": "界面" },
+  "optFloatingAnnouncements": { "message": "胶囊播报" },
+  "optFloatingAnnouncementsHelp": {
+    "message": "翻译开始、完成或需要处理时，折叠按钮短暂展开并显示简短状态。"
+  },
+  "optUpdateStatus": { "message": "状态" },
+  "optAboutTitle": { "message": "关于" },
+  "optVersion": { "message": "版本" },
+  "optThirdPartyNotices": { "message": "第三方声明" },
+  "optThirdPartyNoticesHelp": {
+    "message": "本地翻译与识别所附带组件的许可证。"
+  },
+  "optNoticesTranslation": { "message": "本地翻译组件" },
+  "optNoticesRecognition": { "message": "图像识别组件" },
+  "optSiteBack": { "message": "全部站点" },
+  "optSiteDiscardTitle": { "message": "放弃对此站点的修改？" },
+  "optSiteDiscardBody": {
+    "message": "未保存的修改将丢失，站点继续使用已保存的设置。"
+  },
+  "optSiteDiscard": { "message": "放弃修改" },
+  "optSiteDeleteImpact": {
+    "message": "删除后此站点恢复使用全局设置，内置字幕采集规则不受影响。"
+  },
+  "optSiteRestoreImpact": {
+    "message": "将移除本地采集规则与此站点的单独设置，重新使用扩展内置版本。"
+  },
+  "optSiteUnsaved": { "message": "有未保存的修改" },
+  "optSiteSaveHint": { "message": "站点设置在点击保存时校验并生效。" },
+  "optRtOcrPacksTitle": { "message": "识别语言包" },
+  "optRtOcrPacksHelp": {
+    "message": "在本机识别视频画面和图片中的文字时需要。"
+  },
+  "optRtOcrEmpty": { "message": "当前没有可管理的识别语言包。" },
+  "optRtOcrProgressLabel": {
+    "message": "$PACK$下载进度：$PERCENT$%",
+    "placeholders": {
+      "pack": { "content": "$1" },
+      "percent": { "content": "$2" }
+    }
+  },
+  "optRtOcrPermissionDenied": {
+    "message": "未授予下载权限，因此没有下载语言包。请再次点击“下载”并允许访问。"
+  },
+  "optRtOcrDeleteTitle": { "message": "删除语言包？" },
+  "optRtOcrDeleteBody": {
+    "message": "将从此设备删除$PACK$。重新下载前，这些语言的图像识别将无法使用。",
+    "placeholders": { "pack": { "content": "$1" } }
+  },
+  "optRtSelfTest": { "message": "测试图像识别" },
+  "optRtSelfTestPreparing": { "message": "正在准备图像识别…" },
+  "optRtSelfTestLoading": {
+    "message": "正在加载图像识别：$PERCENT$%",
+    "placeholders": { "percent": { "content": "$1" } }
+  },
+  "optRtSelfTestSucceeded": {
+    "message": "图像识别可在本机使用。识别结果：$SAMPLE$",
+    "placeholders": { "sample": { "content": "$1" } }
+  },
+  "optRtSelfTestFailed": {
+    "message": "无法启动图像识别，请重新加载扩展后重试。"
+  },
+  "optRtSelfTestPackMissing": {
+    "message": "所选识别语言的语言包尚未安装。请先在上方下载，再重新测试。"
+  },
+  "optRtSelfTestSourceUnsupported": {
+    "message": "图像识别不支持当前源语言。请在“图像识别（实验）”中选择支持的语言。"
+  },
+  "optRtDiagnosticDetails": { "message": "技术详情" },
+  "optRtLocalPacksTitle": { "message": "离线语言包" },
+  "optRtLocalPermissionDenied": {
+    "message": "未授予下载权限，因此没有下载语言包。请再次点击“下载”并允许访问。"
+  },
+  "optRtLocalIntegrityFailed": {
+    "message": "下载的语言包未通过完整性校验，未予安装。请重新下载。"
+  },
+  "optRtLocalDeleteTitle": { "message": "删除离线语言包？" },
+  "optRtLocalDeleteBody": {
+    "message": "将从此设备删除 $PAIR$ 的双向语言包。重新下载前，该语言对的离线翻译将无法使用。",
+    "placeholders": { "pair": { "content": "$1" } }
+  },
+  "optFloatingSessionRestoreHelp": {
+    "message": "恢复所有已打开网页中通过“在当前网页隐藏”关闭的浮窗。若选择过“永久隐藏”，请打开上方的“显示浮动控制”。"
+  },
+  "optSiteCaptureHelp": {
+    "message": "为此站点自定义字幕来源；完整 Profile 可在下方“开发者 Profile”中编辑。"
+  },
+  "optRecognitionPrivacyNote": {
+    "message": "画面、截图和识别出的文字只在本机处理；识别文字仅使用设备端翻译，绝不会发送给 AI 服务。"
+  },
+  "optRecognitionProviderLocalOnly": {
+    "message": "识别出的文字仅使用所选的设备端翻译器，不会发送到云端服务。"
   }
 }

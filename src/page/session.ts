@@ -41,6 +41,7 @@ import { browser } from "wxt/browser";
 import { runtimeId } from "@/src/shared/runtime-id";
 import { message as localizedMessage } from "@/src/shared/i18n";
 import { NoriTransError } from "@/src/shared/errors";
+import { failureReasonCode, STATUS_REASON } from "@/src/shared/status-reasons";
 import {
   translationDiagnostic,
   translationRuntimeDiagnosticContext,
@@ -1394,6 +1395,8 @@ export class PageTranslationSession {
   >();
   private failureMessage: string | undefined;
   private failureDetails: string | undefined;
+  /** Machine-readable reason paired with `failureMessage`; may be unknown. */
+  private failureReasonCode: string | undefined;
   private readonly translationsByConfiguration = new Map<
     string,
     Map<string, string>
@@ -1442,6 +1445,7 @@ export class PageTranslationSession {
   }
 
   updateSettings(settings: ContentSettings): void {
+    this.renderer.setSkippedMarksEnabled(settings.page.showSkippedMarks);
     if (this.controller && !this.controller.signal.aborted) {
       this.settings = settings;
       if (this.activeTranslationRuns === 0) {
@@ -1453,6 +1457,7 @@ export class PageTranslationSession {
   async translate(settings: ContentSettings): Promise<PageStatus> {
     this.restore();
     this.settings = settings;
+    this.renderer.setSkippedMarksEnabled(settings.page.showSkippedMarks);
     const runtimeContext = translationRuntimeDiagnosticContext();
     if (
       settings.page.mode === "fast" &&
@@ -1470,6 +1475,7 @@ export class PageTranslationSession {
         total: 0,
         completed: 0,
         failed: 0,
+        reasonCode: STATUS_REASON.frameTranslatorBlocked,
       });
       return this.getStatus();
     }
@@ -1479,6 +1485,7 @@ export class PageTranslationSession {
     this.cancelled = false;
     this.failureMessage = undefined;
     this.failureDetails = undefined;
+    this.failureReasonCode = undefined;
     this.translationsByConfiguration.clear();
     this.clearInFlightTranslationClaims();
     this.update({ state: "scanning", total: 0, completed: 0, failed: 0 });
@@ -1524,6 +1531,7 @@ export class PageTranslationSession {
     this.resolvedSourceLanguagesByScript.clear();
     this.failureMessage = undefined;
     this.failureDetails = undefined;
+    this.failureReasonCode = undefined;
     this.translationsByConfiguration.clear();
     this.clearInFlightTranslationClaims();
     this.activeTranslationRuns = 0;
@@ -1567,6 +1575,7 @@ export class PageTranslationSession {
     if (this.status.failed === 0) {
       this.failureMessage = undefined;
       this.failureDetails = undefined;
+      this.failureReasonCode = undefined;
     }
     const rescanned = scanPageSegments(root, this.seen);
     if (rescanned.length === 0) {
@@ -1802,6 +1811,7 @@ export class PageTranslationSession {
         : segments;
     if (skippedSegments.length > 0) {
       this.renderer.clearPending(skippedSegments);
+      this.renderer.markSkipped(skippedSegments);
       for (const segment of skippedSegments) {
         this.status.completed += 1;
         this.segmentOutcomes.set(segment, "completed");
@@ -1889,6 +1899,7 @@ export class PageTranslationSession {
             (segment) => !unsupported.has(segment),
           );
           this.renderer.clearPending(unsupportedSourceSegments);
+          this.renderer.markSkipped(unsupportedSourceSegments);
           for (const segment of unsupportedSourceSegments) {
             this.status.completed += 1;
             this.segmentOutcomes.set(segment, "completed");
@@ -2067,6 +2078,9 @@ export class PageTranslationSession {
               }
             }
             this.renderer.markFailed(pendingMembers);
+            if (this.failureMessage === undefined) {
+              this.failureReasonCode = "page_content_changed";
+            }
             this.failureMessage ??=
               "页面内容在翻译期间发生变化，译文未能写入。";
             applyRetries.delete(result.id);
@@ -2085,6 +2099,9 @@ export class PageTranslationSession {
           ...this.status,
           state: "translating",
           ...(this.failureMessage ? { message: this.failureMessage } : {}),
+          ...(this.failureMessage && this.failureReasonCode
+            ? { reasonCode: this.failureReasonCode }
+            : {}),
         });
       };
       const drainApplyRetries = async (): Promise<void> => {
@@ -2274,6 +2291,14 @@ export class PageTranslationSession {
           if (pendingRequestBatch.length > 0) {
             const currentSegments = markFailed(pendingRequestBatch);
             if (currentSegments.length > 0) {
+              if (this.failureMessage === undefined) {
+                // An unrecognized Error keeps an unknown reason rather than
+                // being relabelled as a generic request failure.
+                this.failureReasonCode =
+                  lastError instanceof Error
+                    ? failureReasonCode(lastError)
+                    : "request_failed";
+              }
               this.failureMessage ??=
                 lastError instanceof Error
                   ? lastError.message
@@ -2315,6 +2340,9 @@ export class PageTranslationSession {
             return;
           }
           markFailed([segment]);
+          if (this.failureMessage === undefined) {
+            this.failureReasonCode = "request_failed";
+          }
           this.failureMessage ??= "翻译请求失败。";
         }),
       );
@@ -2333,6 +2361,9 @@ export class PageTranslationSession {
         state: "translating",
         ...(this.failureMessage ? { message: this.failureMessage } : {}),
         ...(this.failureDetails ? { details: this.failureDetails } : {}),
+        ...(this.failureMessage && this.failureReasonCode
+          ? { reasonCode: this.failureReasonCode }
+          : {}),
       });
     };
 
@@ -3343,6 +3374,7 @@ export class PageTranslationSession {
     if (this.status.failed === 0) {
       this.failureMessage = undefined;
       this.failureDetails = undefined;
+      this.failureReasonCode = undefined;
     }
     return true;
   }
@@ -3351,6 +3383,7 @@ export class PageTranslationSession {
     const statusWithoutMessage = { ...this.status };
     delete statusWithoutMessage.message;
     delete statusWithoutMessage.details;
+    delete statusWithoutMessage.reasonCode;
     const state =
       this.status.total === 0
         ? "idle"
@@ -3387,6 +3420,11 @@ export class PageTranslationSession {
         : {}),
       ...(state !== "translated" && this.failureDetails
         ? { details: this.failureDetails }
+        : {}),
+      ...(state !== "translated" &&
+      this.failureMessage &&
+      this.failureReasonCode
+        ? { reasonCode: this.failureReasonCode }
         : {}),
     });
   }
