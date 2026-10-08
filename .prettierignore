@@ -17,3 +17,7 @@ LICENSE
 NOTICE
 TRADEMARKS.md
 AGENTS.md
+
+# Untracked design drafts and local preview configuration are not source.
+design-drafts/
+.claude/

@@ -9,6 +9,7 @@ export default tseslint.config(
       "node_modules/**",
       "coverage/**",
       "public/bergamot/**",
+      "design-drafts/**",
       "eslint.config.mjs",
     ],
   },
