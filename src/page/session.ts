@@ -1408,6 +1408,17 @@ export class PageTranslationSession {
   private documentSegments: PageSegment[] = [];
   private invalidatedSegments = new WeakSet<PageSegment>();
   private segmentOutcomes = new WeakMap<PageSegment, "completed" | "failed">();
+  /**
+   * Failed segments whose translation was received and kept in memory but
+   * could not be written because the source was hidden or changing. Only
+   * these may be re-applied automatically when visibility or interaction
+   * changes; Provider failures and cancellations wait for an explicit retry so
+   * hover, focus and style churn never resend them.
+   */
+  private renderFailedTranslations = new WeakMap<
+    PageSegment,
+    { configurationIdentity: string; reuseIdentity: string }
+  >();
   private status: PageStatus = {
     state: "idle",
     total: 0,
@@ -1519,6 +1530,7 @@ export class PageTranslationSession {
     this.documentSegments = [];
     this.invalidatedSegments = new WeakSet<PageSegment>();
     this.segmentOutcomes = new WeakMap<PageSegment, "completed" | "failed">();
+    this.renderFailedTranslations = new WeakMap();
     this.cancelled = false;
     this.update({ state: "idle", total: 0, completed: 0, failed: 0 });
     return this.getStatus();
@@ -1643,7 +1655,9 @@ export class PageTranslationSession {
       : (document.body ?? document.documentElement);
     this.controller.abort();
     // Blocks that never received a result are reported as failed so the user
-    // can retry only them; they get the same in-page retry marker.
+    // can retry only them; they get the same in-page retry marker. They hold
+    // no in-memory translation, so hover/focus/visibility reveals never resend
+    // them after dynamic observation is reattached below; only `retryFailed`.
     const cancelledSegments = this.documentSegments.filter(
       (segment) =>
         !this.invalidatedSegments.has(segment) &&
@@ -2045,6 +2059,12 @@ export class PageTranslationSession {
               failedMembers.add(segment);
               this.status.failed += 1;
               this.segmentOutcomes.set(segment, "failed");
+              if (reuseIdentity) {
+                this.renderFailedTranslations.set(segment, {
+                  configurationIdentity,
+                  reuseIdentity,
+                });
+              }
             }
             this.renderer.markFailed(pendingMembers);
             this.failureMessage ??=
@@ -2739,15 +2759,16 @@ export class PageTranslationSession {
       // temporarily hidden by a menu, carousel, responsive breakpoint, or
       // SPA transition. The short renderer retry window deliberately stops
       // waiting, but a later visibility mutation must make that failed source
-      // eligible again. Invalidating only failed segments keeps already
-      // translated content stable and lets the in-memory translation map apply
-      // the received result without another Provider request.
+      // eligible again. Invalidating only render-failed segments keeps
+      // already translated content stable and lets the in-memory translation
+      // map apply the received result without another Provider request;
+      // Provider failures and cancellations are left for an explicit retry.
       for (const controlledRoot of controlledRoots) {
         failedRevealRoots.add(controlledRoot);
       }
       if (failedRevealRoots.size > 0) {
         for (const segment of this.documentSegments) {
-          if (this.segmentOutcomes.get(segment) !== "failed") continue;
+          if (!this.canReapplyFailedSegment(segment)) continue;
           const affected = [...failedRevealRoots].some(
             (revealRoot) =>
               revealRoot === segment.anchor ||
@@ -2993,11 +3014,26 @@ export class PageTranslationSession {
     this.startDynamicSegments(segments);
   }
 
+  /**
+   * True only for a failed segment whose translation is still held in memory
+   * for its configuration, so re-applying it cannot reach the Provider.
+   */
+  private canReapplyFailedSegment(segment: PageSegment): boolean {
+    if (this.segmentOutcomes.get(segment) !== "failed") return false;
+    const held = this.renderFailedTranslations.get(segment);
+    return (
+      held !== undefined &&
+      this.translationsByConfiguration
+        .get(held.configurationIdentity)
+        ?.has(held.reuseIdentity) === true
+    );
+  }
+
   private invalidateFailedRevealSegments(roots: readonly Element[]): void {
     if (roots.length === 0) return;
     const changedAnchors = new Set<Element>();
     for (const segment of this.documentSegments) {
-      if (this.segmentOutcomes.get(segment) !== "failed") continue;
+      if (!this.canReapplyFailedSegment(segment)) continue;
       const affected = roots.some(
         (root) =>
           root === segment.anchor ||

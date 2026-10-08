@@ -2632,6 +2632,184 @@ describe("PageTranslationSession", () => {
     }
   });
 
+  it("re-applies a render-failed block after an ancestor class change without a new request", async () => {
+    document.body.innerHTML =
+      '<main><div id="class-reveal-zone"><p id="class-reveal-copy">Class reveal copy</p></div></main>';
+    const zone = document.querySelector<HTMLElement>("#class-reveal-zone");
+    const copy = document.querySelector<HTMLElement>("#class-reveal-copy");
+    if (!zone || !copy) throw new Error("missing class reveal fixture");
+    let revealed = true;
+    const nativeGetComputedStyle = window.getComputedStyle.bind(window);
+    const styleSpy = vi
+      .spyOn(window, "getComputedStyle")
+      .mockImplementation((element, pseudoElement) => {
+        const style = nativeGetComputedStyle(element, pseudoElement);
+        if (element !== copy) return style;
+        return { ...style, display: revealed ? "block" : "none" };
+      });
+    let resolveTranslation: (() => void) | undefined;
+    localRuntime.translateBatch.mockImplementationOnce(
+      (request) =>
+        new Promise((resolve) => {
+          resolveTranslation = () =>
+            resolve(
+              request.segments.map((segment) => ({
+                id: segment.id,
+                translatedText: `T:${segment.text}`,
+              })),
+            );
+        }),
+    );
+    const session = new PageTranslationSession(vi.fn());
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.page.displayMode = "translated";
+
+    try {
+      const run = session.translate(settings);
+      await vi.waitFor(() => expect(resolveTranslation).toBeTypeOf("function"));
+      // The result arrives while the source is hidden, so it cannot be
+      // written and the block is reported as a render failure.
+      revealed = false;
+      resolveTranslation?.();
+      await run;
+      expect(session.getStatus()).toMatchObject({ failed: 1, completed: 0 });
+      expect(copy.textContent).toBe("Class reveal copy");
+
+      revealed = true;
+      zone.className = "open";
+      await vi.waitFor(
+        () => expect(copy.textContent).toBe("T:Class reveal copy"),
+        { timeout: 1_500 },
+      );
+      expect(localRuntime.translateBatch).toHaveBeenCalledTimes(1);
+      expect(session.getStatus()).toMatchObject({ failed: 0, completed: 1 });
+    } finally {
+      session.restore();
+      styleSpy.mockRestore();
+    }
+  });
+
+  it("does not resend a Provider-failed block on hover, focus or ancestor style changes", async () => {
+    document.body.innerHTML =
+      '<main><button id="provider-failure-toggle" aria-controls="provider-failure-zone" aria-expanded="false">Menu</button><div id="provider-failure-zone"><p id="provider-failure-copy" tabindex="0">Provider failure reveal</p></div></main>';
+    const zone = document.querySelector<HTMLElement>("#provider-failure-zone");
+    const copy = document.querySelector<HTMLElement>("#provider-failure-copy");
+    const toggle = document.querySelector<HTMLElement>(
+      "#provider-failure-toggle",
+    );
+    if (!zone || !copy || !toggle)
+      throw new Error("missing provider failure fixture");
+    localRuntime.translateBatch.mockImplementation((request) =>
+      request.segments.some(
+        (segment) => segment.text === "Provider failure reveal",
+      )
+        ? Promise.reject(
+            new NoriTransError("rate limited", "request_failed", true),
+          )
+        : Promise.resolve(
+            request.segments.map((segment) => ({
+              id: segment.id,
+              translatedText: `T:${segment.text}`,
+            })),
+          ),
+    );
+    const session = new PageTranslationSession(vi.fn());
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.page.displayMode = "translated";
+
+    try {
+      // The toggle label shares the failed batch, so both blocks fail.
+      await expect(session.translate(settings)).resolves.toMatchObject({
+        state: "error",
+        failed: 2,
+      });
+      const callsAfterFailure = localRuntime.translateBatch.mock.calls.length;
+
+      zone.dispatchEvent(
+        new MouseEvent("pointerover", { bubbles: true, composed: true }),
+      );
+      copy.dispatchEvent(
+        new FocusEvent("focusin", { bubbles: true, composed: true }),
+      );
+      zone.className = "hovered";
+      zone.style.opacity = "0.99";
+      toggle.setAttribute("aria-expanded", "true");
+      await new Promise((resolve) => window.setTimeout(resolve, 700));
+
+      expect(localRuntime.translateBatch).toHaveBeenCalledTimes(
+        callsAfterFailure,
+      );
+      expect(copy.textContent).toBe("Provider failure reveal");
+      expect(session.getStatus()).toMatchObject({ state: "error", failed: 2 });
+
+      // An explicit retry is still the way to resend the failed block.
+      session.retryFailed();
+      await vi.waitFor(() =>
+        expect(localRuntime.translateBatch).toHaveBeenCalledTimes(
+          callsAfterFailure + 1,
+        ),
+      );
+    } finally {
+      session.restore();
+    }
+  });
+
+  it("does not resend cancelled blocks on hover, focus or ancestor style changes", async () => {
+    document.body.innerHTML =
+      '<main><div id="cancel-reveal-zone"><p id="cancel-reveal-copy" tabindex="0">Cancel reveal copy</p></div></main>';
+    const zone = document.querySelector<HTMLElement>("#cancel-reveal-zone");
+    const copy = document.querySelector<HTMLElement>("#cancel-reveal-copy");
+    if (!zone || !copy) throw new Error("missing cancel reveal fixture");
+    let release: (() => void) | undefined;
+    localRuntime.translateBatch.mockImplementation(
+      (request) =>
+        new Promise((resolve) => {
+          release = () =>
+            resolve(
+              request.segments.map((segment) => ({
+                id: segment.id,
+                translatedText: `T:${segment.text}`,
+              })),
+            );
+        }),
+    );
+    const session = new PageTranslationSession(vi.fn());
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.page.displayMode = "translated";
+
+    try {
+      const run = session.translate(settings);
+      await vi.waitFor(() =>
+        expect(localRuntime.translateBatch).toHaveBeenCalledTimes(1),
+      );
+      expect(session.cancelPendingTranslations()).toMatchObject({
+        state: "cancelled",
+        failed: 1,
+      });
+      release?.();
+      await run;
+
+      zone.dispatchEvent(
+        new MouseEvent("pointerover", { bubbles: true, composed: true }),
+      );
+      copy.dispatchEvent(
+        new FocusEvent("focusin", { bubbles: true, composed: true }),
+      );
+      zone.className = "hovered";
+      zone.setAttribute("style", "outline: 1px solid");
+      await new Promise((resolve) => window.setTimeout(resolve, 700));
+
+      expect(localRuntime.translateBatch).toHaveBeenCalledTimes(1);
+      expect(copy.textContent).toBe("Cancel reveal copy");
+      expect(session.getStatus()).toMatchObject({
+        state: "cancelled",
+        failed: 1,
+      });
+    } finally {
+      session.restore();
+    }
+  });
+
   it("restores and retranslates a complete replaced block after text is appended", async () => {
     document.body.innerHTML = "<main><p>Original replacement</p></main>";
     const session = new PageTranslationSession(vi.fn());
@@ -4651,6 +4829,77 @@ describe("PageTranslationSession", () => {
       session.restore();
     },
   );
+
+  it("keeps a duplicated-ID block untranslated with diagnostics and retries only that block", async () => {
+    document.body.innerHTML =
+      "<main><p>Duplicate alpha</p><p>Duplicate beta</p><p>Duplicate gamma</p></main>";
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.page.mode = "ai";
+    settings.page.displayMode = "translated";
+    const requested: string[][] = [];
+    aiRuntime.sendMessage.mockImplementation((message) => {
+      if (
+        !isRecord(message) ||
+        message.type !== "TRANSLATE" ||
+        !isRecord(message.request) ||
+        !Array.isArray(message.request.segments)
+      ) {
+        return Promise.resolve({ ok: true });
+      }
+      const segments = message.request.segments as FixtureTranslationSegment[];
+      requested.push(segments.map((segment) => segment.text));
+      // The Provider publishes only trusted IDs; the duplicated one is
+      // reported through bounded diagnostics instead of as a result.
+      for (const segment of segments) {
+        if (segment.text === "Duplicate alpha") continue;
+        for (const listener of aiRuntime.listeners) {
+          listener({
+            type: "TRANSLATION_PROGRESS",
+            requestId: String(message.requestId),
+            result: {
+              id: segment.id,
+              translatedText: fixtureTranslation(segment),
+            },
+          });
+        }
+      }
+      return Promise.resolve({
+        ok: false,
+        error: {
+          code: "invalid_response",
+          message: "invalid response",
+          retryable: true,
+          details:
+            "Provider result ID diagnostics: Duplicate result IDs (all copies discarded): 0 Missing-ID recovery failed.",
+        },
+      });
+    });
+    const session = new PageTranslationSession(vi.fn());
+
+    const status = await session.translate(settings);
+
+    expect(status).toMatchObject({
+      state: "partial",
+      total: 3,
+      completed: 2,
+      failed: 1,
+    });
+    expect(status.details).toContain("Duplicate result IDs");
+    const paragraphs = [...document.querySelectorAll("p")].map(
+      (paragraph) => paragraph.textContent,
+    );
+    expect(paragraphs).toEqual([
+      "Duplicate alpha",
+      "T:Duplicate beta",
+      "T:Duplicate gamma",
+    ]);
+    // The automatic retry resends only the block without a trusted result.
+    expect(requested).toEqual([
+      ["Duplicate alpha", "Duplicate beta", "Duplicate gamma"],
+      ["Duplicate alpha"],
+    ]);
+    session.restore();
+  });
 
   it("waits for an early document body before scanning and translating", async () => {
     const body = document.body;

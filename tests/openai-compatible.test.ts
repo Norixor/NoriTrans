@@ -1471,6 +1471,134 @@ describe("OpenAI-compatible translation responses", () => {
     ]);
   });
 
+  it("never publishes a duplicated ID and retranslates only that ID", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(
+        completion(
+          JSON.stringify({
+            results: [
+              { id: "segment-1", translatedText: "错位译文" },
+              { id: "segment-2", translatedText: "世界" },
+              { id: "segment-1", translatedText: "重复" },
+              { id: "segment-3", translatedText: "再次" },
+            ],
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(
+        completion(
+          JSON.stringify({
+            results: [{ id: "segment-1", translatedText: "你好" }],
+          }),
+        ),
+      );
+    stubWireFetch(fetch);
+    const progress: TranslationResult[] = [];
+
+    await expect(
+      provider().translateBatch(
+        { ...multiRequest, responseMode: "batch" },
+        new AbortController().signal,
+        (result) => {
+          progress.push(result);
+        },
+      ),
+    ).resolves.toEqual([
+      { id: "segment-1", translatedText: "你好" },
+      { id: "segment-2", translatedText: "世界" },
+      { id: "segment-3", translatedText: "再次" },
+    ]);
+    // Trusted IDs are published before recovery; neither copy of the
+    // duplicated ID ever reaches progress (and therefore the cache).
+    expect(progress).toEqual([
+      { id: "segment-2", translatedText: "世界" },
+      { id: "segment-3", translatedText: "再次" },
+    ]);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(wireSegmentsFromRequest(fetch.mock.calls[1]?.[1])).toHaveLength(1);
+    expect(wireSegmentsFromRequest(fetch.mock.calls[1]?.[1])[0]?.[1]).toBe(
+      "Hello",
+    );
+  });
+
+  it("fails a duplicated ID with bounded diagnostics when its recovery fails", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(
+        completion(
+          JSON.stringify({
+            results: [
+              { id: "segment-1", translatedText: "错位译文" },
+              { id: "segment-1", translatedText: "重复" },
+              { id: "segment-2", translatedText: "世界" },
+            ],
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(completion('{"results":[]}'));
+    stubWireFetch(fetch);
+    const progress: TranslationResult[] = [];
+
+    const error: unknown = await provider()
+      .translateBatch(
+        {
+          ...multiRequest,
+          segments: multiRequest.segments.slice(0, 2),
+          responseMode: "batch",
+        },
+        new AbortController().signal,
+        (result) => {
+          progress.push(result);
+        },
+      )
+      .catch((reason: unknown) => reason);
+
+    expect(error).toBeInstanceOf(NoriTransError);
+    if (!(error instanceof NoriTransError)) return;
+    expect(error.code).toBe("invalid_response");
+    expect(error.details).toContain(
+      "Duplicate result IDs (all copies discarded): segment-1",
+    );
+    expect(error.details).toContain("Missing-ID recovery failed");
+    expect(error.details).not.toContain("test-only-key");
+    expect(error.details).not.toContain("错位译文");
+    expect(progress).toEqual([{ id: "segment-2", translatedText: "世界" }]);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not publish anything when every returned ID is duplicated", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
+      completion(
+        JSON.stringify({
+          results: [
+            { id: "segment-1", translatedText: "第一" },
+            { id: "segment-1", translatedText: "第二" },
+          ],
+        }),
+      ),
+    );
+    stubWireFetch(fetch);
+    const progress: TranslationResult[] = [];
+
+    await expect(
+      provider().translateBatch(
+        { ...request, responseMode: "batch" },
+        new AbortController().signal,
+        (result) => {
+          progress.push(result);
+        },
+      ),
+    ).rejects.toMatchObject({
+      code: "invalid_response",
+      details: expect.stringContaining(
+        "Duplicate result IDs (all copies discarded): segment-1",
+      ) as unknown,
+    });
+    expect(progress).toEqual([]);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects extra result IDs even when every requested ID is present", async () => {
     const expected = { id: "segment-1", translatedText: "你好" };
     stubWireFetch(

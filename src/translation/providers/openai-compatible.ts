@@ -1071,30 +1071,42 @@ function isEmptyCompletionContent(content: unknown): boolean {
   );
 }
 
+/**
+ * Splits one Provider response into trusted results and IDs that still need a
+ * translation. A requested ID that appears more than once is untrusted as a
+ * whole: either copy may belong to a neighbouring segment, so neither is
+ * accepted and the ID is recovered like a missing one. IDs outside the request
+ * are never accepted and are reported separately so the caller can reject the
+ * response before any result reaches progress or the cache.
+ */
 function assessResults(
   segments: TranslationRequest["segments"],
   results: TranslationResult[],
 ): {
   accepted: TranslationResult[];
   missing: TranslationRequest["segments"];
-  diagnostics: string[];
+  unknownIds: string[];
+  duplicateIds: string[];
   invalidProtectedIds: string[];
 } {
   const expected = new Map(segments.map((segment) => [segment.id, segment]));
   const accepted = new Map<string, TranslationResult>();
-  const diagnostics: string[] = [];
-  const invalidProtectedIds: string[] = [];
+  const seen = new Set<string>();
+  const unknownIds: string[] = [];
+  const duplicateIds = new Set<string>();
+  const invalidProtectedIds = new Set<string>();
   for (const result of results) {
     if (!expected.has(result.id)) {
-      diagnostics.push(
-        `Unknown result ID: ${diagnosticId(result.id)}. Expected IDs: ${diagnosticIds(expected.keys())}`,
-      );
+      unknownIds.push(result.id);
       continue;
     }
-    if (accepted.has(result.id)) {
-      diagnostics.push(`Duplicate result ID: ${diagnosticId(result.id)}`);
+    if (seen.has(result.id)) {
+      duplicateIds.add(result.id);
+      accepted.delete(result.id);
+      invalidProtectedIds.delete(result.id);
       continue;
     }
+    seen.add(result.id);
     if (
       typeof result.translatedText !== "string" ||
       !result.translatedText.trim()
@@ -1114,7 +1126,7 @@ function assessResults(
         error instanceof NoriTransError &&
         error.code === "invalid_response"
       ) {
-        invalidProtectedIds.push(segment.id);
+        invalidProtectedIds.add(segment.id);
         continue;
       }
       throw error;
@@ -1127,16 +1139,29 @@ function assessResults(
       return result ? [result] : [];
     }),
     missing: segments.filter((segment) => !accepted.has(segment.id)),
-    diagnostics,
-    invalidProtectedIds,
+    unknownIds,
+    duplicateIds: [...duplicateIds],
+    invalidProtectedIds: [...invalidProtectedIds],
   };
 }
 
 function assessmentDiagnostics(
+  segments: TranslationRequest["segments"],
   assessed: ReturnType<typeof assessResults>,
 ): string | undefined {
-  if (assessed.diagnostics.length === 0) return undefined;
-  return `Provider result ID diagnostics: ${assessed.diagnostics.join("; ")}`;
+  const diagnostics: string[] = [];
+  if (assessed.unknownIds.length > 0) {
+    diagnostics.push(
+      `Unknown result IDs: ${diagnosticIds(assessed.unknownIds)}. Expected IDs: ${diagnosticIds(segments.map((segment) => segment.id))}`,
+    );
+  }
+  if (assessed.duplicateIds.length > 0) {
+    diagnostics.push(
+      `Duplicate result IDs (all copies discarded): ${diagnosticIds(assessed.duplicateIds)}`,
+    );
+  }
+  if (diagnostics.length === 0) return undefined;
+  return `Provider result ID diagnostics: ${diagnostics.join("; ")}`;
 }
 
 export class OpenAICompatibleProvider implements TranslationProvider {
@@ -1197,13 +1222,12 @@ export class OpenAICompatibleProvider implements TranslationProvider {
         if (!error.allowRecovery) {
           throw error.terminalError ?? invalidResponse(error.details);
         }
+        // The streaming parser already rejects unknown and repeated IDs before
+        // emitting them, so these partial results are individually trusted.
         const assessed = assessResults(request.segments, error.partialResults);
-        const diagnostics = assessmentDiagnostics(assessed);
-        if (assessed.missing.length === 0) {
-          if (!diagnostics) return assessed.accepted;
-          for (const result of assessed.accepted) await onProgress?.(result);
-          throw invalidResponse(diagnostics);
-        }
+        const diagnostics = assessmentDiagnostics(request.segments, assessed);
+        if (assessed.unknownIds.length > 0) throw invalidResponse(diagnostics);
+        if (assessed.missing.length === 0) return assessed.accepted;
         let recovered: TranslationResult[];
         try {
           recovered = await this.translateAdaptive(
@@ -1232,10 +1256,6 @@ export class OpenAICompatibleProvider implements TranslationProvider {
             );
           return result;
         });
-        if (diagnostics) {
-          for (const result of combined) await onProgress?.(result);
-          throw invalidResponse(diagnostics);
-        }
         return combined;
       }
       if (
@@ -1264,12 +1284,14 @@ export class OpenAICompatibleProvider implements TranslationProvider {
     }
 
     const assessed = assessResults(request.segments, results);
-    const diagnostics = assessmentDiagnostics(assessed);
-    if (assessed.missing.length === 0) {
-      if (!diagnostics) return assessed.accepted;
-      for (const result of assessed.accepted) await onProgress?.(result);
-      throw invalidResponse(diagnostics);
-    }
+    const diagnostics = assessmentDiagnostics(request.segments, assessed);
+    // An ID outside the request means the response cannot be aligned with the
+    // source reliably. Reject it before any result reaches progress (and thus
+    // the cache); the caller retries or fails the whole batch.
+    if (assessed.unknownIds.length > 0) throw invalidResponse(diagnostics);
+    // Duplicate IDs are already counted as missing, so a complete assessment
+    // carries no ID anomaly and every accepted result is trusted.
+    if (assessed.missing.length === 0) return assessed.accepted;
     // Do not retry an identical request when the provider returned no usable
     // IDs. Partial responses still recover only their missing subset below.
     if (
@@ -1278,7 +1300,7 @@ export class OpenAICompatibleProvider implements TranslationProvider {
     )
       throw invalidResponse(
         [
-          assessmentDiagnostics(assessed),
+          diagnostics,
           `Provider returned no usable IDs. Expected IDs: ${diagnosticIds(request.segments.map((segment) => segment.id))}`,
         ]
           .filter(Boolean)
@@ -1339,10 +1361,8 @@ export class OpenAICompatibleProvider implements TranslationProvider {
         );
       return result;
     });
-    if (diagnostics) {
-      for (const result of combined) await onProgress?.(result);
-      throw invalidResponse(diagnostics);
-    }
+    // Duplicate IDs were retranslated in isolation above, so every combined
+    // result is trusted and the batch is complete.
     return combined;
   }
 

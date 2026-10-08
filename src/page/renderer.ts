@@ -420,12 +420,18 @@ function syncPresentationFlag(
     delete host.dataset[key];
 }
 
-/** Write phase only: callers compute `next` and `orientation` beforehand. */
+/**
+ * Write phase only: callers compute `next` and `orientation` beforehand.
+ * `afterAnchorPredecessor` is the element an `after-anchor` host must directly
+ * follow: the anchor itself, or the companion of the previous chunk of the same
+ * anchor, so long blocks split into several chunks keep their reading order.
+ */
 function placeBilingualHost(
   host: HTMLElement,
   segment: PageSegment,
   next: BilingualPlacement,
   orientation: ExternalOrientation | undefined,
+  afterAnchorPredecessor: Element = segment.anchor,
 ): boolean {
   syncPresentationFlag(
     host,
@@ -447,10 +453,10 @@ function placeBilingualHost(
     return insertInsideAfterSource(host, segment);
   }
   if (
-    host.parentNode !== segment.anchor.parentNode ||
-    segment.anchor.nextElementSibling !== host
+    host.parentNode !== afterAnchorPredecessor.parentNode ||
+    afterAnchorPredecessor.nextElementSibling !== host
   ) {
-    segment.anchor.insertAdjacentElement("afterend", host);
+    afterAnchorPredecessor.insertAdjacentElement("afterend", host);
   }
   return true;
 }
@@ -546,6 +552,12 @@ export class PageRenderer {
   // of translated blocks on the page.
   private readonly replacementTextByNode = new Map<Text, string>();
   private readonly bilingualByNode = new Map<Text, AppliedBilingual>();
+  // Chunks of one long block share an anchor; this index lets placement find
+  // the previous chunk's companion without walking every applied translation.
+  private readonly bilingualByAnchor = new Map<
+    Element,
+    Set<AppliedBilingual>
+  >();
   private readonly pending = new Map<PageSegment, BlockIndicator>();
   private readonly failed = new Map<PageSegment, BlockIndicator>();
   private pendingOverlay: ReturnType<typeof createIndicatorOverlay> | undefined;
@@ -859,6 +871,9 @@ export class PageRenderer {
       return;
     }
     for (const node of applied.nodes) this.bilingualByNode.set(node, applied);
+    const siblings = this.bilingualByAnchor.get(applied.anchor) ?? new Set();
+    siblings.add(applied);
+    this.bilingualByAnchor.set(applied.anchor, siblings);
   }
 
   private forget(applied: AppliedTranslation): void {
@@ -878,6 +893,36 @@ export class PageRenderer {
         this.bilingualByNode.delete(node);
       }
     }
+    const siblings = this.bilingualByAnchor.get(applied.anchor);
+    siblings?.delete(applied);
+    if (siblings?.size === 0) this.bilingualByAnchor.delete(applied.anchor);
+  }
+
+  /**
+   * The element an `after-anchor` companion must directly follow: the
+   * companion of the nearest earlier chunk of the same anchor that already
+   * sits in the sibling chain, otherwise the anchor. Results may arrive out of
+   * order, so placement is derived from chunk order, not arrival order.
+   */
+  private afterAnchorPredecessor(segment: PageSegment): Element {
+    let predecessor: AppliedBilingual | undefined;
+    for (const sibling of this.bilingualByAnchor.get(segment.anchor) ?? []) {
+      if (
+        sibling.segment === segment ||
+        sibling.segment.documentOrder >= segment.documentOrder ||
+        sibling.host.parentNode === null ||
+        sibling.host.parentNode !== segment.anchor.parentNode
+      ) {
+        continue;
+      }
+      if (
+        !predecessor ||
+        sibling.segment.documentOrder > predecessor.segment.documentOrder
+      ) {
+        predecessor = sibling;
+      }
+    }
+    return predecessor?.host ?? segment.anchor;
   }
 
   /** Structural check plus a full visibility and placement pass. */
@@ -994,6 +1039,9 @@ export class PageRenderer {
           applied.segment,
           update.next,
           update.orientation,
+          update.next.placement === "after-anchor"
+            ? this.afterAnchorPredecessor(applied.segment)
+            : undefined,
         )
       ) {
         applied.placement = update.next.placement;
@@ -1083,7 +1131,17 @@ export class PageRenderer {
       segment.anchor,
       nextPlacement.placement,
     );
-    if (!placeBilingualHost(host, segment, nextPlacement, orientation)) {
+    if (
+      !placeBilingualHost(
+        host,
+        segment,
+        nextPlacement,
+        orientation,
+        nextPlacement.placement === "after-anchor"
+          ? this.afterAnchorPredecessor(segment)
+          : undefined,
+      )
+    ) {
       return false;
     }
     const applied: AppliedBilingual = {
@@ -1112,5 +1170,6 @@ export class PageRenderer {
     this.applied = [];
     this.replacementTextByNode.clear();
     this.bilingualByNode.clear();
+    this.bilingualByAnchor.clear();
   }
 }

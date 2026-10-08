@@ -750,4 +750,98 @@ describe("PageRenderer", () => {
     expect(host?.style.marginRight).toBe("12px");
     renderer.restore();
   });
+
+  describe("multi-chunk bilingual companions of one block", () => {
+    function longParagraphChunks(): {
+      paragraph: HTMLParagraphElement;
+      chunks: PageSegment[];
+    } {
+      const sentence = (index: number): string =>
+        `Chunk ${index} ${"long source sentence ".repeat(30)}`;
+      document.body.innerHTML = `<article><p>${[0, 1, 2, 3, 4]
+        .map((index) => `<span>${sentence(index)}</span>`)
+        .join("")}</p><aside>after</aside></article>`;
+      const paragraph = document.querySelector("p");
+      if (!paragraph) throw new Error("invalid fixture");
+      const chunks = scanPageSegments(document.body)
+        .filter((segment) => segment.anchor === paragraph)
+        .sort((left, right) => left.documentOrder - right.documentOrder);
+      return { paragraph, chunks };
+    }
+
+    function companionOrder(paragraph: Element): string[] {
+      const ids: string[] = [];
+      for (
+        let next = paragraph.nextElementSibling;
+        next?.tagName === "NORITRANS-TRANSLATION";
+        next = next.nextElementSibling
+      ) {
+        ids.push(next.shadowRoot?.querySelector("span")?.textContent ?? "");
+      }
+      return ids;
+    }
+
+    it("keeps chunk order when results arrive in chunk order", () => {
+      const { paragraph, chunks } = longParagraphChunks();
+      expect(chunks.length).toBeGreaterThanOrEqual(3);
+      const renderer = new PageRenderer();
+
+      chunks.forEach((chunk, index) => {
+        expect(renderer.apply(chunk, `T${index}`, "bilingual", "zh-CN")).toBe(
+          true,
+        );
+      });
+
+      expect(companionOrder(paragraph)).toEqual(
+        chunks.map((_, index) => `T${index}`),
+      );
+      renderer.restore();
+      expect(paragraph.nextElementSibling?.tagName).toBe("ASIDE");
+    });
+
+    it("keeps chunk order when later chunks arrive first", () => {
+      const { paragraph, chunks } = longParagraphChunks();
+      const renderer = new PageRenderer();
+      const arrival = [...chunks.keys()].reverse();
+      // Put the first chunk in the middle of the arrival sequence as well.
+      arrival.splice(arrival.indexOf(0), 1);
+      arrival.splice(1, 0, 0);
+
+      for (const index of arrival) {
+        const chunk = chunks[index];
+        if (!chunk) throw new Error("missing chunk");
+        renderer.apply(chunk, `T${index}`, "bilingual", "zh-CN");
+      }
+
+      expect(companionOrder(paragraph)).toEqual(
+        chunks.map((_, index) => `T${index}`),
+      );
+      renderer.restore();
+    });
+
+    it("does not move correctly ordered companions on repeated layout sync", () => {
+      const { paragraph, chunks } = longParagraphChunks();
+      const renderer = new PageRenderer();
+      for (const index of [...chunks.keys()].reverse()) {
+        const chunk = chunks[index];
+        if (!chunk) throw new Error("missing chunk");
+        renderer.apply(chunk, `T${index}`, "bilingual", "zh-CN");
+      }
+      const parent = paragraph.parentElement;
+      if (!parent) throw new Error("invalid fixture");
+      const observer = new MutationObserver(() => undefined);
+      observer.observe(parent, { childList: true });
+
+      renderer.syncLayout();
+      renderer.syncLayout(new Set([parent]));
+      renderer.reconcile();
+
+      expect(observer.takeRecords()).toEqual([]);
+      observer.disconnect();
+      expect(companionOrder(paragraph)).toEqual(
+        chunks.map((_, index) => `T${index}`),
+      );
+      renderer.restore();
+    });
+  });
 });

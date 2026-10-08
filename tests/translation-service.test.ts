@@ -1,7 +1,12 @@
 import { translateInBackground } from "@/src/translation/service";
 import { createProtectedText } from "@/src/translation/protected-text";
 import { DEFAULT_SETTINGS } from "@/src/shared/settings";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import type {
+  TranslationProgressCallback,
+  TranslationRequest,
+} from "@/src/translation/types";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type * as OpenAICompatibleModule from "@/src/translation/providers/openai-compatible";
 
 const mocks = vi.hoisted(() => ({
   getCachedTranslation: vi.fn<(key: string) => Promise<string | undefined>>(
@@ -13,6 +18,7 @@ const mocks = vi.hoisted(() => ({
       (
         request: unknown,
         signal: AbortSignal,
+        onProgress?: TranslationProgressCallback,
       ) => Promise<Array<{ id: string; translatedText: string }>>
     >(),
 }));
@@ -36,8 +42,9 @@ vi.mock("@/src/translation/providers/openai-compatible", () => ({
     translateBatch(
       request: unknown,
       signal: AbortSignal,
+      onProgress?: TranslationProgressCallback,
     ): Promise<Array<{ id: string; translatedText: string }>> {
-      return mocks.translateBatch(request, signal);
+      return mocks.translateBatch(request, signal, onProgress);
     }
   },
 }));
@@ -486,5 +493,104 @@ describe("background translation cache lifecycle", () => {
       ),
     ).rejects.toMatchObject({ code: "invalid_response" });
     expect(mocks.setCachedTranslation).not.toHaveBeenCalled();
+  });
+
+  describe("with the real OpenAI-compatible Provider", () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    function wireIds(init?: RequestInit): string[] {
+      if (typeof init?.body !== "string") {
+        throw new Error("missing Provider request body");
+      }
+      const body = JSON.parse(init.body) as {
+        messages: Array<{ role: string; content: string }>;
+      };
+      const user = body.messages.find((message) => message.role === "user");
+      const input = JSON.parse(user?.content ?? "{}") as {
+        segments: Array<[string, ...unknown[]]>;
+      };
+      return input.segments.map((segment) => segment[0]);
+    }
+
+    function completion(results: unknown[]): Response {
+      return new Response(
+        JSON.stringify({
+          choices: [{ message: { content: JSON.stringify({ results }) } }],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
+    it("never caches or reports either copy of a duplicated result ID", async () => {
+      const actual = await vi.importActual<typeof OpenAICompatibleModule>(
+        "@/src/translation/providers/openai-compatible",
+      );
+      const real = new actual.OpenAICompatibleProvider("ai", {
+        baseUrl: "https://provider.example/v1",
+        apiKey: "test-only-key",
+        model: "test-model",
+        systemPrompt: "Translate",
+        timeoutMs: 5_000,
+      });
+      mocks.translateBatch.mockImplementation((request, signal, onProgress) =>
+        real.translateBatch(request as TranslationRequest, signal, onProgress),
+      );
+      const fetch = vi
+        .fn<typeof globalThis.fetch>()
+        .mockImplementationOnce((_input, init) => {
+          const [first = "", second = "", third = ""] = wireIds(init);
+          return Promise.resolve(
+            completion([
+              { id: first, translatedText: "错位译文" },
+              { id: second, translatedText: "贝塔" },
+              { id: first, translatedText: "重复译文" },
+              { id: third, translatedText: "伽马" },
+            ]),
+          );
+        })
+        // The isolated recovery request for the duplicated ID also fails.
+        .mockImplementationOnce(() => Promise.resolve(completion([])));
+      vi.stubGlobal("fetch", fetch);
+      const onProgress = vi.fn();
+      const settings = structuredClone(DEFAULT_SETTINGS);
+      settings.provider.aiProvider = "openai-compatible";
+
+      await expect(
+        translateInBackground(
+          {
+            sourceLanguage: "en",
+            targetLanguage: "zh-CN",
+            mode: "ai",
+            responseMode: "batch",
+            segments: [
+              { id: "alpha", text: "Alpha" },
+              { id: "beta", text: "Beta" },
+              { id: "gamma", text: "Gamma" },
+            ],
+          },
+          settings,
+          new AbortController().signal,
+          { onProgress },
+        ),
+      ).rejects.toMatchObject({
+        code: "invalid_response",
+        details: expect.stringContaining(
+          "Duplicate result IDs (all copies discarded): alpha",
+        ) as unknown,
+      });
+      expect(fetch).toHaveBeenCalledTimes(2);
+      expect(
+        onProgress.mock.calls.map(([result]) => result as unknown),
+      ).toEqual([
+        { id: "beta", translatedText: "贝塔" },
+        { id: "gamma", translatedText: "伽马" },
+      ]);
+      const cachedTexts = mocks.setCachedTranslation.mock.calls.map(
+        (call: unknown[]) => call[1],
+      );
+      expect(cachedTexts).toEqual(["贝塔", "伽马"]);
+    });
   });
 });
