@@ -1315,9 +1315,8 @@ describe("OpenAI-compatible translation responses", () => {
     expect(unknownId).toBeInstanceOf(NoriTransError);
     if (!(unknownId instanceof NoriTransError)) return;
     expect(unknownId.code).toBe("invalid_response");
-    expect(unknownId.details).toMatch(
-      /Unknown compact result ID.*unexpected-id/u,
-    );
+    expect(unknownId.details).toMatch(/Unknown result IDs: unexpected-id/u);
+    expect(unknownId.details).toContain("Provider returned no usable IDs");
   });
 
   it("accepts keyed result maps", async () => {
@@ -1405,7 +1404,7 @@ describe("OpenAI-compatible translation responses", () => {
     expect(retryPayload.segments?.map((segment) => segment[0])).toEqual(["0"]);
   });
 
-  it("discards unknown and duplicate IDs while recovering every valid ID", async () => {
+  it("ignores unknown IDs and re-requests only duplicated and missing IDs", async () => {
     const first = { id: "segment-1", translatedText: "你好" };
     const second = { id: "segment-2", translatedText: "世界" };
     const third = { id: "segment-3", translatedText: "再次" };
@@ -1417,7 +1416,8 @@ describe("OpenAI-compatible translation responses", () => {
             results: [
               first,
               { id: "unexpected-id", translatedText: "未知" },
-              { id: "segment-1", translatedText: "重复" },
+              { id: "segment-2", translatedText: "错位" },
+              { id: "segment-2", translatedText: "重复" },
             ],
           }),
         ),
@@ -1429,12 +1429,7 @@ describe("OpenAI-compatible translation responses", () => {
             JSON.stringify({
               results: segments.map(([id, text]) => ({
                 id,
-                translatedText:
-                  text === "Hello"
-                    ? "你好"
-                    : text === "World"
-                      ? "世界"
-                      : "再次",
+                translatedText: text === "World" ? "世界" : "再次",
               })),
             }),
           ),
@@ -1452,23 +1447,90 @@ describe("OpenAI-compatible translation responses", () => {
         },
       ),
     ).resolves.toEqual([first, second, third]);
-    expect(progress).toEqual([]);
-    expect(fetch).toHaveBeenCalledTimes(3);
+    // Only the trusted result is published before the targeted recovery;
+    // neither copy of the duplicated ID nor the unknown ID reaches progress.
+    expect(progress[0]).toEqual(first);
+    expect(progress).not.toContainEqual({
+      id: "segment-2",
+      translatedText: "错位",
+    });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    // The recovery request carries only the two segments still needed.
+    expect(wireSegmentsFromRequest(fetch.mock.calls[1]?.[1])).toHaveLength(2);
+  });
 
-    const retryRequestBody = fetch.mock.calls[1]?.[1]?.body;
-    if (typeof retryRequestBody !== "string") {
-      throw new Error("missing anomalous-ID recovery request body");
-    }
-    const retryBody = JSON.parse(retryRequestBody) as {
-      messages: Array<{ role: string; content: string }>;
-    };
-    const retryPayload = JSON.parse(retryBody.messages[1]?.content ?? "{}") as {
-      segments?: Array<[string, ...unknown[]]>;
-    };
-    expect(retryPayload.segments?.map((segment) => segment[0])).toEqual([
-      "0",
-      "1",
+  it("keeps every requested result when a response adds a stray ID", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValueOnce(
+      completion(
+        JSON.stringify({
+          results: [
+            { id: "segment-1", translatedText: "你好" },
+            { id: "segment-2", translatedText: "世界" },
+            { id: "segment-3", translatedText: "再次" },
+            { id: "segment-9", translatedText: "多余" },
+          ],
+        }),
+      ),
+    );
+    stubWireFetch(fetch);
+
+    await expect(
+      provider().translateBatch(
+        { ...multiRequest, responseMode: "batch" },
+        new AbortController().signal,
+      ),
+    ).resolves.toEqual([
+      { id: "segment-1", translatedText: "你好" },
+      { id: "segment-2", translatedText: "世界" },
+      { id: "segment-3", translatedText: "再次" },
     ]);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("recovers only the segment whose ID the Provider mangled", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(
+        completion(
+          JSON.stringify({
+            results: [
+              { id: "segment-1", translatedText: "你好" },
+              { id: "segment-2", translatedText: "世界" },
+              { id: "segment-3x", translatedText: "再次" },
+            ],
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(
+        completion(
+          JSON.stringify({
+            results: [{ id: "segment-3", translatedText: "再次" }],
+          }),
+        ),
+      );
+    stubWireFetch(fetch);
+    const progress: TranslationResult[] = [];
+
+    await expect(
+      provider().translateBatch(
+        { ...multiRequest, responseMode: "batch" },
+        new AbortController().signal,
+        (result) => {
+          progress.push(result);
+        },
+      ),
+    ).resolves.toEqual([
+      { id: "segment-1", translatedText: "你好" },
+      { id: "segment-2", translatedText: "世界" },
+      { id: "segment-3", translatedText: "再次" },
+    ]);
+    // The two trusted results are published before the single-ID recovery.
+    expect(progress.slice(0, 2)).toEqual([
+      { id: "segment-1", translatedText: "你好" },
+      { id: "segment-2", translatedText: "世界" },
+    ]);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(wireSegmentsFromRequest(fetch.mock.calls[1]?.[1])).toHaveLength(1);
   });
 
   it("never publishes a duplicated ID and retranslates only that ID", async () => {
@@ -1599,34 +1661,6 @@ describe("OpenAI-compatible translation responses", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects extra result IDs even when every requested ID is present", async () => {
-    const expected = { id: "segment-1", translatedText: "你好" };
-    stubWireFetch(
-      vi.fn<typeof globalThis.fetch>().mockResolvedValue(
-        completion(
-          JSON.stringify({
-            results: [
-              expected,
-              { id: "unexpected-id", translatedText: "未知" },
-            ],
-          }),
-        ),
-      ),
-    );
-    const progress: TranslationResult[] = [];
-
-    const extraIdError: unknown = await provider()
-      .translateBatch(request, new AbortController().signal, (result) => {
-        progress.push(result);
-      })
-      .catch((error: unknown) => error);
-    expect(extraIdError).toBeInstanceOf(NoriTransError);
-    if (!(extraIdError instanceof NoriTransError)) return;
-    expect(extraIdError.code).toBe("invalid_response");
-    expect(extraIdError.details).toContain("Unknown compact result ID");
-    expect(progress).toEqual([]);
-  });
-
   it("retains safe unknown and duplicate ID diagnostics when recovery fails", async () => {
     const fetch = vi
       .fn<typeof globalThis.fetch>()
@@ -1636,7 +1670,8 @@ describe("OpenAI-compatible translation responses", () => {
             results: [
               { id: "segment-1", translatedText: "你好" },
               { id: "unexpected-id", translatedText: "未知" },
-              { id: "segment-1", translatedText: "重复" },
+              { id: "segment-2", translatedText: "世界" },
+              { id: "segment-2", translatedText: "重复" },
             ],
           }),
         ),
@@ -1651,7 +1686,7 @@ describe("OpenAI-compatible translation responses", () => {
     if (!(error instanceof NoriTransError)) return;
     expect(error.code).toBe("invalid_response");
     expect(error.details).toContain("Provider returned no usable IDs");
-    expect(error.details).toContain("Expected IDs: segment-1, segment-2");
+    expect(error.details).toContain("Expected IDs: segment-2, segment-3");
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 

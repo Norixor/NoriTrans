@@ -284,6 +284,8 @@ interface WireRequestAliases {
  * repeating them in both directions wastes tokens. Each physical Provider call
  * uses short positional aliases and maps validated results back immediately.
  */
+const UNKNOWN_WIRE_ID_PREFIX = "\u0000unknown-wire-id:";
+
 function wireRequestAliases(
   request: TranslationRequest,
   onProgress?: TranslationProgressCallback,
@@ -294,21 +296,25 @@ function wireRequestAliases(
     stableIdByWireId.set(wireId, segment.id);
     return { ...segment, id: wireId };
   });
-  const restoreResult = (result: TranslationResult): TranslationResult => {
-    const stableId = stableIdByWireId.get(result.id);
-    if (!stableId) {
-      throw invalidResponse(
-        `Unknown compact result ID: ${diagnosticId(result.id)}.`,
-      );
-    }
-    return { id: stableId, translatedText: result.translatedText };
-  };
+  // A wire ID the Provider invented or mangled must not abort the whole
+  // response: the other results are still trusted and the segment it should
+  // have answered stays missing, so only that subset is recovered. Mapping it
+  // to a prefixed ID keeps it recognisable as unknown for the later ID
+  // assessment, and the prefix cannot collide with a real stable ID.
+  const restoreResult = (result: TranslationResult): TranslationResult => ({
+    id:
+      stableIdByWireId.get(result.id) ??
+      `${UNKNOWN_WIRE_ID_PREFIX}${result.id}`,
+    translatedText: result.translatedText,
+  });
   return {
     request: { ...request, segments: wireSegments },
     restoreResults: (results) => results.map(restoreResult),
     ...(onProgress
       ? {
           restoreProgress: async (result: TranslationResult) => {
+            // Unknown IDs never reach progress (and therefore the cache).
+            if (!stableIdByWireId.has(result.id)) return;
             await onProgress(restoreResult(result));
           },
         }
@@ -1152,7 +1158,7 @@ function assessmentDiagnostics(
   const diagnostics: string[] = [];
   if (assessed.unknownIds.length > 0) {
     diagnostics.push(
-      `Unknown result IDs: ${diagnosticIds(assessed.unknownIds)}. Expected IDs: ${diagnosticIds(segments.map((segment) => segment.id))}`,
+      `Unknown result IDs: ${diagnosticIds(assessed.unknownIds.map((id) => (id.startsWith(UNKNOWN_WIRE_ID_PREFIX) ? id.slice(UNKNOWN_WIRE_ID_PREFIX.length) : id)))}. Expected IDs: ${diagnosticIds(segments.map((segment) => segment.id))}`,
     );
   }
   if (assessed.duplicateIds.length > 0) {
@@ -1225,8 +1231,6 @@ export class OpenAICompatibleProvider implements TranslationProvider {
         // The streaming parser already rejects unknown and repeated IDs before
         // emitting them, so these partial results are individually trusted.
         const assessed = assessResults(request.segments, error.partialResults);
-        const diagnostics = assessmentDiagnostics(request.segments, assessed);
-        if (assessed.unknownIds.length > 0) throw invalidResponse(diagnostics);
         if (assessed.missing.length === 0) return assessed.accepted;
         let recovered: TranslationResult[];
         try {
@@ -1285,12 +1289,13 @@ export class OpenAICompatibleProvider implements TranslationProvider {
 
     const assessed = assessResults(request.segments, results);
     const diagnostics = assessmentDiagnostics(request.segments, assessed);
-    // An ID outside the request means the response cannot be aligned with the
-    // source reliably. Reject it before any result reaches progress (and thus
-    // the cache); the caller retries or fails the whole batch.
-    if (assessed.unknownIds.length > 0) throw invalidResponse(diagnostics);
-    // Duplicate IDs are already counted as missing, so a complete assessment
-    // carries no ID anomaly and every accepted result is trusted.
+    // An ID outside the request never becomes a result, but it must not
+    // discard the other results either: each accepted ID was requested and
+    // appeared exactly once, and a mangled ID simply leaves its own segment
+    // missing so only that subset is recovered below. Unknown IDs surface in
+    // the diagnostics of any failure that follows.
+    // Duplicate IDs are already counted as missing, so every accepted result
+    // is trusted.
     if (assessed.missing.length === 0) return assessed.accepted;
     // Do not retry an identical request when the provider returned no usable
     // IDs. Partial responses still recover only their missing subset below.
