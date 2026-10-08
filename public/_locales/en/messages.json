@@ -115,6 +115,7 @@
   "cancelPageTranslation": { "message": "Cancel translation" },
   "stopPageTranslation": { "message": "Stop" },
   "floatingPageQuickActions": { "message": "Page translation quick actions" },
+  "subtitleStatusDisabled": { "message": "Subtitle translation is off" },
   "subtitleStatusUnavailable": { "message": "No subtitles available" },
   "subtitleStatusWaiting": { "message": "Waiting for subtitles" },
   "subtitleStatusTranslating": { "message": "Translating" },
@@ -846,6 +847,16 @@
   },
   "pageTranslationTab": { "message": "Page" },
   "videoTranslationTab": { "message": "Video" },
+  "videoSubtitleDisabled": {
+    "message": "Video subtitle translation is off. Turn it on in settings."
+  },
+  "subtitleSourceLanguageMismatch": {
+    "message": "This video has $TRACK$ subtitles, but the subtitle source language is set to $SOURCE$. Change it in settings or choose Detect automatically.",
+    "placeholders": {
+      "track": { "content": "$1" },
+      "source": { "content": "$2" }
+    }
+  },
   "videoUnavailable": {
     "message": "No readable subtitle track is available for the current video yet."
   },

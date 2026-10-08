@@ -105,6 +105,7 @@
   "cancelPageTranslation": { "message": "取消翻译" },
   "stopPageTranslation": { "message": "停止" },
   "floatingPageQuickActions": { "message": "网页翻译快捷操作" },
+  "subtitleStatusDisabled": { "message": "字幕翻译已关闭" },
   "subtitleStatusUnavailable": { "message": "未发现可用字幕" },
   "subtitleStatusWaiting": { "message": "等待字幕" },
   "subtitleStatusTranslating": { "message": "正在翻译" },
@@ -756,6 +757,16 @@
   "floatingSessionRestoreFailed": { "message": "浮窗恢复失败，请重试。" },
   "pageTranslationTab": { "message": "网页" },
   "videoTranslationTab": { "message": "视频" },
+  "videoSubtitleDisabled": {
+    "message": "视频字幕翻译已关闭，请在设置中开启。"
+  },
+  "subtitleSourceLanguageMismatch": {
+    "message": "视频有字幕，但语言（$TRACK$）与设置的字幕源语言（$SOURCE$）不匹配。可在设置中修改，或改为自动检测。",
+    "placeholders": {
+      "track": { "content": "$1" },
+      "source": { "content": "$2" }
+    }
+  },
   "videoUnavailable": { "message": "当前视频暂未发现可读取的字幕轨道。" },
   "ocrExperimentalTitle": { "message": "图像字幕 OCR（实验）" },
   "ocrExperimentalDescription": {

@@ -10,8 +10,8 @@ import {
   type SubtitleCustomPosition,
   type SubtitleSettings,
 } from "@/src/shared/settings";
-import { languageTagsMatch } from "@/src/shared/languages";
-import { message } from "@/src/shared/i18n";
+import { displayLanguageName, languageTagsMatch } from "@/src/shared/languages";
+import { currentUiLocale, message } from "@/src/shared/i18n";
 import { Html5TextTrackAdapter } from "@/src/subtitles/adapters/html5";
 import { NetflixSubtitleAdapter } from "@/src/subtitles/adapters/netflix";
 import type { SubtitleAdapter } from "@/src/subtitles/adapters/types";
@@ -158,12 +158,13 @@ function mediaIdentity(
   ].join("|");
 }
 
+/**
+ * Cross-reload media identity shared by persisted tracks, the content cache
+ * and the background request scope. It intentionally omits the raw page URL:
+ * see stableVideoPersistenceScope for which components identify the media.
+ */
 function persistentMediaIdentity(video: HTMLVideoElement | null): string {
-  const pageUrl = new URL(location.href);
-  if (!/^#(?:!\/|\/)/u.test(pageUrl.hash)) pageUrl.hash = "";
-  return [pageUrl.href, stableVideoPersistenceScope(video, pageUrl.href)].join(
-    "|",
-  );
+  return stableVideoPersistenceScope(video, location.href);
 }
 
 function trackIdentity(track: SubtitleTrack, mediaScope: string): string {
@@ -255,6 +256,17 @@ function trackMatchesConfiguredSource(
 ): boolean {
   if (configuredSource === "auto" || track.language === "und") return true;
   return languageTagsMatch(configuredSource, track.language);
+}
+
+/** Accepts only a plausible BCP 47 tag, never free-form page text. */
+function skippedTrackLanguageTag(
+  language: string | undefined,
+): string | undefined {
+  const tag = language?.trim().replace(/_/gu, "-");
+  if (!tag || !/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{1,8}){0,4}$/u.test(tag)) {
+    return undefined;
+  }
+  return tag.toLowerCase() === "und" ? undefined : tag;
 }
 
 function hasDecisiveStreamEvidence(track: SubtitleTrack): boolean {
@@ -518,20 +530,41 @@ function createFullTrackReusePlan(
   };
 }
 
+/**
+ * The title joins the AI cache scope, so transient document-title decorations
+ * must not change it between visits. Only the browser tab title carries them
+ * (YouTube's "(3) " notification counter, leading playback glyphs); metadata
+ * titles are kept verbatim so a real title such as "(500) Days of Summer"
+ * survives when the player exposes it.
+ */
+export function normalizedMediaTitle(
+  value: string | null | undefined,
+  source: "metadata" | "document-title" = "metadata",
+): string | undefined {
+  let title = value?.normalize("NFC").replace(/\s+/gu, " ").trim();
+  if (title && source === "document-title") {
+    title = title.replace(/^(?:(?:\(\d+\+?\)|[\u25B6\u25BA\u2022])\s*)+/u, "");
+  }
+  return title || undefined;
+}
+
 function pageMediaTitle(): string | undefined {
   const pageUrl = new URL(location.href);
   pageUrl.hash = "";
   const pageIdentity = pageUrl.href;
   const candidates = [
-    navigator.mediaSession?.metadata?.title,
-    document.title,
-    document.querySelector<HTMLMetaElement>('meta[property="og:title"]')
-      ?.content,
-    document.querySelector<HTMLMetaElement>('meta[name="twitter:title"]')
-      ?.content,
+    normalizedMediaTitle(navigator.mediaSession?.metadata?.title),
+    normalizedMediaTitle(document.title, "document-title"),
+    normalizedMediaTitle(
+      document.querySelector<HTMLMetaElement>('meta[property="og:title"]')
+        ?.content,
+    ),
+    normalizedMediaTitle(
+      document.querySelector<HTMLMetaElement>('meta[name="twitter:title"]')
+        ?.content,
+    ),
   ];
-  for (const candidate of candidates) {
-    const title = candidate?.normalize("NFC").replace(/\s+/gu, " ").trim();
+  for (const title of candidates) {
     if (
       title &&
       title.length > 1 &&
@@ -681,6 +714,8 @@ export class SubtitleController {
   private trackResetTimer: number | undefined;
   private translationFailureMessage: string | undefined;
   private translationFailureDetails: string | undefined;
+  /** Language of a track skipped for the current media by the source setting. */
+  private sourceLanguageMismatch: string | undefined;
   private video: HTMLVideoElement | null = null;
   private lastActivatedVideo: HTMLVideoElement | null = null;
   private ocrMediaTarget: HTMLElement | null = null;
@@ -728,7 +763,7 @@ export class SubtitleController {
   async start(): Promise<void> {
     if (!this.settings.enabled) {
       this.setStatus({
-        state: "unavailable",
+        state: "disabled",
         total: 0,
         completed: 0,
         failed: 0,
@@ -874,6 +909,7 @@ export class SubtitleController {
 
   private deactivate(): void {
     this.active = false;
+    this.sourceLanguageMismatch = undefined;
     this.beginSession();
     this.disposeOcrLocalProvider();
     if (this.scanTimer !== undefined) window.clearInterval(this.scanTimer);
@@ -984,7 +1020,7 @@ export class SubtitleController {
       this.failed.clear();
       this.overlay.hide();
       this.setStatus({
-        state: "unavailable",
+        state: "disabled",
         total: 0,
         completed: 0,
         failed: 0,
@@ -1263,6 +1299,19 @@ export class SubtitleController {
       }
     }
     const best = usableCandidates[0]?.track;
+    if (!best) {
+      this.noteSourceLanguageMismatch(
+        candidates.find(
+          ({ track }) =>
+            track !== null &&
+            track.cues.length > 0 &&
+            !trackMatchesConfiguredSource(track, this.settings.sourceLanguage),
+        )?.track?.language ??
+          this.adapters
+            .map((adapter) => adapter.skippedSourceLanguage?.())
+            .find((language) => language !== undefined),
+      );
+    }
     if (best) {
       this.clearSubtitleDiscoveryTimeout();
       this.clearTrackResetTimer();
@@ -1287,8 +1336,10 @@ export class SubtitleController {
         normalizedTrack,
         this.settings.sourceLanguage,
       )
-    )
+    ) {
+      this.noteSourceLanguageMismatch(normalizedTrack.language);
       return;
+    }
     if (this.currentTrack) {
       const currentPriority = SOURCE_PRIORITY[this.currentTrack.source];
       const candidatePriority = SOURCE_PRIORITY[normalizedTrack.source];
@@ -2372,6 +2423,7 @@ export class SubtitleController {
     this.lastRestoredTrackKey = "";
     this.streamHandoverSource = null;
     this.streamHandoverFloorMs = Number.NEGATIVE_INFINITY;
+    this.sourceLanguageMismatch = undefined;
     if (
       this.translationSuspended &&
       this.suspendedMediaIdentity !== suspensionMediaIdentity(this.video)
@@ -2451,13 +2503,51 @@ export class SubtitleController {
           },
         }),
       );
-      this.setStatus({
-        state: "unavailable",
-        total: 0,
-        completed: 0,
-        failed: 0,
-      });
+      this.setDiscoveryUnavailableStatus();
     }, SUBTITLE_DISCOVERY_TIMEOUT_MS);
+  }
+
+  /**
+   * Ends an empty discovery. A track that exists but was filtered out by the
+   * configured source language stays "unavailable" (nothing can be
+   * translated) yet explains why, instead of claiming that no track exists.
+   */
+  private setDiscoveryUnavailableStatus(): void {
+    const sourceLanguage = this.settings.sourceLanguage;
+    const reason =
+      this.sourceLanguageMismatch && sourceLanguage !== "auto"
+        ? message("subtitleSourceLanguageMismatch", [
+            displayLanguageName(this.sourceLanguageMismatch, currentUiLocale()),
+            displayLanguageName(sourceLanguage, currentUiLocale()),
+          ])
+        : undefined;
+    this.setStatus({
+      state: "unavailable",
+      total: 0,
+      completed: 0,
+      failed: 0,
+      ...(reason ? { message: reason } : {}),
+    });
+  }
+
+  /** Records a track that was skipped only because of the source setting. */
+  private noteSourceLanguageMismatch(language: string | undefined): void {
+    if (this.settings.sourceLanguage === "auto" || this.sourceLanguageMismatch)
+      return;
+    const tag = skippedTrackLanguageTag(language);
+    if (!tag) return;
+    this.sourceLanguageMismatch = tag;
+    // The mismatch can surface after discovery already ended without a reason.
+    if (
+      this.active &&
+      this.video &&
+      !this.currentTrack &&
+      this.discoveryTimeout === undefined &&
+      this.status.state === "unavailable" &&
+      !this.status.message
+    ) {
+      this.setDiscoveryUnavailableStatus();
+    }
   }
 
   private clearSubtitleDiscoveryTimeout(): void {
@@ -2796,10 +2886,14 @@ export class SubtitleController {
         : statusWithFallback;
     this.status = visibleStatus;
     this.onStatus?.({ ...visibleStatus });
+    // The overlay is hidden while subtitle translation is off, so it needs no
+    // dedicated disabled copy.
     const overlayState =
       status.state === "partial" && status.completeness === "full"
         ? "partial-failure"
-        : status.state;
+        : status.state === "disabled"
+          ? "unavailable"
+          : status.state;
     this.overlay.setStatus(overlayState, status.completed, status.total);
   }
 }

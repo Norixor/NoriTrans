@@ -144,6 +144,23 @@ describe("Html5TextTrackAdapter", () => {
     });
   });
 
+  it("reports the language of a track skipped by the configured source language", async () => {
+    const video = document.createElement("video");
+    video.getBoundingClientRect = () => new DOMRect(0, 0, 960, 540);
+    setTracks(video, [textTrack("English subtitle")]);
+    document.body.append(video);
+    const adapter = new Html5TextTrackAdapter();
+    adapter.setSourceLanguage("ja");
+
+    await expect(adapter.collect()).resolves.toBeNull();
+    expect(adapter.skippedSourceLanguage()).toBe("en");
+
+    adapter.setSourceLanguage("auto");
+    expect(adapter.skippedSourceLanguage()).toBeUndefined();
+    await expect(adapter.collect()).resolves.toMatchObject({ language: "en" });
+    expect(adapter.skippedSourceLanguage()).toBeUndefined();
+  });
+
   it("treats a live HTML5 TextTrack as a stream instead of a full file", async () => {
     const video = document.createElement("video");
     video.getBoundingClientRect = () => new DOMRect(0, 0, 960, 540);

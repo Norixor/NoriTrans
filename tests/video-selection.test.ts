@@ -1,12 +1,20 @@
 import {
   captionsForVideo,
+  normalizedMediaPageUrl,
   orderedVideos,
   selectActiveVideo,
   stableVideoCaptureScope,
   stableVideoPersistenceScope,
   stableVideoScope,
 } from "@/src/subtitles/video-selection";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+function setDuration(video: HTMLVideoElement, seconds: number): void {
+  Object.defineProperty(video, "duration", {
+    configurable: true,
+    value: seconds,
+  });
+}
 
 function rect(x: number, y: number, width: number, height: number): DOMRect {
   return DOMRect.fromRect({ x, y, width, height });
@@ -246,5 +254,138 @@ describe("active video selection", () => {
     expect(firstSigned).toBe(secondSigned);
     expect(firstSigned).toContain("quality=1080p");
     expect(firstSigned).not.toMatch(/expires|signature/u);
+  });
+
+  it("keeps a site-ID persistence identity across volatile page parameters", () => {
+    const video = document.createElement("video");
+    video.src = "blob:https://www.youtube.com/first-session";
+    document.body.append(video);
+
+    const plain = stableVideoPersistenceScope(
+      video,
+      "https://www.youtube.com/watch?v=stable-video-id",
+    );
+    video.src = "blob:https://www.youtube.com/after-refresh";
+    const withParameters = stableVideoPersistenceScope(
+      video,
+      "https://www.youtube.com/watch?v=stable-video-id&t=93s&list=PL123&pp=abc#comments",
+    );
+    const otherVideo = stableVideoPersistenceScope(
+      video,
+      "https://www.youtube.com/watch?v=other-video-id&t=93s",
+    );
+
+    expect(withParameters).toBe(plain);
+    expect(plain).toBe("youtube:stable-video-id|index:0");
+    expect(otherVideo).not.toBe(plain);
+    expect(
+      stableVideoPersistenceScope(
+        video,
+        "https://www.netflix.com/watch/81234567?trackId=1&tctx=0%2C1",
+      ),
+    ).toBe(
+      stableVideoPersistenceScope(
+        video,
+        "https://www.netflix.com/watch/81234567?trackId=2&tctx=9%2C9",
+      ),
+    );
+  });
+
+  it("identifies generic MSE media by normalized page URL and exact duration across blob recreation", () => {
+    const video = document.createElement("video");
+    video.src = "blob:https://play.example.com/first-session";
+    setDuration(video, 2_643.312);
+    document.body.append(video);
+
+    const first = stableVideoPersistenceScope(
+      video,
+      "https://play.example.com/video/watch/episode-1?utm_source=feed&t=120#player",
+    );
+    video.src = "blob:https://play.example.com/after-refresh";
+    const refreshed = stableVideoPersistenceScope(
+      video,
+      "https://play.example.com/video/watch/episode-1",
+    );
+
+    expect(refreshed).toBe(first);
+    expect(first).not.toContain("blob:");
+    expect(first).toContain("mse-duration-ms:2643312");
+
+    setDuration(video, 2_643.313);
+    expect(
+      stableVideoPersistenceScope(
+        video,
+        "https://play.example.com/video/watch/episode-1",
+      ),
+    ).not.toBe(first);
+    setDuration(video, 2_643.312);
+    expect(
+      stableVideoPersistenceScope(
+        video,
+        "https://play.example.com/video/watch/episode-2",
+      ),
+    ).not.toBe(first);
+  });
+
+  it("does not persist a generic MSE identity across reloads before its duration is known", async () => {
+    const video = document.createElement("video");
+    video.src = "blob:https://play.example.com/first-session";
+    setDuration(video, Number.NaN);
+    document.body.append(video);
+    const pageUrl = "https://play.example.com/video/watch/episode-1";
+
+    const beforeReload = stableVideoPersistenceScope(video, pageUrl);
+    expect(beforeReload).toMatch(/^session:/u);
+    expect(stableVideoPersistenceScope(video, pageUrl)).toBe(beforeReload);
+
+    vi.resetModules();
+    const reloaded = await import("@/src/subtitles/video-selection");
+    expect(reloaded.stableVideoPersistenceScope(video, pageUrl)).not.toBe(
+      beforeReload,
+    );
+
+    setDuration(video, Number.POSITIVE_INFINITY);
+    expect(stableVideoPersistenceScope(video, pageUrl)).toMatch(/^session:/u);
+  });
+
+  it("identifies direct generic media URLs without signatures or the raw page URL", () => {
+    const video = document.createElement("video");
+    video.src =
+      "https://cdn.example.com/media/episode-1.mp4?quality=1080p&expires=1&signature=old";
+    document.body.append(video);
+
+    const first = stableVideoPersistenceScope(
+      video,
+      "https://example.com/watch?id=7&fbclid=abc",
+    );
+    video.src =
+      "https://cdn.example.com/media/episode-1.mp4?quality=1080p&expires=2&signature=new";
+    const refreshed = stableVideoPersistenceScope(
+      video,
+      "https://example.com/watch?id=7",
+    );
+    video.src = "https://cdn.example.com/media/episode-2.mp4?quality=1080p";
+    const nextEpisode = stableVideoPersistenceScope(
+      video,
+      "https://example.com/watch?id=7",
+    );
+
+    expect(refreshed).toBe(first);
+    expect(first).not.toMatch(/expires|signature|fbclid/u);
+    expect(nextEpisode).not.toBe(first);
+  });
+
+  it("normalizes only non-identifying page URL parts", () => {
+    expect(
+      normalizedMediaPageUrl(
+        "https://www.primevideo.com/detail/B0TEST/ref=atv_hm_hom_c_1?autoplay=1&utm_medium=x&t=30#anchor",
+      ),
+    ).toBe("https://www.primevideo.com/detail/B0TEST");
+    expect(
+      normalizedMediaPageUrl("https://example.com/player?episode=2&id=9"),
+    ).toBe("https://example.com/player?episode=2&id=9");
+    expect(normalizedMediaPageUrl("https://example.com/#/watch/42")).toBe(
+      "https://example.com/#/watch/42",
+    );
   });
 });

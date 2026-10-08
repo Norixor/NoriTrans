@@ -248,6 +248,9 @@ export interface PageStatus {
  */
 export interface SubtitleStatus {
   state:
+    // Subtitle translation is switched off in settings; distinct from
+    // "unavailable", which means no readable track was discovered.
+    | "disabled"
     | "unavailable"
     | "waiting"
     | "translating"
@@ -380,6 +383,7 @@ export function isSubtitleStatusValue(value: unknown): value is SubtitleStatus {
   return (
     isRecord(value) &&
     [
+      "disabled",
       "unavailable",
       "waiting",
       "translating",

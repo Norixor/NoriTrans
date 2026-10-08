@@ -194,6 +194,8 @@ function pageStateMessage(state: PageStatus["state"]): string {
 
 function subtitleStateMessage(state: SubtitleStatus["state"]): string {
   switch (state) {
+    case "disabled":
+      return message("videoSubtitleDisabled");
     case "unavailable":
       return message("videoUnavailable");
     case "waiting":
@@ -2561,6 +2563,7 @@ export class UnifiedFloatingControl {
       status.total === 0 ||
       status.state === "cancelled" ||
       status.state === "unavailable" ||
+      status.state === "disabled" ||
       status.state === "waiting";
     this.syncQuickActions();
   }

@@ -52,17 +52,36 @@ export function aggregatePageStatuses(
   };
 }
 
+/**
+ * Combines per-frame subtitle states. Every frame's SubtitleController is the
+ * single source of truth for its own cancellation: a tab-wide cancel reaches
+ * each frame, and a frame that later starts a new task (next video, changed
+ * source language, newly discovered track) must not be masked as cancelled.
+ */
 export function aggregateSubtitleStatuses(
   top: SubtitleStatus,
   children: readonly SubtitleStatus[],
-  options: { cancelRequested?: boolean } = {},
 ): SubtitleStatus {
   const statuses = [top, ...children];
   const active = statuses.filter(
-    (status) => status.state !== "unavailable" || status.total > 0,
+    (status) =>
+      (status.state !== "unavailable" && status.state !== "disabled") ||
+      status.total > 0,
   );
   if (active.length === 0) {
-    return { state: "unavailable", total: 0, completed: 0, failed: 0 };
+    // Frames report the same setting, so any "disabled" frame means the
+    // feature is off rather than that no track was found.
+    const disabled = statuses.some((status) => status.state === "disabled");
+    // Keep the reason a frame found no usable track (for example a subtitle
+    // language that differs from the configured source language).
+    const message = disabled ? undefined : firstMessage(statuses);
+    return {
+      state: disabled ? "disabled" : "unavailable",
+      total: 0,
+      completed: 0,
+      failed: 0,
+      ...(message ? { message } : {}),
+    };
   }
   const total = active.reduce((sum, status) => sum + status.total, 0);
   const completed = active.reduce((sum, status) => sum + status.completed, 0);
@@ -72,15 +91,16 @@ export function aggregateSubtitleStatuses(
     "partial",
     "ready",
     "error",
-    "waiting",
+    // A cancelled task always has a track; a frame that is still waiting for
+    // one must not hide that cancellation.
     "cancelled",
+    "waiting",
     "unavailable",
   ];
-  const state = options.cancelRequested
-    ? "cancelled"
-    : (stateOrder.find((candidate) =>
-        active.some((status) => status.state === candidate),
-      ) ?? "unavailable");
+  const state =
+    stateOrder.find((candidate) =>
+      active.some((status) => status.state === candidate),
+    ) ?? "unavailable";
   const sources = new Set(
     active.flatMap((status) => (status.source ? [status.source] : [])),
   );

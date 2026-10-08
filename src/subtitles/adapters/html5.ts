@@ -90,6 +90,7 @@ export class Html5TextTrackAdapter implements SubtitleAdapter {
   private preferredVideo: HTMLVideoElement | null = null;
   private readonly invalidationListeners = new Set<() => void>();
   private hadUsableTrack = false;
+  private skippedLanguage: string | undefined;
 
   constructor(
     private readonly profile: SubtitleSiteProfile = DEFAULT_PROFILE,
@@ -97,6 +98,11 @@ export class Html5TextTrackAdapter implements SubtitleAdapter {
 
   setSourceLanguage(language: string): void {
     this.sourceLanguage = language;
+    this.skippedLanguage = undefined;
+  }
+
+  skippedSourceLanguage(): string | undefined {
+    return this.skippedLanguage;
   }
 
   setPreferredVideo(video: HTMLVideoElement | null): void {
@@ -116,6 +122,7 @@ export class Html5TextTrackAdapter implements SubtitleAdapter {
       this.profile.selectors.video,
       this.preferredVideo,
     );
+    this.skippedLanguage = undefined;
     if (!video) return Promise.resolve(this.observeCollection(null));
     const videoIndex = Array.from(
       document.querySelectorAll<HTMLVideoElement>(this.profile.selectors.video),
@@ -146,8 +153,10 @@ export class Html5TextTrackAdapter implements SubtitleAdapter {
       if (
         this.sourceLanguage !== "auto" &&
         !languageTagsMatch(this.sourceLanguage, track.language)
-      )
+      ) {
+        this.skippedLanguage ??= track.language || undefined;
         continue;
+      }
 
       const previousMode = track.mode;
       if (previousMode === "disabled") track.mode = "hidden";

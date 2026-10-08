@@ -472,6 +472,33 @@ describe("CapturedProfileSubtitleAdapter", () => {
     }
   });
 
+  it("remembers only the language of a capture skipped by the source language", () => {
+    stubLocation("https://play.max.com/video/episode-one");
+    const { video } = appendVideo();
+    const adapter = new CapturedProfileSubtitleAdapter(
+      builtInSiteProfile("max"),
+    );
+    adapter.setSourceLanguage("ja");
+    const tracks: SubtitleTrack[] = [];
+    const stop = adapter.subscribe((track) => tracks.push(track));
+
+    try {
+      dispatchCapture({
+        site: "max",
+        url: "https://cdn.hbomaxcdn.com/subtitle/en.vtt?lang=en-US",
+        video,
+        body: "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nPrivate English line",
+      });
+      expect(tracks).toHaveLength(0);
+      expect(adapter.skippedSourceLanguage()).toBe("en-US");
+
+      adapter.setSourceLanguage("en");
+      expect(adapter.skippedSourceLanguage()).toBeUndefined();
+    } finally {
+      stop();
+    }
+  });
+
   it("parses an allowed Prime Video TTML string as a network stream", () => {
     stubLocation("https://www.primevideo.com/detail/episode-one");
     const { video } = appendVideo();

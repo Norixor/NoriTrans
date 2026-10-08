@@ -123,6 +123,27 @@ describe("frame status aggregation", () => {
     });
   });
 
+  it("keeps a disabled subtitle feature distinct from a missing track", () => {
+    const disabled = {
+      state: "disabled" as const,
+      total: 0,
+      completed: 0,
+      failed: 0,
+    };
+    const unavailable = { ...disabled, state: "unavailable" as const };
+    expect(aggregateSubtitleStatuses(disabled, [unavailable])).toEqual(
+      disabled,
+    );
+    expect(aggregateSubtitleStatuses(unavailable, [unavailable])).toEqual(
+      unavailable,
+    );
+    expect(
+      aggregateSubtitleStatuses(disabled, [
+        { state: "ready", total: 1, completed: 1, failed: 0 },
+      ]),
+    ).toMatchObject({ state: "ready", total: 1 });
+  });
+
   it("combines independent frame subtitle tracks without claiming full completeness", () => {
     expect(
       aggregateSubtitleStatuses(
@@ -155,7 +176,7 @@ describe("frame status aggregation", () => {
     });
   });
 
-  it("keeps an explicit tab-wide subtitle cancellation above stale partial frame status", () => {
+  it("reports a cancelled frame above a frame that is still waiting for a track", () => {
     expect(
       aggregateSubtitleStatuses(
         {
@@ -166,25 +187,86 @@ describe("frame status aggregation", () => {
           completed: 6,
           failed: 2,
         },
-        [
-          {
-            state: "partial",
-            source: "dom",
-            completeness: "stream",
-            total: 4,
-            completed: 3,
-            failed: 1,
-          },
-        ],
-        { cancelRequested: true },
+        [{ state: "waiting", total: 0, completed: 0, failed: 0 }],
       ),
     ).toEqual({
       state: "cancelled",
       source: "dom",
       completeness: "stream",
-      total: 12,
-      completed: 9,
-      failed: 3,
+      total: 8,
+      completed: 6,
+      failed: 2,
+    });
+  });
+
+  it("follows the controller once a cancelled frame starts a new task", () => {
+    // After a cancel the controller resets for the next video, a changed
+    // source language, or a newly discovered track; the aggregate must not
+    // keep reporting the earlier cancellation.
+    expect(
+      aggregateSubtitleStatuses(
+        {
+          state: "translating",
+          source: "youtube-timedtext",
+          completeness: "full",
+          total: 10,
+          completed: 2,
+          failed: 0,
+        },
+        [],
+      ),
+    ).toMatchObject({ state: "translating", total: 10, completed: 2 });
+    expect(
+      aggregateSubtitleStatuses(
+        { state: "waiting", total: 0, completed: 0, failed: 0 },
+        [],
+      ),
+    ).toMatchObject({ state: "waiting" });
+    expect(
+      aggregateSubtitleStatuses(
+        {
+          state: "cancelled",
+          source: "dom",
+          completeness: "stream",
+          total: 3,
+          completed: 1,
+          failed: 2,
+        },
+        [
+          {
+            state: "translating",
+            source: "dom",
+            completeness: "stream",
+            total: 4,
+            completed: 1,
+            failed: 0,
+          },
+        ],
+      ),
+    ).toMatchObject({ state: "translating", total: 7 });
+  });
+
+  it("keeps the reason when every frame reports no usable subtitle track", () => {
+    const reason = "subtitle language does not match";
+    expect(
+      aggregateSubtitleStatuses(
+        { state: "unavailable", total: 0, completed: 0, failed: 0 },
+        [
+          {
+            state: "unavailable",
+            total: 0,
+            completed: 0,
+            failed: 0,
+            message: reason,
+          },
+        ],
+      ),
+    ).toEqual({
+      state: "unavailable",
+      total: 0,
+      completed: 0,
+      failed: 0,
+      message: reason,
     });
   });
 

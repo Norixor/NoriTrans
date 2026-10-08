@@ -940,6 +940,47 @@ describe("unified floating control", () => {
     control.destroy();
   });
 
+  it("explains a switched-off subtitle feature instead of a missing track", () => {
+    const { control, root } = createControl();
+    const subtitleStatus = root.querySelector<HTMLElement>(
+      "#noritrans-video-panel > .status-row",
+    );
+    if (!subtitleStatus) throw new Error("missing subtitle status row");
+
+    control.updateSubtitleStatus({
+      state: "disabled",
+      total: 0,
+      completed: 0,
+      failed: 0,
+    });
+    expect(subtitleStatus.dataset.state).toBe("disabled");
+    expect(subtitleStatus.textContent).toContain("videoSubtitleDisabled");
+    expect(subtitleStatus.textContent).not.toContain("videoUnavailable");
+    control.destroy();
+  });
+
+  it("layers a source-language mismatch reason under the unavailable state", () => {
+    const { control, root } = createControl();
+    const subtitleStatus = root.querySelector<HTMLElement>(
+      "#noritrans-video-panel > .status-row",
+    );
+    if (!subtitleStatus) throw new Error("missing subtitle status row");
+
+    control.updateSubtitleStatus({
+      state: "unavailable",
+      total: 0,
+      completed: 0,
+      failed: 0,
+      message: "Subtitles are English; source language is Japanese.",
+    });
+    expect(subtitleStatus.dataset.state).toBe("unavailable");
+    expect(subtitleStatus.textContent).toContain("videoUnavailable");
+    expect(subtitleStatus.textContent).toContain(
+      "Subtitles are English; source language is Japanese.",
+    );
+    control.destroy();
+  });
+
   it("does not show a no-track warning while OCR owns the video status", () => {
     const { control, root } = createControl();
     const subtitleStatus = root.querySelector<HTMLElement>(

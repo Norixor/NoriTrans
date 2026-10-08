@@ -788,7 +788,6 @@ export default defineContentScript({
       completed: 0,
       failed: 0,
     };
-    let subtitleCancellationRequested = false;
     const pruneChildFrameStatuses = (): void => {
       childFrameStatuses.prune();
     };
@@ -801,10 +800,11 @@ export default defineContentScript({
     };
     const aggregateSubtitleStatus = (): SubtitleStatus => {
       pruneChildFrameStatuses();
+      // Cancellation is read from each frame's controller status rather than
+      // a separate tab-level flag that would drift once a new task starts.
       return aggregateSubtitleStatuses(
         topSubtitleStatus,
         childFrameStatuses.values().map((value) => value.subtitleStatus),
-        { cancelRequested: subtitleCancellationRequested },
       );
     };
     const refreshAggregatedStatusUi = (): void => {
@@ -833,24 +833,11 @@ export default defineContentScript({
         | "SUBTITLE_RETRY_FAILED"
         | "SUBTITLE_CANCEL",
     ): Promise<void> => {
-      if (command === "SUBTITLE_CANCEL") {
-        subtitleCancellationRequested = true;
-        refreshAggregatedStatusUi();
-      } else if (
-        command === "SUBTITLE_START" ||
-        command === "SUBTITLE_RETRY_FAILED"
-      ) {
-        subtitleCancellationRequested = false;
-      }
       const response: unknown = await browser.runtime.sendMessage({
         type: "CONTENT_COMMAND_BROADCAST",
         command,
       });
       if (!successfulResponse(response)) {
-        if (command === "SUBTITLE_CANCEL") {
-          subtitleCancellationRequested = false;
-          refreshAggregatedStatusUi();
-        }
         throw new Error(runtimeErrorToken("settings_save_failed"));
       }
     };
@@ -1164,7 +1151,6 @@ export default defineContentScript({
         }
       },
       onVideoChange: (video) => {
-        subtitleCancellationRequested = false;
         nativeSubtitleVisibility.setVideo(video);
       },
       onPositionChange: async (position) => {
@@ -1382,15 +1368,12 @@ export default defineContentScript({
         case "SUBTITLE_STATUS":
           return aggregateSubtitleStatus();
         case "SUBTITLE_START":
-          subtitleCancellationRequested = false;
           void controller.startTranslationTask().catch(() => undefined);
           return aggregateSubtitleStatus();
         case "SUBTITLE_RETRY_FAILED":
-          subtitleCancellationRequested = false;
           void controller.retryFailed().catch(() => undefined);
           return aggregateSubtitleStatus();
         case "SUBTITLE_CANCEL":
-          subtitleCancellationRequested = true;
           childFrameStatuses.clearStatuses();
           topSubtitleStatus = controller.cancelTranslationTask();
           refreshAggregatedStatusUi();
@@ -1407,7 +1390,6 @@ export default defineContentScript({
           invalidateSharedCacheLeases();
           topPageStatus = pageSession.handleCacheCleared();
           if (topSubtitleStatus.state === "translating") {
-            subtitleCancellationRequested = true;
             topSubtitleStatus = controller.cancelTranslationTask();
           }
           refreshAggregatedStatusUi();
@@ -1419,9 +1401,6 @@ export default defineContentScript({
           const wasOcrEnabled = settings.ocr.enabled;
           settings = message.settings;
           if (languageChanged) configureUiLanguage(settings.uiLanguage);
-          if (!settings.subtitles.enabled) {
-            subtitleCancellationRequested = false;
-          }
           const wasAutomaticPageSession = pageFollowsNavigation;
           if (
             currentPageAutoTranslate(previousSettings) &&

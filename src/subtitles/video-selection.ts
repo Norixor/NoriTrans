@@ -1,3 +1,5 @@
+import { runtimeId } from "@/src/shared/runtime-id";
+
 function visibleVideoArea(video: HTMLVideoElement): number {
   let current: HTMLElement | null = video;
   while (current) {
@@ -212,18 +214,19 @@ function stableElementMediaSource(video: HTMLVideoElement): string {
   return source;
 }
 
+function videoElementIdentity(video: HTMLVideoElement): string {
+  if (video.id) return `id:${video.id}`;
+  return `index:${Array.from(document.querySelectorAll("video")).indexOf(video)}`;
+}
+
 export function stableVideoScope(
   video: HTMLVideoElement | null,
   pageUrl = location.href,
 ): string {
   if (!video) return "video:none";
-  const videos = Array.from(document.querySelectorAll("video"));
   const source =
     stableSiteMediaSource(pageUrl) || stableElementMediaSource(video);
-  const identity = video.id
-    ? `id:${video.id}`
-    : `index:${videos.indexOf(video)}`;
-  return `${source}|${identity}`;
+  return `${source}|${videoElementIdentity(video)}`;
 }
 
 /**
@@ -244,22 +247,77 @@ export function stableVideoCaptureScope(
 }
 
 /**
- * Stable identity for persisted full tracks and translations. Known site
- * routes identify the title across player/blob recreation, while unknown
- * pages retain the strict capture scope to avoid restoring another media item.
+ * Query parameters that never select a different media item: campaign and
+ * click attribution, autoplay flags and playback start offsets. Parameters that may identify
+ * an episode (`v`, `id`, `episode`, `list`, ...) are deliberately kept.
+ */
+const VOLATILE_PAGE_QUERY_KEY =
+  /^(?:utm_[a-z0-9_]*|fbclid|gclid|dclid|gbraid|wbraid|msclkid|yclid|mc_cid|mc_eid|igshid|_ga|_gl|si|ref|ref_|referrer|autoplay|t|start|time_continue)$/iu;
+
+/**
+ * Page URL reduced to the parts that can identify media across reloads.
+ * Hash routes (`#/watch/1`, `#!/watch/1`) select content and are kept; other
+ * fragments, tracking parameters, start offsets and Amazon-style `/ref=...`
+ * attribution path suffixes are removed, and remaining parameters are sorted.
+ */
+export function normalizedMediaPageUrl(pageUrl: string): string {
+  try {
+    const url = new URL(pageUrl);
+    if (!/^#(?:!\/|\/)/u.test(url.hash)) url.hash = "";
+    url.pathname = url.pathname.replace(/\/ref=[^/]*\/?$/u, "");
+    for (const key of [...new Set(url.searchParams.keys())]) {
+      if (VOLATILE_PAGE_QUERY_KEY.test(key)) url.searchParams.delete(key);
+    }
+    url.searchParams.sort();
+    return url.href;
+  } catch {
+    return pageUrl;
+  }
+}
+
+/**
+ * Per-document nonce for media that has no identity which survives a reload.
+ * Scopes built from it still work within the current document but can never
+ * match a record written by another page load.
+ */
+const DOCUMENT_SESSION_NONCE = runtimeId("document");
+
+/**
+ * Stable identity for persisted full tracks and translation cache entries.
+ *
+ * - Known site routes (YouTube video ID, Netflix watch ID, Tencent cover path)
+ *   identify the title itself, so volatile page parameters (`&t=`, `&list=`,
+ *   `tctx`, ...) and blob recreation do not change the identity.
+ * - Other pages combine the normalized page URL with a media signal that
+ *   survives a reload: the normalized element source for direct media URLs,
+ *   or the exact MSE duration (milliseconds) for one-off `blob:` sources.
+ * - When neither signal is available yet (blob without known duration, no
+ *   source at all), the scope is bound to this document. Restoring another
+ *   video's track is worse than a cache miss, so such media is never matched
+ *   across reloads.
  */
 export function stableVideoPersistenceScope(
   video: HTMLVideoElement | null,
   pageUrl = location.href,
 ): string {
-  if (!video) return stableVideoScope(video, pageUrl);
   const siteSource = stableSiteMediaSource(pageUrl);
-  if (!siteSource) return stableVideoCaptureScope(video, pageUrl);
-  const videos = Array.from(document.querySelectorAll("video"));
-  const identity = video.id
-    ? `id:${video.id}`
-    : `index:${videos.indexOf(video)}`;
-  return `${siteSource}|${identity}`;
+  const page = `page:${normalizedMediaPageUrl(pageUrl)}`;
+  if (!video) return `${siteSource ?? page}|video:none`;
+  const element = videoElementIdentity(video);
+  if (siteSource) return `${siteSource}|${element}`;
+  const raw = video.currentSrc || video.src;
+  const source = stableElementMediaSource(video);
+  if (raw && !source.startsWith("blob:")) {
+    return `${page}|media:${source}|${element}`;
+  }
+  const duration = video.duration;
+  if (raw && Number.isFinite(duration) && duration > 0) {
+    // Millisecond precision keeps two same-URL episodes apart unless their
+    // presentation lengths are identical; a player reporting a slightly
+    // different duration on reload only costs a cache miss.
+    return `${page}|mse-duration-ms:${Math.round(duration * 1_000)}|${element}`;
+  }
+  return `session:${DOCUMENT_SESSION_NONCE}|${videoSessionScope(video)}`;
 }
 
 /** Runtime-only identity for invalidating adapter history when DOM players swap. */

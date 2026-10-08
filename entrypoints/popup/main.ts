@@ -63,6 +63,7 @@ function isSubtitleStatus(value: unknown): value is SubtitleStatus {
     "state" in value &&
     typeof value.state === "string" &&
     [
+      "disabled",
       "unavailable",
       "waiting",
       "translating",

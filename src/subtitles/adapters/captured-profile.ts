@@ -204,6 +204,7 @@ export class CapturedProfileSubtitleAdapter implements SubtitleAdapter {
   private trackIdentity = "";
   private sessionKey = "";
   private sourceLanguage = "auto";
+  private skippedLanguage: string | undefined;
   private preferredVideo: HTMLVideoElement | null = null;
   private readonly invalidationListeners = new Set<() => void>();
 
@@ -229,6 +230,10 @@ export class CapturedProfileSubtitleAdapter implements SubtitleAdapter {
     if (this.sessionKey) this.refreshSession(video);
   }
 
+  skippedSourceLanguage(): string | undefined {
+    return this.skippedLanguage;
+  }
+
   collect(): Promise<SubtitleTrack | null> {
     this.refreshSession();
     return Promise.resolve(this.latestTrack);
@@ -250,7 +255,23 @@ export class CapturedProfileSubtitleAdapter implements SubtitleAdapter {
         payload,
         this.sourceLanguage,
       );
-      if (!parsedTrack) return;
+      if (!parsedTrack) {
+        // Only a payload that parses as subtitles without the language filter
+        // counts as a skipped track; its language tag is all that is kept.
+        if (
+          this.sourceLanguage !== "auto" &&
+          !this.latestTrack &&
+          this.skippedLanguage === undefined
+        ) {
+          const language = parsePayload(
+            this.profile,
+            payload,
+            "auto",
+          )?.language;
+          if (language && language !== "und") this.skippedLanguage = language;
+        }
+        return;
+      }
       if (
         this.latestTrack?.completeness === "full" &&
         parsedTrack.completeness === "stream"
@@ -330,6 +351,7 @@ export class CapturedProfileSubtitleAdapter implements SubtitleAdapter {
     const invalidated = this.latestTrack !== null;
     this.latestTrack = null;
     this.trackIdentity = "";
+    this.skippedLanguage = undefined;
     if (invalidated) {
       for (const listener of this.invalidationListeners) listener();
     }

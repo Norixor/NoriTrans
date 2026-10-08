@@ -283,6 +283,7 @@ export class NetflixSubtitleAdapter implements SubtitleAdapter {
   private pendingSeekReset = false;
   private lastDomDiagnosticCount = 0;
   private sourceLanguage = "auto";
+  private skippedLanguage: string | undefined;
   private preferredVideo: HTMLVideoElement | null = null;
   private readonly invalidationListeners = new Set<() => void>();
 
@@ -292,6 +293,11 @@ export class NetflixSubtitleAdapter implements SubtitleAdapter {
 
   setSourceLanguage(language: string): void {
     this.sourceLanguage = language;
+    this.skippedLanguage = undefined;
+  }
+
+  skippedSourceLanguage(): string | undefined {
+    return this.skippedLanguage;
   }
 
   setPreferredVideo(video: HTMLVideoElement | null): void {
@@ -337,6 +343,7 @@ export class NetflixSubtitleAdapter implements SubtitleAdapter {
     this.lastVisibleText = "";
     this.pendingSeekReset = false;
     this.lastDomDiagnosticCount = 0;
+    this.skippedLanguage = undefined;
     if (invalidated) {
       for (const listener of this.invalidationListeners) listener();
     }
@@ -466,6 +473,16 @@ export class NetflixSubtitleAdapter implements SubtitleAdapter {
       }
       const parsedTrack = parsePayload(payload, this.sourceLanguage);
       if (!parsedTrack) {
+        // Remember only the language tag of a subtitle document rejected by
+        // the configured source language, to explain an empty discovery.
+        if (
+          this.sourceLanguage !== "auto" &&
+          !this.latestTrack &&
+          this.skippedLanguage === undefined
+        ) {
+          const language = parsePayload(payload, "auto")?.language;
+          if (language && language !== "und") this.skippedLanguage = language;
+        }
         netflixDiagnostic("capture-parse-empty", {
           resource: diagnosticUrl(payload.url),
           manifestCandidate: payload.manifestCandidate === true,

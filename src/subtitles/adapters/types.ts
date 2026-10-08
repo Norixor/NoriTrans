@@ -31,5 +31,11 @@ export interface SubtitleAdapter {
   /** Signals that the current media timeline must no longer be reused. */
   subscribeInvalidation?(listener: () => void): () => void;
   setSourceLanguage?(language: string): void;
+  /**
+   * Language tag of a usable track the adapter skipped for the current media
+   * only because it did not match the configured source language. Used to
+   * explain an empty discovery; it never carries subtitle text.
+   */
+  skippedSourceLanguage?(): string | undefined;
   setPreferredVideo?(video: HTMLVideoElement | null): void;
 }

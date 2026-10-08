@@ -12,9 +12,11 @@ import type { SubtitleAdapter } from "@/src/subtitles/adapters/types";
 import { SUBTITLE_DISCOVERY_CONTROL_EVENT } from "@/src/subtitles/adapters/captured";
 import {
   SubtitleController,
+  normalizedMediaTitle,
   type SubtitleTaskStore,
   type SubtitleTranslationCache,
 } from "@/src/subtitles/controller";
+import { aggregateSubtitleStatuses } from "@/src/frames/status";
 import type { SubtitleTrack } from "@/src/subtitles/types";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -4117,7 +4119,8 @@ describe("SubtitleController", () => {
     });
 
     await controller.start();
-    expect(controller.getStatus().state).toBe("unavailable");
+    // A switched-off feature must not read as "no readable track found".
+    expect(controller.getStatus().state).toBe("disabled");
 
     controller.updateSettings(SETTINGS);
     await vi.waitFor(() => {
@@ -5442,5 +5445,418 @@ describe("SubtitleController", () => {
       completed: 1,
     });
     controller.stop();
+  });
+
+  describe("refresh persistence identity", () => {
+    function translateCallCount(): number {
+      return runtime.sendMessage.mock.calls.filter(
+        ([message]) =>
+          typeof message === "object" &&
+          message !== null &&
+          "type" in message &&
+          message.type === "TRANSLATE",
+      ).length;
+    }
+
+    function setDuration(video: HTMLVideoElement, seconds: number): void {
+      Object.defineProperty(video, "duration", {
+        configurable: true,
+        value: seconds,
+      });
+    }
+
+    it("resumes a refreshed MSE player after its blob URL, page parameters and tab counter change", async () => {
+      const originalTitle = document.title;
+      history.replaceState({}, "", "/video/watch/episode-1?t=10");
+      document.title = "(3) Episode One";
+      try {
+        const track: SubtitleTrack = {
+          source: "network",
+          completeness: "full",
+          language: "en",
+          cues: [
+            { id: "first", startMs: 0, endMs: 1_000, originalText: "Hello." },
+            {
+              id: "second",
+              startMs: 1_000,
+              endMs: 2_000,
+              originalText: "World.",
+            },
+          ],
+        };
+        const cacheValues = new Map<string, string>();
+        const cache: SubtitleTranslationCache = {
+          get: (key) => Promise.resolve(cacheValues.get(key)),
+          set: (key, value) => {
+            cacheValues.set(key, value);
+            return Promise.resolve();
+          },
+        };
+        const tracks = new Map<string, SubtitleTrack>();
+        const taskStore: SubtitleTaskStore = {
+          getTrack: (key) => Promise.resolve(tracks.get(key)),
+          setTrack: (key, value) => {
+            tracks.set(key, structuredClone(value));
+            return Promise.resolve();
+          },
+          deleteTrack: (key) => {
+            tracks.delete(key);
+            return Promise.resolve();
+          },
+        };
+        const firstVideo = document.createElement("video");
+        firstVideo.src = "blob:http://localhost/first-session";
+        setDuration(firstVideo, 1_200.5);
+        document.body.append(firstVideo);
+        const firstController = new SubtitleController({
+          settings: SETTINGS,
+          adapters: [new TestAdapter(track)],
+          cache,
+          taskStore,
+        });
+        await firstController.start();
+        await vi.waitFor(() =>
+          expect(firstController.getStatus()).toMatchObject({
+            state: "ready",
+            completed: 2,
+          }),
+        );
+        firstController.stop();
+        expect(tracks.size).toBe(1);
+        const [persistedKey] = [...tracks.keys()];
+        expect(persistedKey).not.toContain("blob:");
+        expect(persistedKey).not.toContain("t=10");
+        const aiKeys = [...cacheValues.keys()].filter((key) =>
+          key.includes("\u001fai\u001f"),
+        );
+        expect(aiKeys).toHaveLength(2);
+        expect(
+          aiKeys.every((key) => key.includes("media-title:Episode One\u001f")),
+        ).toBe(true);
+
+        // A reload recreates the player with a new blob URL; the page URL
+        // gains a different start offset and the tab title a new counter.
+        firstVideo.remove();
+        history.replaceState(
+          {},
+          "",
+          "/video/watch/episode-1?t=55&utm_source=feed",
+        );
+        document.title = "(5) Episode One";
+        const reloadedVideo = document.createElement("video");
+        reloadedVideo.src = "blob:http://localhost/after-refresh";
+        setDuration(reloadedVideo, 1_200.5);
+        document.body.append(reloadedVideo);
+        runtime.sendMessage.mockClear();
+        const resumedController = new SubtitleController({
+          settings: SETTINGS,
+          adapters: [new TestAdapter(null)],
+          cache,
+          taskStore,
+        });
+        await resumedController.start();
+        await vi.waitFor(() =>
+          expect(resumedController.getStatus()).toMatchObject({
+            state: "ready",
+            source: "network",
+            completeness: "full",
+            total: 2,
+            completed: 2,
+            failed: 0,
+          }),
+        );
+        expect(translateCallCount()).toBe(0);
+        resumedController.stop();
+
+        // Another video on the same page URL (different duration) must not
+        // inherit the persisted track or its translations.
+        reloadedVideo.remove();
+        const otherVideo = document.createElement("video");
+        otherVideo.src = "blob:http://localhost/other-episode";
+        setDuration(otherVideo, 1_320.25);
+        document.body.append(otherVideo);
+        const selected: SubtitleTrack[] = [];
+        const otherController = new SubtitleController({
+          settings: SETTINGS,
+          adapters: [new TestAdapter(null)],
+          cache,
+          taskStore,
+          onTrackSelected: (selectedTrack) => selected.push(selectedTrack),
+        });
+        await otherController.start();
+        expect(selected).toHaveLength(0);
+        expect(otherController.getStatus()).toMatchObject({
+          state: "waiting",
+          total: 0,
+        });
+        otherController.stop();
+      } finally {
+        document.title = originalTitle;
+        history.replaceState({}, "", "/");
+      }
+    });
+
+    it("strips only transient tab-title decorations from the media title", () => {
+      expect(
+        normalizedMediaTitle("(3) Episode One - YouTube", "document-title"),
+      ).toBe("Episode One - YouTube");
+      expect(
+        normalizedMediaTitle("(99+)  ▶ Episode One", "document-title"),
+      ).toBe("Episode One");
+      expect(normalizedMediaTitle("(500) Days of Summer")).toBe(
+        "(500) Days of Summer",
+      );
+      expect(normalizedMediaTitle("   ", "document-title")).toBeUndefined();
+    });
+  });
+
+  describe("cancellation state", () => {
+    function fullTrack(id: string, language = "en"): SubtitleTrack {
+      return {
+        source: "texttrack",
+        completeness: "full",
+        language,
+        cues: [
+          { id, startMs: 0, endMs: 1_000, originalText: `Subtitle ${id}` },
+        ],
+      };
+    }
+
+    it("stops reporting a cancellation when in-site navigation reuses the video element", async () => {
+      history.replaceState({}, "", "/watch?v=first");
+      try {
+        const video = document.createElement("video");
+        document.body.append(video);
+        const adapter = new TestAdapter(fullTrack("first-video"));
+        const statuses: SubtitleStatus[] = [];
+        const controller = new SubtitleController({
+          settings: SETTINGS,
+          adapters: [adapter],
+          onStatus: (status) => statuses.push(status),
+        });
+        await controller.start();
+        expect(controller.cancelTranslationTask().state).toBe("cancelled");
+        expect(
+          aggregateSubtitleStatuses(controller.getStatus(), []).state,
+        ).toBe("cancelled");
+
+        history.pushState({}, "", "/watch?v=second");
+        adapter.setTrack(fullTrack("second-video"));
+        controller.replaceAdapters([adapter]);
+
+        await vi.waitFor(() =>
+          expect(controller.getStatus()).toMatchObject({
+            state: "ready",
+            total: 1,
+            completed: 1,
+          }),
+        );
+        expect(statuses.at(-1)?.state).toBe("ready");
+        expect(
+          aggregateSubtitleStatuses(controller.getStatus(), []),
+        ).toMatchObject({ state: "ready", total: 1 });
+        controller.stop();
+      } finally {
+        history.replaceState({}, "", "/");
+      }
+    });
+
+    it("stops reporting a cancellation after the source language changes", async () => {
+      const video = document.createElement("video");
+      document.body.append(video);
+      const controller = new SubtitleController({
+        settings: SETTINGS,
+        adapters: [new TestAdapter(fullTrack("language-change"))],
+      });
+      await controller.start();
+      expect(controller.cancelTranslationTask().state).toBe("cancelled");
+
+      controller.updateSettings({ ...SETTINGS, sourceLanguage: "en" });
+      await vi.waitFor(() =>
+        expect(controller.getStatus()).toMatchObject({
+          state: "ready",
+          total: 1,
+          completed: 1,
+        }),
+      );
+      expect(aggregateSubtitleStatuses(controller.getStatus(), []).state).toBe(
+        "ready",
+      );
+      controller.stop();
+    });
+
+    it("does not report a cancellation made before any track was discovered", async () => {
+      const video = document.createElement("video");
+      document.body.append(video);
+      const adapter = new TestAdapter(null);
+      const controller = new SubtitleController({
+        settings: SETTINGS,
+        adapters: [adapter],
+      });
+      await controller.start();
+      expect(controller.cancelTranslationTask().state).toBe("waiting");
+      expect(aggregateSubtitleStatuses(controller.getStatus(), []).state).toBe(
+        "waiting",
+      );
+
+      adapter.setTrack(fullTrack("late-track"));
+      controller.refreshMedia();
+      await vi.waitFor(() =>
+        expect(controller.getStatus()).toMatchObject({
+          state: "ready",
+          total: 1,
+          completed: 1,
+        }),
+      );
+      expect(aggregateSubtitleStatuses(controller.getStatus(), []).state).toBe(
+        "ready",
+      );
+      controller.stop();
+    });
+  });
+
+  describe("source language mismatch", () => {
+    class SkippedLanguageAdapter implements SubtitleAdapter {
+      readonly id = "skipped-language";
+      readonly priority = 1;
+
+      constructor(private readonly language: string | undefined) {}
+
+      matches(): boolean {
+        return true;
+      }
+
+      collect(): Promise<SubtitleTrack | null> {
+        return Promise.resolve(null);
+      }
+
+      skippedSourceLanguage(): string | undefined {
+        return this.language;
+      }
+    }
+
+    it("explains a track filtered out by the configured source language", async () => {
+      vi.useFakeTimers();
+      const video = document.createElement("video");
+      document.body.append(video);
+      const controller = new SubtitleController({
+        settings: { ...SETTINGS, sourceLanguage: "ja" },
+        adapters: [
+          new TestAdapter({
+            source: "texttrack",
+            completeness: "full",
+            language: "en",
+            cues: [
+              {
+                id: "english-only",
+                startMs: 0,
+                endMs: 1_000,
+                originalText: "Private English subtitle line",
+              },
+            ],
+          }),
+        ],
+      });
+      try {
+        await controller.start();
+        expect(controller.getStatus()).toMatchObject({ state: "waiting" });
+        await vi.advanceTimersByTimeAsync(8_000);
+        const status = controller.getStatus();
+        expect(status).toMatchObject({
+          state: "unavailable",
+          total: 0,
+          message: "subtitleSourceLanguageMismatch",
+        });
+        expect(status.message).not.toContain("Private English subtitle line");
+        expect(runtime.sendMessage).not.toHaveBeenCalledWith(
+          expect.objectContaining({ type: "TRANSLATE" }),
+        );
+      } finally {
+        controller.stop();
+      }
+    });
+
+    it("uses the language an adapter skipped and keeps a plain no-track timeout unchanged", async () => {
+      vi.useFakeTimers();
+      const video = document.createElement("video");
+      document.body.append(video);
+      const skipped = new SubtitleController({
+        settings: { ...SETTINGS, sourceLanguage: "ja" },
+        adapters: [new SkippedLanguageAdapter("en-US")],
+      });
+      const missing = new SubtitleController({
+        settings: { ...SETTINGS, sourceLanguage: "ja" },
+        adapters: [new SkippedLanguageAdapter(undefined)],
+      });
+      const invalidTag = new SubtitleController({
+        settings: { ...SETTINGS, sourceLanguage: "ja" },
+        adapters: [new SkippedLanguageAdapter("not a language tag")],
+      });
+      try {
+        await skipped.start();
+        await missing.start();
+        await invalidTag.start();
+        await vi.advanceTimersByTimeAsync(8_000);
+        expect(skipped.getStatus()).toMatchObject({
+          state: "unavailable",
+          message: "subtitleSourceLanguageMismatch",
+        });
+        expect(missing.getStatus()).toEqual({
+          state: "unavailable",
+          total: 0,
+          completed: 0,
+          failed: 0,
+        });
+        expect(invalidTag.getStatus().message).toBeUndefined();
+      } finally {
+        skipped.stop();
+        missing.stop();
+        invalidTag.stop();
+      }
+    });
+
+    it("adds the reason when a mismatched track appears after discovery ended", async () => {
+      vi.useFakeTimers();
+      const video = document.createElement("video");
+      document.body.append(video);
+      const adapter = new StreamAdapter();
+      const controller = new SubtitleController({
+        settings: { ...FAST_STREAM_SETTINGS, sourceLanguage: "ja" },
+        adapters: [adapter],
+      });
+      try {
+        await controller.start();
+        await vi.advanceTimersByTimeAsync(8_000);
+        expect(controller.getStatus().message).toBeUndefined();
+
+        adapter.emit({
+          source: "dom",
+          completeness: "stream",
+          language: "ko",
+          cues: [
+            {
+              id: "korean",
+              startMs: 0,
+              endMs: null,
+              originalText: "Korean caption",
+            },
+          ],
+        });
+        await vi.advanceTimersByTimeAsync(0);
+        expect(controller.getStatus()).toMatchObject({
+          state: "unavailable",
+          message: "subtitleSourceLanguageMismatch",
+        });
+
+        controller.updateSettings({
+          ...FAST_STREAM_SETTINGS,
+          sourceLanguage: "de",
+        });
+        expect(controller.getStatus()).toMatchObject({ state: "waiting" });
+        expect(controller.getStatus().message).toBeUndefined();
+      } finally {
+        controller.stop();
+      }
+    });
   });
 });
