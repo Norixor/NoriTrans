@@ -117,6 +117,9 @@
   "subtitleFastFallbackNoFullTrack": {
     "message": "未获取完整字幕，已回退快速翻译"
   },
+  "subtitleFastFallbackNetflixRefresh": {
+    "message": "未获取完整字幕，已回退快速翻译。若刚更新或重新加载过扩展，请刷新页面后重试"
+  },
   "subtitleStatusCancelled": { "message": "翻译已取消" },
   "retryFailedSubtitles": { "message": "重试失败项" },
   "startSubtitleTranslation": { "message": "开始翻译" },

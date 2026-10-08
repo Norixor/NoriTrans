@@ -129,6 +129,9 @@
   "subtitleFastFallbackNoFullTrack": {
     "message": "Full subtitles unavailable; using fast translation"
   },
+  "subtitleFastFallbackNetflixRefresh": {
+    "message": "Full subtitles were not captured, so fast translation is used. If the extension was just updated or reloaded, refresh the page and try again."
+  },
   "subtitleStatusCancelled": { "message": "Translation cancelled" },
   "retryFailedSubtitles": { "message": "Retry failed items" },
   "startSubtitleTranslation": { "message": "Start translation" },

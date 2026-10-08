@@ -1534,6 +1534,32 @@ describe("SubtitleController", () => {
     controller.stop();
   });
 
+  it("suggests a refresh when a captured Netflix track stays a stream", async () => {
+    const adapter = new StreamAdapter();
+    const controller = new SubtitleController({
+      settings: SETTINGS,
+      adapters: [adapter],
+      providerSettings: FAST_REMOTE_PROVIDER_SETTINGS,
+    });
+    await controller.start();
+    adapter.emit({
+      source: "netflix-manifest",
+      completeness: "stream",
+      language: "en",
+      cues: [
+        { id: "nf-1", startMs: 0, endMs: 1_000, originalText: "First cue." },
+      ],
+    });
+    await vi.waitFor(() =>
+      expect(controller.getStatus()).toMatchObject({
+        state: "ready",
+        completeness: "stream",
+        message: "subtitleFastFallbackNetflixRefresh",
+      }),
+    );
+    controller.stop();
+  });
+
   it("routes AI-configured streams through immediate fast requests without an AI batch", async () => {
     const adapter = new StreamAdapter();
     const controller = new SubtitleController({

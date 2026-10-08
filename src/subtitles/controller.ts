@@ -2871,7 +2871,13 @@ export class SubtitleController {
       status.source !== "ocr"
         ? {
             ...status,
-            message: message("subtitleFastFallbackNoFullTrack"),
+            // A passively captured Netflix track is usually a stream only when
+            // the page predates the extension hook, which a refresh fixes.
+            message: message(
+              status.source === "netflix-manifest"
+                ? "subtitleFastFallbackNetflixRefresh"
+                : "subtitleFastFallbackNoFullTrack",
+            ),
           }
         : status;
     const visibleStatus: SubtitleStatus =

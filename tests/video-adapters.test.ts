@@ -1310,6 +1310,109 @@ describe("video subtitle adapters", () => {
     }
   });
 
+  describe("a single signed Netflix response", () => {
+    const url = "https://ipv4-c001.nflxvideo.net/?o=1&v=2&e=3";
+
+    function timeline(cueCount: number, spanSeconds: number): string {
+      const step = spanSeconds / cueCount;
+      const cues = Array.from({ length: cueCount }, (_, index) => {
+        const begin = 5 + index * step;
+        return `<p begin="${begin.toFixed(1)}s" end="${(begin + 2).toFixed(1)}s">Line ${index}</p>`;
+      }).join("");
+      return `<tt xml:lang="en"><body><div>${cues}</div></body></tt>`;
+    }
+
+    function capture(body: string): void {
+      window.dispatchEvent(
+        new CustomEvent(SUBTITLE_CAPTURE_EVENT, {
+          detail: {
+            site: "netflix",
+            pageUrl: location.href,
+            url,
+            ...captureIdentity(),
+            ...COMPLETE_RESPONSE_EVIDENCE,
+            language: "en",
+            contentType: "application/ttml+xml",
+            body,
+          },
+        }),
+      );
+    }
+
+    function videoWithDuration(seconds: number): HTMLVideoElement {
+      const video = document.createElement("video");
+      Object.defineProperty(video, "duration", {
+        configurable: true,
+        value: seconds,
+      });
+      document.body.append(video);
+      return video;
+    }
+
+    it("is promoted to full when its timeline covers the whole video", () => {
+      videoWithDuration(600);
+      const adapter = new NetflixSubtitleAdapter();
+      const listener = vi.fn();
+      const unsubscribe = adapter.subscribe(listener);
+      try {
+        capture(timeline(40, 580));
+        expect(listener).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            completeness: "full",
+            captureEvidence: "verified-full-response",
+          }),
+        );
+      } finally {
+        unsubscribe();
+        document.body.replaceChildren();
+      }
+    });
+
+    it("stays streaming when its timeline covers only part of the video", () => {
+      videoWithDuration(600);
+      const adapter = new NetflixSubtitleAdapter();
+      const listener = vi.fn();
+      const unsubscribe = adapter.subscribe(listener);
+      try {
+        capture(timeline(40, 190));
+        expect(listener).toHaveBeenLastCalledWith(
+          expect.objectContaining({ completeness: "stream" }),
+        );
+      } finally {
+        unsubscribe();
+        document.body.replaceChildren();
+      }
+    });
+
+    it("is promoted once the video duration becomes known", () => {
+      const video = document.createElement("video");
+      document.body.append(video);
+      const adapter = new NetflixSubtitleAdapter();
+      const listener = vi.fn();
+      const unsubscribe = adapter.subscribe(listener);
+      try {
+        capture(timeline(40, 580));
+        expect(listener).toHaveBeenLastCalledWith(
+          expect.objectContaining({ completeness: "stream" }),
+        );
+        Object.defineProperty(video, "duration", {
+          configurable: true,
+          value: 600,
+        });
+        video.dispatchEvent(new Event("loadedmetadata", { bubbles: true }));
+        expect(listener).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            completeness: "full",
+            captureEvidence: "verified-full-response",
+          }),
+        );
+      } finally {
+        unsubscribe();
+        document.body.replaceChildren();
+      }
+    });
+  });
+
   it("lets a manifest-declared Netflix document replace an earlier playback window", () => {
     const video = document.createElement("video");
     document.body.append(video);

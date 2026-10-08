@@ -162,10 +162,13 @@ interface TimelineCoverage {
 }
 
 /**
- * A repeated static response is still not enough by itself: Netflix can keep a
- * playback window stable while paused. Require that the parsed cue timeline
- * starts reasonably near the beginning and reaches the final part of a finite
- * video before allowing AI pretranslation of the track.
+ * A verified 2xx response alone is not enough: Netflix can serve a rolling
+ * playback window. Require that the parsed cue timeline starts reasonably near
+ * the beginning and reaches the final part of a finite video before allowing
+ * AI pretranslation of the track. A single response suffices because a page
+ * opened before the extension hook was installed only gets one recovery fetch
+ * of the subtitle document, so a second identical response never arrives; the
+ * coverage check, not repetition, is what rules out a partial window.
  */
 function timelineCoverage(
   track: SubtitleTrack,
@@ -519,13 +522,13 @@ export class NetflixSubtitleAdapter implements SubtitleAdapter {
         payload.manifestCandidate !== true &&
         isSignedNetflixCdnRoot(payload.url) &&
         responseEvidence === "verified-full-response" &&
-        stableMatches >= 2 &&
+        stableMatches >= 1 &&
         coverage.coversVideo;
       const stableDocumentAwaitingMetadata =
         payload.manifestCandidate !== true &&
         isSignedNetflixCdnRoot(payload.url) &&
         responseEvidence === "verified-full-response" &&
-        stableMatches >= 2 &&
+        stableMatches >= 1 &&
         coverage.durationMs === null;
       if (verifiedStableDocument) {
         clearPendingStableDocument();
