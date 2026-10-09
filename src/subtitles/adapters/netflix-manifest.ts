@@ -5,6 +5,12 @@ export interface NetflixTimedTextCandidate {
   language: string;
   profile: string;
   trackKey: string;
+  /**
+   * The `movieId` of the nearest manifest object declaring this track. For an
+   * episode this is expected to equal the `/watch/<id>` page id; it is absent
+   * when the manifest carries no title id.
+   */
+  titleId?: string;
 }
 
 const PROFILE_PRIORITY = [
@@ -37,6 +43,15 @@ function candidateUrls(value: unknown, depth = 0): string[] {
     .flatMap((entry) => candidateUrls(entry, depth + 1));
 }
 
+function titleIdValue(value: unknown): string | undefined {
+  if (typeof value === "number")
+    return Number.isSafeInteger(value) && value >= 0
+      ? String(value)
+      : undefined;
+  const text = stringValue(value);
+  return text.length > 0 && text.length <= 64 ? text : undefined;
+}
+
 function profileRank(profile: string): number {
   const normalized = profile.trim().toLowerCase();
   const index = PROFILE_PRIORITY.findIndex((value) =>
@@ -57,7 +72,11 @@ export function extractNetflixTimedTextCandidates(
   const seenObjects = new WeakSet<object>();
   const seenUrls = new Set<string>();
 
-  const collectTrack = (track: unknown, index: number): void => {
+  const collectTrack = (
+    track: unknown,
+    index: number,
+    titleId: string | undefined,
+  ): void => {
     if (!isRecord(track) || found.length >= limit) return;
     if (track.isNoneTrack === true || track.isImageBased === true) return;
     const language =
@@ -88,12 +107,24 @@ export function extractNetflixTimedTextCandidates(
         }
         if (url.protocol !== "https:" || seenUrls.has(url.href)) continue;
         seenUrls.add(url.href);
-        found.push({ url: url.href, language, profile, trackKey });
+        found.push({
+          url: url.href,
+          language,
+          profile,
+          trackKey,
+          ...(titleId === undefined ? {} : { titleId }),
+        });
       }
     }
   };
 
-  const walk = (node: unknown, depth: number): void => {
+  // The nearest ancestor `movieId` labels every track below it, so a prefetched
+  // next-episode manifest can be told apart from the one being watched.
+  const walk = (
+    node: unknown,
+    depth: number,
+    inheritedTitleId: string | undefined,
+  ): void => {
     if (
       depth > 12 ||
       found.length >= limit ||
@@ -105,19 +136,23 @@ export function extractNetflixTimedTextCandidates(
       seenObjects.add(node);
     }
     if (Array.isArray(node)) {
-      for (const child of node.slice(0, 200)) walk(child, depth + 1);
+      for (const child of node.slice(0, 200))
+        walk(child, depth + 1, inheritedTitleId);
       return;
     }
+    const titleId = titleIdValue(node.movieId) ?? inheritedTitleId;
     const tracks = node.timedtexttracks;
     if (Array.isArray(tracks)) {
-      tracks.slice(0, 100).forEach(collectTrack);
+      tracks
+        .slice(0, 100)
+        .forEach((track, index) => collectTrack(track, index, titleId));
     }
     for (const child of Object.values(node).slice(0, 200)) {
-      walk(child, depth + 1);
+      walk(child, depth + 1, titleId);
     }
   };
 
-  walk(value, 0);
+  walk(value, 0, undefined);
   return found;
 }
 

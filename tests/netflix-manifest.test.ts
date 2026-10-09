@@ -43,14 +43,57 @@ describe("Netflix manifest timed-text discovery", () => {
         language: "en-US",
         profile: "webvtt-lssdh-ios8",
         trackKey: "en-main",
+        titleId: "123",
       },
       {
         url: "https://ipv4-c001.nflxvideo.net/?o=1&v=2&p=imsc",
         language: "en-US",
         profile: "imsc1.1",
         trackKey: "en-main",
+        titleId: "123",
       },
     ]);
+  });
+
+  it("labels tracks with the nearest manifest movieId and omits it when absent", () => {
+    const track = (trackId: string, url: string) => ({
+      trackId,
+      bcp47: "en",
+      ttDownloadables: { "imsc1.1": { urls: [{ url }] } },
+    });
+    const candidates = extractNetflixTimedTextCandidates([
+      {
+        result: {
+          movieId: "  222 ",
+          timedtexttracks: [track("a", "https://ipv4-c001.nflxvideo.net/?a")],
+          nested: {
+            movieId: 333,
+            timedtexttracks: [track("b", "https://ipv4-c001.nflxvideo.net/?b")],
+          },
+        },
+      },
+      {
+        movieId: 1.5,
+        timedtexttracks: [track("c", "https://ipv4-c001.nflxvideo.net/?c")],
+      },
+      { timedtexttracks: [track("d", "https://ipv4-c001.nflxvideo.net/?d")] },
+    ]);
+
+    expect(
+      candidates.map((candidate) => [candidate.trackKey, candidate.titleId]),
+    ).toEqual([
+      ["a", "222"],
+      ["b", "333"],
+      ["c", undefined],
+      ["d", undefined],
+    ]);
+    expect(candidates[3]).toEqual({
+      url: "https://ipv4-c001.nflxvideo.net/?d",
+      language: "en",
+      profile: "imsc1.1",
+      trackKey: "d",
+    });
+    expect("titleId" in (candidates[2] ?? {})).toBe(false);
   });
 
   it("chooses one preferred representation per matching language track", () => {

@@ -59,6 +59,7 @@ import {
 import { subscribeTranslationProgress } from "@/src/translation/progress-channel";
 import { browser } from "wxt/browser";
 import { runtimeId } from "@/src/shared/runtime-id";
+import { siteDiagnostic } from "@/src/shared/diagnostics";
 import type { TranslationRequestPriority } from "@/src/shared/translation-request-gate";
 import { localizeRuntimeError } from "@/src/shared/runtime-errors";
 import { failureReasonCode, STATUS_REASON } from "@/src/shared/status-reasons";
@@ -124,6 +125,15 @@ const SUBTITLE_CACHE_READ_TIMEOUT_MS = 200;
 const STREAM_CONCURRENCY = 8;
 const LOOKAHEAD_MS = 120_000;
 const TRACK_INVALIDATION_GRACE_MS = 250;
+/** Netflix-only development diagnostics; a no-op in release builds. */
+function netflixDiagnostic(
+  event: string,
+  detail: Record<string, unknown>,
+): void {
+  if (!/(^|\.)netflix\.com$/u.test(location.hostname)) return;
+  siteDiagnostic("Netflix", event, detail);
+}
+
 const SUBTITLE_DISCOVERY_TIMEOUT_MS = 8_000;
 // A live track has no full text to sample, so its dominant language is learned
 // from the cues seen so far. A single short cue ("Okay?") cannot be detected
@@ -1518,6 +1528,16 @@ export class SubtitleController {
     const previousTranslationTrack = this.translationTrack;
     const previousTrack = this.currentTrack;
     this.currentTrack = normalizedTrack;
+    netflixDiagnostic("track-selected", {
+      path: location.pathname.slice(0, 40),
+      source: normalizedTrack.source,
+      completeness: normalizedTrack.completeness,
+      language: normalizedTrack.language,
+      cues: normalizedTrack.cues.length,
+      previous: previousTrack
+        ? `${previousTrack.source}/${previousTrack.completeness}`
+        : "none",
+    });
     this.translationTrack = this.translationTrackFor(normalizedTrack);
     this.currentTrackIdentity = identity;
     this.onTrackSelected?.(normalizedTrack);
@@ -2630,6 +2650,12 @@ export class SubtitleController {
   }
 
   private resetMediaState(): void {
+    netflixDiagnostic("controller-reset", {
+      path: location.pathname.slice(0, 40),
+      track: this.currentTrack?.source ?? "none",
+      completeness: this.currentTrack?.completeness ?? "none",
+      cues: this.currentTrack?.cues.length ?? 0,
+    });
     this.clearTrackResetTimer();
     this.beginSession();
     this.currentTrack = null;

@@ -18,10 +18,10 @@ import {
 import {
   extractNetflixTimedTextCandidates,
   selectNetflixTimedTextCandidates,
-  type NetflixTimedTextCandidate,
 } from "@/src/subtitles/adapters/netflix-manifest";
 import { readNetflixPlayerTextTracks } from "@/src/subtitles/adapters/netflix-player";
 import { WatchEpochTracker } from "@/src/subtitles/adapters/watch-epoch";
+import { NetflixTitleGate } from "@/src/subtitles/adapters/netflix-title-gate";
 import {
   fetchMaxDashFullTrack,
   parseMaxDashTextTracks,
@@ -49,6 +49,12 @@ const MAX_CAPTURE_CHARACTERS = 5_000_000;
 const MAX_NETFLIX_RESOURCE_RECOVERY_URLS = 12;
 const MAX_NETFLIX_RESOURCE_RECOVERY_CONCURRENCY = 2;
 let youtubePreferredSourceLanguage = "auto";
+/**
+ * Shared by Netflix manifest recovery and the passive fetch/XHR captures so a
+ * prefetched next-episode subtitle is neither fetched nor dispatched for the
+ * episode still playing. Set by Netflix resource recovery; unused elsewhere.
+ */
+let netflixTitleGate: NetflixTitleGate | undefined;
 let youtubePlayerResponseListener:
   ((playerResponse: unknown) => void) | undefined;
 
@@ -283,6 +289,18 @@ function dispatch(
   ) {
     return;
   }
+  const foreignTitleId =
+    site === "netflix"
+      ? netflixTitleGate?.foreignTitleIdFor(url, location.pathname)
+      : undefined;
+  if (foreignTitleId !== undefined) {
+    netflixDiagnostic("capture-dropped-foreign", {
+      watchPath: location.pathname.slice(0, 40),
+      titleId: foreignTitleId.slice(0, 20),
+      manifestCandidate: capture.manifestCandidate,
+    });
+    return;
+  }
   if (site === "netflix") {
     netflixDiagnostic("capture-dispatch", {
       resource: netflixDiagnosticUrl(url),
@@ -453,7 +471,8 @@ function installNetflixResourceRecovery(
     manifestCandidate: boolean;
     language?: string;
   }> = [];
-  const manifestCandidates = new Map<string, NetflixTimedTextCandidate>();
+  const titleGate = new NetflixTitleGate(location.pathname);
+  netflixTitleGate = titleGate;
   let enabled = false;
   let active = 0;
   let observer: PerformanceObserver | undefined;
@@ -535,10 +554,25 @@ function installNetflixResourceRecovery(
     ) {
       seen.clear();
       queue.length = 0;
-      manifestCandidates.clear();
+      // A next-episode manifest parsed during the previous page declared this
+      // page's subtitles already; keep those and drop everything else.
+      const { adopted, dropped } = titleGate.roll(location.pathname);
       lastManifestDiagnostic = "";
       lastPlayerTrackCount = -1;
-      netflixDiagnostic("watch-epoch-rolled", {});
+      netflixDiagnostic("watch-epoch-rolled", { dropped });
+      if (adopted.length > 0) {
+        netflixDiagnostic("candidate-adopted", {
+          watchPath: location.pathname.slice(0, 40),
+          titleId: (adopted[0]?.titleId ?? "unknown").slice(0, 20),
+          candidates: adopted.length,
+        });
+        // Deferred so a roll caused by disabling discovery does not start
+        // requests the content script is about to cancel; enabling discovery
+        // enqueues the same candidates again and `seen` deduplicates them.
+        window.setTimeout(() => {
+          if (enabled) enqueueManifestCandidates();
+        }, 0);
+      }
     }
   };
 
@@ -567,13 +601,14 @@ function installNetflixResourceRecovery(
   };
 
   const enqueueManifestCandidates = (): void => {
+    const current = titleGate.current();
     const selected = selectNetflixTimedTextCandidates(
-      [...manifestCandidates.values()],
+      current,
       preferredSourceLanguage,
       8,
     );
     const detail = {
-      discovered: manifestCandidates.size,
+      discovered: current.length,
       selected: selected.length,
       preferredSourceLanguage,
       selectedTracks: selected.map((candidate) => ({
@@ -593,9 +628,34 @@ function installNetflixResourceRecovery(
   };
 
   const rememberManifestCandidates = (value: unknown): void => {
-    for (const candidate of extractNetflixTimedTextCandidates(value)) {
-      if (!isAllowedSubtitleCaptureUrl("netflix", candidate.url)) continue;
-      manifestCandidates.set(candidate.url, candidate);
+    const candidates = extractNetflixTimedTextCandidates(value).filter(
+      (candidate) => isAllowedSubtitleCaptureUrl("netflix", candidate.url),
+    );
+    const added = candidates.length;
+    if (added > 0) {
+      // Judge the parse against the page actually showing, not a stale epoch.
+      rollWatchEpoch();
+      const admission = titleGate.remember(candidates);
+      if (admission.foreign > 0) {
+        netflixDiagnostic("candidate-held-foreign", {
+          watchPath: location.pathname.slice(0, 40),
+          titleId: (admission.foreignTitleId ?? "unknown").slice(0, 20),
+          candidates: admission.foreign,
+        });
+      }
+      const result =
+        typeof value === "object" && value !== null && "result" in value
+          ? (value as { result?: unknown }).result
+          : value;
+      const movieId =
+        typeof result === "object" && result !== null && "movieId" in result
+          ? String((result as { movieId?: unknown }).movieId).slice(0, 20)
+          : "unknown";
+      netflixDiagnostic("manifest-parsed", {
+        watchPath: location.pathname.slice(0, 40),
+        manifestMovieId: movieId,
+        candidates: added,
+      });
     }
     if (enabled) enqueueManifestCandidates();
   };

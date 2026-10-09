@@ -5732,6 +5732,171 @@ test("upgrades a buffered Netflix CDN URL after later manifest confirmation", as
   }
 });
 
+function netflixEpisodeManifest(
+  movieId: number | undefined,
+  trackId: string,
+  timedTextUrl: string,
+): unknown {
+  return {
+    result: {
+      ...(movieId === undefined ? {} : { movieId }),
+      timedtexttracks: [
+        {
+          trackId,
+          bcp47: "en-US",
+          ttDownloadables: {
+            "imsc1.1": { urls: [{ url: timedTextUrl }] },
+          },
+        },
+      ],
+    },
+  };
+}
+
+function syntheticEpisodeTtml(label: string): string {
+  const lines = [1, 2, 3]
+    .map(
+      (line) =>
+        `<p begin="${line - 1}s" end="${line - 0.05}s">${label} line ${line}.</p>`,
+    )
+    .join("");
+  return `<tt xml:lang="en"><body><div>${lines}</div></body></tt>`;
+}
+
+test("keeps a prefetched next-episode Netflix manifest for the next watch page", async () => {
+  const pageUrl = "https://www.netflix.com/watch/111";
+  const nextPageUrl = "https://www.netflix.com/watch/222";
+  const episodeOneUrl =
+    "https://ipv4-c001.nflxvideo.net/?o=episode-one&v=2&e=3&t=manifest";
+  const episodeTwoUrl =
+    "https://ipv4-c001.nflxvideo.net/?o=episode-two&v=2&e=3&t=manifest";
+  const requests = { one: 0, two: 0 };
+  await context.route(episodeOneUrl, async (route) => {
+    requests.one += 1;
+    await route.fulfill({
+      contentType: "application/ttml+xml",
+      headers: { "access-control-allow-origin": "*" },
+      body: syntheticEpisodeTtml("Episode one"),
+    });
+  });
+  await context.route(episodeTwoUrl, async (route) => {
+    requests.two += 1;
+    await route.fulfill({
+      contentType: "application/ttml+xml",
+      headers: { "access-control-allow-origin": "*" },
+      body: syntheticEpisodeTtml("Episode two"),
+    });
+  });
+  await context.route(pageUrl, async (route) => {
+    await route.fulfill({
+      contentType: "text/html",
+      body: `<!doctype html><video></video><div class="player-timedtext">Live caption.</div><script>setTimeout(() => JSON.parse(${JSON.stringify(JSON.stringify(netflixEpisodeManifest(111, "en-episode-one", episodeOneUrl)))}), 250)</script>`,
+    });
+  });
+  const page = await context.newPage();
+  const overlay = page.locator('[data-noritrans-ui="subtitle-overlay"]');
+  try {
+    await page.goto(pageUrl);
+    await waitForReadyTrack(pageUrl, {
+      source: "netflix-manifest",
+      completeness: "full",
+    });
+    await expect(overlay).toContainText("Episode one line 1.");
+
+    // Netflix parses the next episode's manifest while the current one is
+    // still playing; its subtitle URL must not be attached to this episode.
+    await page.evaluate(
+      (manifest) => {
+        JSON.parse(manifest);
+      },
+      JSON.stringify(
+        netflixEpisodeManifest(222, "en-episode-two", episodeTwoUrl),
+      ),
+    );
+    await page.waitForTimeout(1_500);
+    expect(requests.two).toBe(0);
+    expect(await subtitleStatus(pageUrl)).toMatchObject({
+      source: "netflix-manifest",
+      completeness: "full",
+    });
+    await expect(overlay).toContainText("Episode one line 1.");
+
+    await page.evaluate(() => {
+      history.pushState(null, "", "/watch/222");
+      const live = document.querySelector(".player-timedtext");
+      if (live) live.textContent = "Next live caption.";
+    });
+    await waitForReadyTrack(nextPageUrl, {
+      source: "netflix-manifest",
+      completeness: "full",
+    });
+    expect(requests.two).toBeGreaterThan(0);
+    await expect(overlay).toContainText("Episode two line 1.");
+  } finally {
+    await page.close();
+    await context.unroute(pageUrl);
+    await context.unroute(episodeOneUrl);
+    await context.unroute(episodeTwoUrl);
+  }
+});
+
+for (const [label, watchId, firstId, secondId] of [
+  ["without manifest title ids", 333, undefined, undefined],
+  ["whose manifest title ids never match the watch page", 334, 9001, 9002],
+] as const) {
+  test(`fetches every Netflix manifest candidate immediately ${label}`, async () => {
+    const pageUrl = `https://www.netflix.com/watch/${String(watchId)}`;
+    const firstUrl = `https://ipv4-c001.nflxvideo.net/?o=compat-one-${String(firstId)}&v=2&e=3&t=manifest`;
+    const secondUrl = `https://ipv4-c001.nflxvideo.net/?o=compat-two-${String(secondId)}&v=2&e=3&t=manifest`;
+    const requests = { first: 0, second: 0 };
+    await context.route(firstUrl, async (route) => {
+      requests.first += 1;
+      await route.fulfill({
+        contentType: "application/ttml+xml",
+        headers: { "access-control-allow-origin": "*" },
+        body: syntheticEpisodeTtml("Compat first"),
+      });
+    });
+    await context.route(secondUrl, async (route) => {
+      requests.second += 1;
+      await route.fulfill({
+        contentType: "application/ttml+xml",
+        headers: { "access-control-allow-origin": "*" },
+        body: syntheticEpisodeTtml("Compat second"),
+      });
+    });
+    await context.route(pageUrl, async (route) => {
+      await route.fulfill({
+        contentType: "text/html",
+        body: `<!doctype html><video></video><script>setTimeout(() => JSON.parse(${JSON.stringify(JSON.stringify(netflixEpisodeManifest(firstId, "en-compat-one", firstUrl)))}), 250)</script>`,
+      });
+    });
+    const page = await context.newPage();
+    try {
+      await page.goto(pageUrl);
+      await waitForReadyTrack(pageUrl, {
+        source: "netflix-manifest",
+        completeness: "full",
+      });
+      await page.evaluate(
+        (manifest) => {
+          JSON.parse(manifest);
+        },
+        JSON.stringify(
+          netflixEpisodeManifest(secondId, "en-compat-two", secondUrl),
+        ),
+      );
+      await expect.poll(() => requests.second).toBeGreaterThan(0);
+      await expect.poll(() => requests.first).toBeGreaterThan(0);
+    } finally {
+      await page.close();
+      await context.unroute(pageUrl);
+      await context.unroute(firstUrl);
+      await context.unroute(secondUrl);
+    }
+  });
+}
+
 test("uses Netflix DOM fallback for the watched portion", async () => {
   const pageUrl = "https://www.netflix.com/watch/e2e-stream";
   await context.route(pageUrl, (route) =>

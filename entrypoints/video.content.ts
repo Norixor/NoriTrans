@@ -45,6 +45,7 @@ import {
   safeRuntimeErrorToken,
 } from "@/src/shared/runtime-errors";
 import { runtimeId } from "@/src/shared/runtime-id";
+import { siteDiagnostic } from "@/src/shared/diagnostics";
 import { removeStaleRuntimeUi } from "@/src/shared/runtime-ui-cleanup";
 import {
   FloatingControl,
@@ -1297,6 +1298,9 @@ export default defineContentScript({
       const nextPageUrl = pageRouteKey();
       if (nextPageUrl === previousPageUrl) return;
       previousPageUrl = nextPageUrl;
+      siteDiagnostic("Netflix", "route-changed", {
+        path: location.pathname.slice(0, 40),
+      });
       childFrameStatuses.clearStatuses();
       const shouldRestart =
         pageFollowsNavigation || currentPageAutoTranslate(settings);
