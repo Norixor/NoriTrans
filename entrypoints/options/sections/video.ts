@@ -119,6 +119,20 @@ function subtitleGroup(context: SectionContext): TemplateResult {
           ></nt-segmented>`,
         )
       : nothing,
+    subtitles.mode === "ai"
+      ? switchRow(
+          html`<nt-switch
+            id="subtitle-sentence-smoothing"
+            label=${message("optSubtitleSentenceSmoothing")}
+            description=${message("optSubtitleSentenceSmoothingHelp")}
+            ?checked=${subtitles.sentenceSmoothing}
+            @change=${(event: Event) =>
+              context.update({
+                subtitles: { sentenceSmoothing: detailChecked(event) },
+              })}
+          ></nt-switch>`,
+        )
+      : nothing,
   ]);
 }
 

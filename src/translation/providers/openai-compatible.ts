@@ -1,6 +1,7 @@
 import { NoriTransError } from "@/src/shared/errors";
 import { runtimeErrorToken } from "@/src/shared/runtime-errors";
 import { httpFailureClassification } from "@/src/translation/providers/http-failure";
+import { FRAGMENT_AWARE_SUBTITLE_PROMPT } from "@/src/translation/fragment-aware";
 import type { AiProviderId } from "@/src/shared/settings";
 import {
   assertValidProtectedTranslation,
@@ -1535,6 +1536,9 @@ export class OpenAICompatibleProvider implements TranslationProvider {
           ? ANTHROPIC_JSON_PROTOCOL_PROMPT
           : JSON_PROTOCOL_PROMPT,
         COMPACT_CONTEXT_PROMPT,
+        request.fragmentAware && request.mode === "ai"
+          ? FRAGMENT_AWARE_SUBTITLE_PROMPT
+          : "",
         wireRequest.segments.some(
           (segment) => segment.format === "protected-text-v1",
         )

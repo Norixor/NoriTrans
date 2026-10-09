@@ -71,6 +71,10 @@ const runHeadedOcrCapture =
 let context: BrowserContext;
 let controlPage: Page;
 const partialJsonRequestSegmentCounts: number[] = [];
+const smoothingProviderRequests: Array<{
+  system: string;
+  segments: unknown[];
+}> = [];
 const partialStreamRequestSegmentCounts: number[] = [];
 const selectionProviderTexts: string[] = [];
 const dynamicDuplicateProviderTexts: string[] = [];
@@ -495,6 +499,21 @@ test.beforeAll(async () => {
         throw new Error("Invalid E2E translation segment");
       }
       const sourceText = segments.map((segment) => segment.text).join("\n");
+      if (sourceText.includes("SMOOTH_E2E")) {
+        const system = messages.find(
+          (candidate: unknown) =>
+            isRecord(candidate) &&
+            candidate.role === "system" &&
+            typeof candidate.content === "string",
+        );
+        smoothingProviderRequests.push({
+          system:
+            isRecord(system) && typeof system.content === "string"
+              ? system.content
+              : "",
+          segments: requestBody.segments as unknown[],
+        });
+      }
       if (sourceText.includes("SELECTION_E2E")) {
         selectionProviderTexts.push(sourceText);
       }
@@ -4239,9 +4258,75 @@ test("reads and translates a complete HTML5 TextTrack", async () => {
       source: "texttrack",
       completeness: "full",
     });
-    expect(status.total).toBe(1);
-    expect(status.completed).toBe(1);
+    // Sentence smoothing (on by default) keeps each cue as its own unit.
+    expect(status.total).toBe(2);
+    expect(status.completed).toBe(2);
   } finally {
+    await page.close();
+    await context.unroute(pageUrl);
+    await context.unroute(trackUrl);
+  }
+});
+
+test("smooths a split sentence per cue and restores sentence groups when turned off", async () => {
+  const pageUrl = "https://www.youtube.com/sentence-smoothing-e2e";
+  const trackUrl = "https://www.youtube.com/sentence-smoothing-fixture.vtt";
+  // Synthetic, self-written lines; one sentence split across two cues.
+  const first = "SMOOTH_E2E it always makes me so";
+  const second = "sad, but I don't care.";
+  await context.route(pageUrl, (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: `<html><head><title>Smoothing fixture</title></head><body><video><track kind="subtitles" srclang="en" default src="${trackUrl}"></video></body></html>`,
+    }),
+  );
+  await context.route(trackUrl, (route) =>
+    route.fulfill({
+      contentType: "text/vtt",
+      body: `WEBVTT\n\n00:00:00.000 --> 00:00:01.000\n${first}\n\n00:00:01.050 --> 00:00:02.000\n${second}\n`,
+    }),
+  );
+  smoothingProviderRequests.length = 0;
+  const overlay = (page: Page) =>
+    page.locator('[data-noritrans-ui="subtitle-overlay"] .cue.translated');
+  const page = await context.newPage();
+  let previous: Record<string, unknown> | undefined;
+  try {
+    await page.goto(pageUrl);
+    const status = await waitForReadyTrack(pageUrl, {
+      source: "texttrack",
+      completeness: "full",
+    });
+    expect(status).toMatchObject({ total: 2, completed: 2, failed: 0 });
+    // At 0s only the first cue is visible, with only its own translation.
+    await expect(overlay(page)).toHaveText(`已译 ${first}`);
+    expect(smoothingProviderRequests).toHaveLength(1);
+    const smoothed = smoothingProviderRequests[0];
+    expect(smoothed?.system).toContain("Subtitle fragments:");
+    expect(smoothed?.segments).toHaveLength(2);
+    const [firstSegment, secondSegment] = (smoothed?.segments ?? []) as Array<
+      [string, string, string[], string[]]
+    >;
+    expect(firstSegment?.[1]).toBe(first);
+    expect(firstSegment?.[3]).toEqual([second]);
+    expect(secondSegment?.[1]).toBe(second);
+    expect(secondSegment?.[2]).toEqual([first]);
+
+    previous = await updateSubtitlePreferences({ sentenceSmoothing: false });
+    expect(previous.sentenceSmoothing).toBe(true);
+    await expect
+      .poll(async () => {
+        const current = await subtitleStatus(pageUrl);
+        return current ? { state: current.state, total: current.total } : null;
+      })
+      .toEqual({ state: "ready", total: 1 });
+    await expect(overlay(page)).toHaveText(`已译 ${first} ${second}`);
+    expect(smoothingProviderRequests).toHaveLength(2);
+    expect(smoothingProviderRequests[1]?.system).not.toContain(
+      "Subtitle fragments:",
+    );
+  } finally {
+    if (previous) await updateSubtitlePreferences(previous);
     await page.close();
     await context.unroute(pageUrl);
     await context.unroute(trackUrl);
@@ -4383,8 +4468,9 @@ for (const captionKind of ["manual", "asr"] as const) {
         source: "youtube-timedtext",
         completeness: "full",
       });
-      expect(status.total).toBe(1);
-      expect(status.completed).toBe(1);
+      // Sentence smoothing (on by default) keeps each cue as its own unit.
+      expect(status.total).toBe(2);
+      expect(status.completed).toBe(2);
     } finally {
       await page.close();
       await context.unroute("https://www.youtube.com/**");

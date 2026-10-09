@@ -8,6 +8,7 @@ import type { AppSettings } from "@/src/shared/settings";
 import { list as listLocalTranslationRuntimes } from "@/src/local-translation/runtime-storage";
 import { createBackgroundTranslationProvider } from "@/src/translation/providers/factory";
 import { translationSegmentCacheText } from "@/src/translation/context";
+import { fragmentAwarePromptIdentity } from "@/src/translation/fragment-aware";
 import { cleanTranslatedText } from "@/src/translation/output";
 import { assertValidProtectedTranslation } from "@/src/translation/protected-text";
 import { scheduleTranslation } from "@/src/translation/scheduler";
@@ -249,7 +250,12 @@ export async function translateInBackground(
     providerModel,
   );
   const version = configuredAiProvider
-    ? promptVersion(request.prompt ?? settings.provider.systemPrompt)
+    ? promptVersion(
+        fragmentAwarePromptIdentity(
+          request.prompt ?? settings.provider.systemPrompt,
+          request.mode === "ai" && request.fragmentAware,
+        ),
+      )
     : "machine-translation-v1";
   const providerScope = configuredAiProvider
     ? settings.provider.baseUrl.trim().replace(/\/+$/, "")

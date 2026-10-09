@@ -556,6 +556,7 @@ function isAppSettings(value: unknown): value is AppSettings {
       subtitles.displayMode === "translated" ||
       subtitles.displayMode === "bilingual") &&
     typeof subtitles.hideNativeSubtitles === "boolean" &&
+    typeof subtitles.sentenceSmoothing === "boolean" &&
     (subtitles.position === "top" ||
       subtitles.position === "center" ||
       subtitles.position === "bottom" ||
@@ -672,7 +673,11 @@ function isTranslationRequest(value: unknown): value is TranslationRequest {
       (typeof value.modelOverride !== "string" ||
         value.modelOverride.length > 256)) ||
     (value.providerOverride !== undefined &&
-      !isFastProviderId(value.providerOverride))
+      !isFastProviderId(value.providerOverride)) ||
+    // Fragment awareness changes the AI prompt only; a fast request carrying
+    // it is malformed rather than silently ignored.
+    (value.fragmentAware !== undefined &&
+      (value.fragmentAware !== true || value.mode !== "ai"))
   ) {
     return false;
   }

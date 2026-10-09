@@ -1566,6 +1566,10 @@
   "optSubtitleAiFullOnly": {
     "message": "AI translation is used only when the complete subtitle track is available. Sites that only expose the current line always use fast translation."
   },
+  "optSubtitleSentenceSmoothing": { "message": "Smooth split sentences" },
+  "optSubtitleSentenceSmoothingHelp": {
+    "message": "When a sentence is split across several subtitle lines, AI sees the whole sentence so each line is translated to read naturally together. Each line keeps its own timing. Applies to complete subtitle tracks only."
+  },
   "optSubtitlePositionCustom": { "message": "Custom" },
   "optSubtitleHideNativeHelp": {
     "message": "Site profiles can override this per site."

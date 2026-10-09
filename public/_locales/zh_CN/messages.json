@@ -1408,6 +1408,10 @@
   "optSubtitleAiFullOnly": {
     "message": "只有获取到完整字幕轨道时才使用 AI 精译；只能读取当前字幕的站点始终使用快速翻译。"
   },
+  "optSubtitleSentenceSmoothing": { "message": "平滑断句" },
+  "optSubtitleSentenceSmoothingHelp": {
+    "message": "一句话被拆成多条字幕时，AI 会参考整句，让各条译文连起来读得通顺；每条字幕仍按原时间显示。仅适用于完整字幕轨道。"
+  },
   "optSubtitlePositionCustom": { "message": "自定义" },
   "optSubtitleHideNativeHelp": { "message": "站点设置可单独覆盖。" },
   "optVideoQuickChip": { "message": "视频页也可快速调整" },

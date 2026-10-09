@@ -129,6 +129,9 @@ const SETTINGS: SubtitleSettings = {
   aiResponseMode: "stream",
   displayMode: "bilingual",
   hideNativeSubtitles: false,
+  // These tests pin the sentence-group and per-cue behavior that sentence
+  // smoothing replaces; smoothing has its own suite.
+  sentenceSmoothing: false,
   position: "bottom",
   customPosition: { x: 0.5, y: 0.82 },
   fontScale: 1,

@@ -93,6 +93,12 @@ export interface SubtitleSettings {
   aiResponseMode: TranslationResponseMode;
   displayMode: SubtitleDisplayMode;
   hideNativeSubtitles: boolean;
+  /**
+   * AI full tracks only: each cue stays its own translation and display unit,
+   * but the AI sees the whole sentence the cue belongs to so the fragments read
+   * as one sentence. Off keeps the previous grouping behavior.
+   */
+  sentenceSmoothing: boolean;
   position: SubtitlePosition;
   customPosition: SubtitleCustomPosition;
   fontScale: number;
@@ -215,6 +221,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     aiResponseMode: "stream",
     displayMode: "bilingual",
     hideNativeSubtitles: false,
+    sentenceSmoothing: true,
     position: "bottom",
     customPosition: { x: 0.5, y: 0.82 },
     fontScale: 1.2,
@@ -478,6 +485,10 @@ export function mergeSettings(value: unknown): AppSettings {
         typeof subtitles.hideNativeSubtitles === "boolean"
           ? subtitles.hideNativeSubtitles
           : DEFAULT_SETTINGS.subtitles.hideNativeSubtitles,
+      sentenceSmoothing:
+        typeof subtitles.sentenceSmoothing === "boolean"
+          ? subtitles.sentenceSmoothing
+          : DEFAULT_SETTINGS.subtitles.sentenceSmoothing,
       position: subtitlePosition,
       customPosition: {
         x:

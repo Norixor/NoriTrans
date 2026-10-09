@@ -32,6 +32,13 @@ export interface TranslationRequest {
   modelOverride?: string;
   /** Local fast provider selected by a surface with its own provider setting. */
   providerOverride?: FastProviderId;
+  /**
+   * AI-only marker for full subtitle tracks whose segments may be fragments of
+   * one sentence split across cues. The Provider appends a fixed rule so each
+   * fragment keeps its own translation while the fragments read as one
+   * sentence. It is part of the AI cache identity; omitted means false.
+   */
+  fragmentAware?: boolean;
 }
 
 /** A successful result whose ID must match exactly one requested segment. */

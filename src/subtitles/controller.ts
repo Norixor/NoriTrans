@@ -26,6 +26,7 @@ import {
   SubtitleOverlay,
   subtitleCueVisibility,
 } from "@/src/subtitles/overlay";
+import { fragmentAwareSegments } from "@/src/subtitles/fragment-context";
 import { isPersistedFullTrack } from "@/src/subtitles/persisted-track";
 import {
   normalizeSubtitleTrack,
@@ -49,6 +50,7 @@ import {
   translationSegmentCacheText,
   translationSegmentReuseIdentity,
 } from "@/src/translation/context";
+import { fragmentAwarePromptIdentity } from "@/src/translation/fragment-aware";
 import {
   normalizeTranslationText,
   scheduleTranslation,
@@ -334,6 +336,7 @@ function cacheKey(
   provider: SubtitleProviderCacheContext,
   providerIdOverride?: string,
   sourceLanguageOverride?: string,
+  fragmentAware = false,
 ): string {
   const providerId =
     providerIdOverride ??
@@ -352,7 +355,12 @@ function cacheKey(
     providerId,
     provider.baseUrl,
     provider.model,
-    provider.promptVersion,
+    // Smoothed AI results use a different prompt and context, so they must
+    // never be served to (or from) the plain per-cue or sentence-group path.
+    fragmentAwarePromptIdentity(
+      provider.promptVersion,
+      fragmentAware && mode === "ai",
+    ),
     effectiveSourceLanguage,
     settings.targetLanguage,
     mode,
@@ -381,9 +389,11 @@ function translationSegments(
   track: SubtitleTrack,
   cues: readonly SubtitleCue[],
   mode: TranslationMode,
+  fragmentAware = false,
 ): TranslationSegment[] {
   const selected = cues.map((cue) => ({ id: cue.id, text: cue.originalText }));
   if (mode !== "ai") return selected;
+  if (fragmentAware) return fragmentAwareSegments(track, cues);
   return contextualizeSegments(
     track.cues.map((cue) => ({ id: cue.id, text: cue.originalText })),
     selected,
@@ -465,8 +475,9 @@ function createSubtitleBatches(
   track: SubtitleTrack,
   cues: SubtitleCue[],
   mode: TranslationMode,
+  fragmentAware = false,
 ): SubtitleCue[][] {
-  const segments = translationSegments(track, cues, mode);
+  const segments = translationSegments(track, cues, mode, fragmentAware);
   const segmentById = new Map(segments.map((segment) => [segment.id, segment]));
   const maxSegments =
     mode === "ai" ? AI_BATCH_MAX_SEGMENTS : FAST_BATCH_MAX_SEGMENTS;
@@ -502,6 +513,8 @@ interface FullTrackReusePlan {
   representativeIdByCueId: ReadonlyMap<string, string>;
   equivalentCuesByRepresentativeId: ReadonlyMap<string, readonly SubtitleCue[]>;
   segmentsById: ReadonlyMap<string, TranslationSegment>;
+  /** Whether the segments were built for AI sentence smoothing. */
+  fragmentAware: boolean;
 }
 
 let rememberedMediaTitle: { pageIdentity: string; title: string } | undefined;
@@ -515,8 +528,9 @@ function createFullTrackReusePlan(
   track: SubtitleTrack,
   cues: readonly SubtitleCue[],
   mode: TranslationMode,
+  fragmentAware = false,
 ): FullTrackReusePlan {
-  const segments = translationSegments(track, cues, mode);
+  const segments = translationSegments(track, cues, mode, fragmentAware);
   const segmentsById = new Map(
     segments.map((segment) => [segment.id, segment]),
   );
@@ -545,6 +559,7 @@ function createFullTrackReusePlan(
     representativeIdByCueId,
     equivalentCuesByRepresentativeId,
     segmentsById,
+    fragmentAware: fragmentAware && mode === "ai",
   };
 }
 
@@ -621,8 +636,10 @@ function createRetryBatches(
   cues: SubtitleCue[],
   mode: TranslationMode,
   settings: SubtitleSettings,
+  fragmentAware = false,
 ): SubtitleCue[][] {
-  if (track.source !== "ocr") return createSubtitleBatches(track, cues, mode);
+  if (track.source !== "ocr")
+    return createSubtitleBatches(track, cues, mode, fragmentAware);
 
   // Keep pre-lock OCR retries conservative; translateBatch applies the source
   // language locked for the current OCR session once it is available.
@@ -1025,7 +1042,11 @@ export class SubtitleController {
       settings.targetLanguage !== this.settings.targetLanguage ||
       settings.mode !== this.settings.mode ||
       settings.aiResponseMode !== this.settings.aiResponseMode ||
+      settings.sentenceSmoothing !== this.settings.sentenceSmoothing ||
       providerChanged;
+    const smoothingBefore = this.currentTrack
+      ? this.sentenceSmoothingActive(this.currentTrack)
+      : false;
     this.settings = settings;
     for (const adapter of this.adapters)
       adapter.setSourceLanguage?.(settings.sourceLanguage);
@@ -1071,6 +1092,12 @@ export class SubtitleController {
       this.fallbackTranslated.clear();
       this.fallbackFailedCueIds.clear();
       this.failed.clear();
+      // Smoothing switches the translation and display unit between sentence
+      // groups and individual cues, so rebuild the translation track only when
+      // that state actually flips; every other change keeps the same track.
+      if (smoothingBefore !== this.sentenceSmoothingActive(this.currentTrack)) {
+        this.translationTrack = this.translationTrackFor(this.currentTrack);
+      }
       const translationTrack = this.translationTrack ?? this.currentTrack;
       if (this.translationSuspended) {
         for (const cue of translationTrack.cues) this.failed.add(cue.id);
@@ -1117,6 +1144,36 @@ export class SubtitleController {
           targetLanguage: this.ocrSettings.targetLanguage,
         }
       : this.settings;
+  }
+
+  /**
+   * Sentence smoothing applies only to complete, non-OCR tracks translated by
+   * AI. Stream, OCR and fast translation keep their existing behavior.
+   */
+  private sentenceSmoothingActive(track: SubtitleTrack): boolean {
+    return (
+      this.settings.sentenceSmoothing &&
+      track.completeness === "full" &&
+      track.source !== "ocr" &&
+      translationModeForTrack(track, this.settings) === "ai"
+    );
+  }
+
+  /**
+   * Chooses the translation and display unit for a selected track. With
+   * sentence smoothing every cue keeps its own timing and translation; sentence
+   * groups are then only AI context. Without it, Netflix keeps its original cue
+   * timing (merging would show the full sentence before later fragments are
+   * spoken) and other full tracks are merged into sentence groups.
+   */
+  private translationTrackFor(track: SubtitleTrack): SubtitleTrack {
+    if (
+      track.source === "netflix-manifest" ||
+      this.sentenceSmoothingActive(track)
+    ) {
+      return track;
+    }
+    return groupFullSubtitleTrack(track);
   }
 
   refreshLocale(): void {
@@ -1211,9 +1268,10 @@ export class SubtitleController {
     this.clearTranslationSuspension();
     const run = this.beginSession();
     const mode = translationModeForTrack(track, this.settings);
+    const fragmentAware = this.sentenceSmoothingActive(track);
     const reusePlan =
       track.completeness === "full"
-        ? createFullTrackReusePlan(track, track.cues, mode)
+        ? createFullTrackReusePlan(track, track.cues, mode, fragmentAware)
         : undefined;
     const failedRepresentativeIds = new Set(
       failedCues.map(
@@ -1240,6 +1298,7 @@ export class SubtitleController {
       cues,
       mode,
       this.translationSettings(track),
+      fragmentAware,
     );
     for (const [index, batch] of batches.entries()) {
       if (run !== this.session) return this.getStatus();
@@ -1433,14 +1492,7 @@ export class SubtitleController {
     const previousTranslationTrack = this.translationTrack;
     const previousTrack = this.currentTrack;
     this.currentTrack = normalizedTrack;
-    // Netflix TTML cues are already tied to the player's media timeline.
-    // Combining adjacent cues into a longer sentence makes the full sentence
-    // appear before later fragments are spoken. Keep its original cue timing;
-    // contextualizeSegments still supplies neighboring dialogue to the AI.
-    this.translationTrack =
-      normalizedTrack.source === "netflix-manifest"
-        ? normalizedTrack
-        : groupFullSubtitleTrack(normalizedTrack);
+    this.translationTrack = this.translationTrackFor(normalizedTrack);
     this.currentTrackIdentity = identity;
     this.onTrackSelected?.(normalizedTrack);
     if (
@@ -1871,7 +1923,13 @@ export class SubtitleController {
     this.fallbackFailedCueIds.clear();
     this.failed.clear();
     const cues = orderedCues(track, this.video);
-    const reusePlan = createFullTrackReusePlan(track, cues, mode);
+    const fragmentAware = this.sentenceSmoothingActive(track);
+    const reusePlan = createFullTrackReusePlan(
+      track,
+      cues,
+      mode,
+      fragmentAware,
+    );
     const segmentsById = reusePlan.segmentsById;
     const providerCues = reusePlan.representativeCues;
     let activeCacheReads = 0;
@@ -1934,6 +1992,7 @@ export class SubtitleController {
                       this.ocrSettings.provider,
                     ),
                     this.runtimeTranslationSourceLanguage(track, [cue]),
+                    fragmentAware,
                   ),
                   PROVIDER_CACHE_READ_TIMEOUT_MS,
                 )
@@ -1988,7 +2047,12 @@ export class SubtitleController {
       failed: this.failed.size,
     });
     this.renderCurrentCue();
-    const fullTrackBatches = createSubtitleBatches(track, providerCues, mode);
+    const fullTrackBatches = createSubtitleBatches(
+      track,
+      providerCues,
+      mode,
+      fragmentAware,
+    );
     const urgentCues =
       fullTrackBatches.length === 1 && !this.cache
         ? providerCues
@@ -2053,12 +2117,14 @@ export class SubtitleController {
       track,
       urgentCues.filter((cue) => !this.translated.has(cue.id)),
       mode,
+      fragmentAware,
     ).map((batch) => translateMissingBatch(batch, "urgent"));
 
     const initialBackgroundBatchCount = createSubtitleBatches(
       track,
       backgroundCues,
       mode,
+      fragmentAware,
     ).length;
     const remainingBackgroundCueIds = new Set(
       backgroundCues.map((cue) => cue.id),
@@ -2073,7 +2139,12 @@ export class SubtitleController {
         },
         this.video,
       );
-      const batch = createSubtitleBatches(track, remaining, mode)[0];
+      const batch = createSubtitleBatches(
+        track,
+        remaining,
+        mode,
+        fragmentAware,
+      )[0];
       if (!batch) return undefined;
       for (const cue of batch) remainingBackgroundCueIds.delete(cue.id);
       return batch;
@@ -2130,13 +2201,21 @@ export class SubtitleController {
         failures.add(equivalent.id);
       }
     };
+    // A reuse plan fixes the smoothing state for its whole run; ad hoc batches
+    // (stream cues, fast fallbacks) derive it and stay plain unless AI.
+    const fragmentAware =
+      mode === "ai" &&
+      destination === "primary" &&
+      (reusePlan
+        ? reusePlan.fragmentAware
+        : this.sentenceSmoothingActive(track));
     try {
       const request = {
         sourceLanguage: this.runtimeTranslationSourceLanguage(track, cues),
         targetLanguage: this.translationSettings(track).targetLanguage,
         mode,
         responseMode: this.settings.aiResponseMode,
-        segments: translationSegments(track, cues, mode),
+        segments: translationSegments(track, cues, mode, fragmentAware),
         ...(mediaTitle ? { mediaTitle } : {}),
         prompt: this.providerSettings.systemPrompt,
         scope: mediaScope,
@@ -2155,6 +2234,7 @@ export class SubtitleController {
         track.source === "ocr"
           ? { providerOverride: this.ocrSettings.provider }
           : {}),
+        ...(fragmentAware ? { fragmentAware: true } : {}),
       };
       let providerResolvedSourceLanguage = request.sourceLanguage;
       let results: TranslationResult[] | undefined;
@@ -2232,6 +2312,7 @@ export class SubtitleController {
                         this.ocrSettings.provider,
                       ),
                       sourceLanguage,
+                      fragmentAware,
                     ),
                     result.translatedText,
                   )

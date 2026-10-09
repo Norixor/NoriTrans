@@ -6,6 +6,7 @@ import { scheduleTranslation } from "@/src/translation/scheduler";
 import { NoriTransError } from "@/src/shared/errors";
 import { runtimeErrorToken } from "@/src/shared/runtime-errors";
 import { createProtectedText } from "@/src/translation/protected-text";
+import { FRAGMENT_AWARE_SUBTITLE_PROMPT } from "@/src/translation/fragment-aware";
 import type { TranslationResult } from "@/src/translation/types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -2358,5 +2359,63 @@ describe("OpenAI-compatible translation responses", () => {
     controller.abort();
 
     await rejection;
+  });
+});
+
+describe("OpenAI-compatible fragment-aware subtitle prompt", () => {
+  afterEach(() => {
+    __resetOpenAICompatibleStreamingCapabilityCacheForTests();
+    vi.unstubAllGlobals();
+  });
+
+  async function systemMessageFor(
+    fragmentAware: boolean | undefined,
+    prompt?: string,
+  ): Promise<string> {
+    const fetch = vi.fn<typeof globalThis.fetch>(() =>
+      Promise.resolve(
+        completion('{"results":[{"id":"segment-1","translatedText":"你好"}]}'),
+      ),
+    );
+    stubWireFetch(fetch);
+    await provider().translateBatch(
+      {
+        ...request,
+        responseMode: "batch",
+        ...(prompt ? { prompt } : {}),
+        ...(fragmentAware === undefined ? {} : { fragmentAware }),
+      },
+      new AbortController().signal,
+    );
+    const requestBody = fetch.mock.calls[0]?.[1]?.body;
+    if (typeof requestBody !== "string") {
+      throw new Error("missing JSON request body");
+    }
+    const body = JSON.parse(requestBody) as {
+      messages: Array<{ role: string; content: string }>;
+    };
+    expect(body.messages[0]?.role).toBe("system");
+    return body.messages[0]?.content ?? "";
+  }
+
+  it("appends the fixed fragment rule only for marked requests and keeps the user prompt verbatim", async () => {
+    const customPrompt = "Keep names as written.\nUse a casual tone.";
+    const plain = await systemMessageFor(undefined, customPrompt);
+    const marked = await systemMessageFor(true, customPrompt);
+
+    expect(plain).not.toContain(FRAGMENT_AWARE_SUBTITLE_PROMPT);
+    expect(marked).toContain(FRAGMENT_AWARE_SUBTITLE_PROMPT);
+    expect(marked.startsWith(customPrompt)).toBe(true);
+    expect(plain.startsWith(customPrompt)).toBe(true);
+    // The marked system message is the plain one plus exactly the fixed rule.
+    expect(marked.replace(`\n${FRAGMENT_AWARE_SUBTITLE_PROMPT}`, "")).toBe(
+      plain,
+    );
+  });
+
+  it("keeps an unmarked request byte-identical to one with the marker set to false", async () => {
+    expect(await systemMessageFor(false)).toBe(
+      await systemMessageFor(undefined),
+    );
   });
 });
