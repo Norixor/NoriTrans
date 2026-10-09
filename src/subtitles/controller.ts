@@ -122,6 +122,23 @@ const STREAM_CONCURRENCY = 8;
 const LOOKAHEAD_MS = 120_000;
 const TRACK_INVALIDATION_GRACE_MS = 250;
 const SUBTITLE_DISCOVERY_TIMEOUT_MS = 8_000;
+// A live track has no full text to sample, so its dominant language is learned
+// from the cues seen so far. A single short cue ("Okay?") cannot be detected
+// reliably on its own, which made some cues fail while their neighbours
+// translated.
+const STREAM_LANGUAGE_SAMPLE_CUES = 40;
+const STREAM_LANGUAGE_MIN_CUES = 3;
+const STREAM_LANGUAGE_MIN_CHARACTERS = 45;
+// Until the language is known, a cue shorter than this is held back instead of
+// being detected on its own; it is translated once the language is locked.
+const STREAM_LANGUAGE_RELIABLE_CUE_CHARACTERS = 25;
+// Give up waiting after this many cues so a track whose language can never be
+// detected still translates exactly as before.
+const STREAM_LANGUAGE_DEFER_CUES = 12;
+// A held-back short cue is released after this long even if the language is
+// still unknown, so a track with few cues (or one that never reveals its
+// language) is never left untranslated.
+const STREAM_LANGUAGE_DEFER_MS = 3_000;
 const STREAM_STALE_BEHIND_PLAYBACK_MS = 1_500;
 const STREAM_FRESH_TOLERANCE_MS = 1_000;
 const STREAM_HANDOVER_HYSTERESIS_MS = 500;
@@ -688,6 +705,9 @@ export class SubtitleController {
   private ocrLocalProviderTargetLanguage = "";
   private ocrDetectedSourceLanguage = "";
   private detectedFullTrackSourceLanguage = "";
+  private detectedStreamSourceLanguage = "";
+  private streamDeferTimer: number | undefined;
+  private readonly deferredStreamCueSince = new Map<string, number>();
   private readonly ocrResolvedSourceLanguageByCueId = new Map<string, string>();
   private readonly inFlightCueIds = new Set<string>();
   private readonly pendingStreamCueIds = new Set<string>();
@@ -919,6 +939,7 @@ export class SubtitleController {
     this.scanTimer = undefined;
     this.clearSubtitleDiscoveryTimeout();
     this.clearTrackResetTimer();
+    this.clearStreamDeferTimer();
     for (const adapter of [...this.adapterUnsubscribers.keys()]) {
       this.unsubscribeAdapter(adapter);
     }
@@ -1567,7 +1588,43 @@ export class SubtitleController {
     }
   }
 
+  /**
+   * Learns the dominant language of a live track once enough cues exist and
+   * keeps it for the media session, so each cue is translated with a known
+   * source language instead of being detected from a few words.
+   */
+  private async ensureStreamSourceLanguage(
+    track: SubtitleTrack,
+  ): Promise<void> {
+    if (
+      this.detectedStreamSourceLanguage ||
+      track.source === "ocr" ||
+      track.completeness !== "stream" ||
+      resolvedSourceLanguage(track, this.translationSettings(track)) !== "auto"
+    ) {
+      return;
+    }
+    const texts = track.cues
+      .slice(-STREAM_LANGUAGE_SAMPLE_CUES)
+      .map((cue) => cue.originalText);
+    if (
+      texts.length < STREAM_LANGUAGE_MIN_CUES ||
+      texts.join(" ").length < STREAM_LANGUAGE_MIN_CHARACTERS
+    ) {
+      return;
+    }
+    const run = this.session;
+    const detected = await detectDominantSourceLanguage(
+      texts,
+      supportedSourceLanguageHint(document.documentElement.lang),
+      true,
+    );
+    if (run !== this.session || !detected) return;
+    this.detectedStreamSourceLanguage = detected;
+  }
+
   private async translateLatestStreamCue(track: SubtitleTrack): Promise<void> {
+    await this.ensureStreamSourceLanguage(track);
     const awaitingOcrLanguage =
       track.source === "ocr" &&
       this.translationSettings(track).sourceLanguage === "auto" &&
@@ -1577,8 +1634,29 @@ export class SubtitleController {
           .reverse()
           .find((cue) => isReliableOcrLanguageSample(cue.originalText))
       : undefined;
+    const awaitingStreamLanguage =
+      track.source !== "ocr" &&
+      !this.detectedStreamSourceLanguage &&
+      track.cues.length <= STREAM_LANGUAGE_DEFER_CUES &&
+      resolvedSourceLanguage(track, this.translationSettings(track)) === "auto";
+    const now = Date.now();
+    let heldBack = false;
     for (const cue of track.cues) {
       if (awaitingOcrLanguage && cue.id !== languageDetectionCue?.id) continue;
+      if (
+        awaitingStreamLanguage &&
+        cue.originalText.length < STREAM_LANGUAGE_RELIABLE_CUE_CHARACTERS &&
+        !this.translated.has(cue.id) &&
+        !this.failed.has(cue.id) &&
+        !this.inFlightCueIds.has(cue.id)
+      ) {
+        const since = this.deferredStreamCueSince.get(cue.id) ?? now;
+        this.deferredStreamCueSince.set(cue.id, since);
+        if (now - since < STREAM_LANGUAGE_DEFER_MS) {
+          heldBack = true;
+          continue;
+        }
+      }
       if (
         !this.translated.has(cue.id) &&
         !this.failed.has(cue.id) &&
@@ -1586,6 +1664,15 @@ export class SubtitleController {
       ) {
         this.pendingStreamCueIds.add(cue.id);
       }
+    }
+    if (heldBack && this.streamDeferTimer === undefined) {
+      // Nothing may arrive to trigger another pass, so come back once the
+      // hold expires.
+      this.streamDeferTimer = window.setTimeout(() => {
+        this.streamDeferTimer = undefined;
+        const latest = this.translationTrack;
+        if (latest && this.active) void this.translateLatestStreamCue(latest);
+      }, STREAM_LANGUAGE_DEFER_MS + 50);
     }
     if (this.translationSuspended) return;
     if (this.pendingStreamCueIds.size === 0 && this.inFlightCueIds.size === 0) {
@@ -2458,6 +2545,8 @@ export class SubtitleController {
     this.failed.clear();
     this.pendingStreamCueIds.clear();
     this.ocrDetectedSourceLanguage = "";
+    this.detectedStreamSourceLanguage = "";
+    this.clearStreamDeferTimer();
     this.overlay.clearCue();
     this.setCueOverlayVisible(false);
     this.overlay.clearNotice();
@@ -2582,6 +2671,14 @@ export class SubtitleController {
     this.discoveryTimeout = undefined;
   }
 
+  private clearStreamDeferTimer(): void {
+    if (this.streamDeferTimer !== undefined) {
+      window.clearTimeout(this.streamDeferTimer);
+      this.streamDeferTimer = undefined;
+    }
+    this.deferredStreamCueSince.clear();
+  }
+
   private clearTrackResetTimer(): void {
     if (this.trackResetTimer === undefined) return;
     window.clearTimeout(this.trackResetTimer);
@@ -2681,6 +2778,14 @@ export class SubtitleController {
       this.detectedFullTrackSourceLanguage
     ) {
       return this.detectedFullTrackSourceLanguage;
+    }
+    if (
+      track.source !== "ocr" &&
+      track.completeness === "stream" &&
+      this.detectedStreamSourceLanguage &&
+      resolvedSourceLanguage(track, this.translationSettings(track)) === "auto"
+    ) {
+      return this.detectedStreamSourceLanguage;
     }
     if (track.source === "ocr" && this.ocrSettings.sourceLanguage === "auto") {
       const resolvedLanguages = new Set(

@@ -1534,6 +1534,212 @@ describe("SubtitleController", () => {
     controller.stop();
   });
 
+  it("translates short live cues with the language learned from earlier cues", async () => {
+    vi.stubGlobal("chrome", {
+      i18n: {
+        detectLanguage: () =>
+          Promise.resolve({
+            isReliable: true,
+            languages: [{ language: "en", percentage: 99 }],
+          }),
+      },
+    });
+    const adapter = new StreamAdapter();
+    const controller = new SubtitleController({
+      settings: { ...SETTINGS, sourceLanguage: "auto" },
+      adapters: [adapter],
+      providerSettings: FAST_REMOTE_PROVIDER_SETTINGS,
+    });
+    await controller.start();
+    const texts = [
+      "We should leave before it gets dark.",
+      "The road to the village is long.",
+      "I will bring the lantern with me.",
+      "Did you pack enough food for us?",
+      "Okay?",
+    ];
+    const cues = texts.map((text, index) => ({
+      id: `live-${index}`,
+      startMs: index * 2_000,
+      endMs: index * 2_000 + 1_500,
+      originalText: text,
+    }));
+    for (let count = 1; count <= cues.length; count += 1) {
+      adapter.emit({
+        source: "dom",
+        completeness: "stream",
+        language: "und",
+        cues: cues.slice(0, count),
+      });
+      await vi.waitFor(() =>
+        expect(controller.getStatus().completed).toBeGreaterThanOrEqual(count),
+      );
+    }
+    const requests = runtime.sendMessage.mock.calls
+      .map(([message]) => message)
+      .filter(
+        (
+          message,
+        ): message is {
+          type: "TRANSLATE";
+          request: {
+            sourceLanguage: string;
+            segments: Array<{ text: string }>;
+          };
+        } =>
+          typeof message === "object" &&
+          message !== null &&
+          "type" in message &&
+          message.type === "TRANSLATE",
+      );
+    const sourceFor = (text: string): string | undefined =>
+      requests.find((message) =>
+        message.request.segments.some((segment) => segment.text === text),
+      )?.request.sourceLanguage;
+    // Too few cues to sample yet: the first cue is still detected by the provider.
+    expect(sourceFor(texts[0] ?? "")).toBe("auto");
+    // Once enough text exists the language is known, so "Okay?" is not
+    // detected from a single word.
+    expect(sourceFor("Okay?")).toBe("en");
+    controller.stop();
+  });
+
+  it("holds a short live cue until the language is known instead of failing it", async () => {
+    vi.stubGlobal("chrome", {
+      i18n: {
+        detectLanguage: () =>
+          Promise.resolve({
+            isReliable: true,
+            languages: [{ language: "en", percentage: 99 }],
+          }),
+      },
+    });
+    const adapter = new StreamAdapter();
+    const controller = new SubtitleController({
+      settings: { ...SETTINGS, sourceLanguage: "auto" },
+      adapters: [adapter],
+      providerSettings: FAST_REMOTE_PROVIDER_SETTINGS,
+    });
+    await controller.start();
+    const texts = [
+      "Okay?",
+      "We should leave before it gets dark.",
+      "The road to the village is long.",
+      "I will bring the lantern with me.",
+    ];
+    const cues = texts.map((text, index) => ({
+      id: `held-${index}`,
+      startMs: index * 2_000,
+      endMs: index * 2_000 + 1_500,
+      originalText: text,
+    }));
+    const translateRequests = (): Array<{
+      request: { sourceLanguage: string; segments: Array<{ text: string }> };
+    }> =>
+      runtime.sendMessage.mock.calls
+        .map(([message]) => message)
+        .filter(
+          (
+            message,
+          ): message is {
+            type: "TRANSLATE";
+            request: {
+              sourceLanguage: string;
+              segments: Array<{ text: string }>;
+            };
+          } =>
+            typeof message === "object" &&
+            message !== null &&
+            "type" in message &&
+            message.type === "TRANSLATE",
+        );
+    const sentTexts = (): string[] =>
+      translateRequests().flatMap((message) =>
+        message.request.segments.map((segment) => segment.text),
+      );
+
+    adapter.emit({
+      source: "dom",
+      completeness: "stream",
+      language: "und",
+      cues: cues.slice(0, 1),
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    // Detected alone, a single word is unreliable, so nothing is sent yet and
+    // nothing is reported as failed.
+    expect(sentTexts()).not.toContain("Okay?");
+    expect(controller.getStatus().failed).toBe(0);
+
+    for (let count = 2; count <= cues.length; count += 1) {
+      adapter.emit({
+        source: "dom",
+        completeness: "stream",
+        language: "und",
+        cues: cues.slice(0, count),
+      });
+    }
+    await vi.waitFor(() => expect(sentTexts()).toContain("Okay?"));
+    const held = translateRequests().find((message) =>
+      message.request.segments.some((segment) => segment.text === "Okay?"),
+    );
+    expect(held?.request.sourceLanguage).toBe("en");
+    expect(controller.getStatus().failed).toBe(0);
+    controller.stop();
+  });
+
+  it("still translates a lone short live cue once the hold expires", async () => {
+    vi.stubGlobal("chrome", {
+      i18n: {
+        detectLanguage: () =>
+          Promise.resolve({
+            isReliable: true,
+            languages: [{ language: "en", percentage: 99 }],
+          }),
+      },
+    });
+    vi.useFakeTimers();
+    try {
+      const adapter = new StreamAdapter();
+      const controller = new SubtitleController({
+        settings: { ...SETTINGS, sourceLanguage: "auto" },
+        adapters: [adapter],
+        providerSettings: FAST_REMOTE_PROVIDER_SETTINGS,
+      });
+      await controller.start();
+      adapter.emit({
+        source: "dom",
+        completeness: "stream",
+        language: "und",
+        cues: [
+          { id: "lone", startMs: 0, endMs: 1_000, originalText: "Native" },
+        ],
+      });
+      await vi.advanceTimersByTimeAsync(500);
+      // Held back while its language is unknown: nothing is sent yet.
+      expect(
+        runtime.sendMessage.mock.calls.filter(
+          ([message]) =>
+            typeof message === "object" &&
+            message !== null &&
+            "type" in message &&
+            message.type === "TRANSLATE",
+        ),
+      ).toHaveLength(0);
+      // No further cue ever arrives, so the hold must release by itself.
+      await vi.advanceTimersByTimeAsync(3_500);
+      await vi.waitFor(() =>
+        expect(controller.getStatus()).toMatchObject({
+          state: "ready",
+          completed: 1,
+          failed: 0,
+        }),
+      );
+      controller.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("suggests a refresh when a captured Netflix track stays a stream", async () => {
     const adapter = new StreamAdapter();
     const controller = new SubtitleController({
