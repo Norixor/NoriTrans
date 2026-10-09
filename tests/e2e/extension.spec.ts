@@ -5925,6 +5925,183 @@ test("uses Netflix DOM fallback for the watched portion", async () => {
   }
 });
 
+// Self-written synthetic lines for the full-track self-healing fixtures.
+const SELF_HEAL_SLOTS = 80;
+function selfHealLine(kind: "right" | "wrong" | "han", index: number): string {
+  if (kind === "han") {
+    const lines = [
+      "我们明天早上在车站门口见面吧",
+      "这本书的封面被雨水打湿了",
+      "窗外的雨一直下到了天亮时分",
+    ];
+    return `${lines[index % lines.length] ?? ""}${String(index)}`;
+  }
+  return kind === "right"
+    ? `Harbor lantern note ${String(index)} drifts past the quiet pier`
+    : `Copper kettle whistles ${String(index)} above a glacier stove`;
+}
+
+function selfHealTtml(kind: "right" | "wrong"): string {
+  const lines = Array.from({ length: SELF_HEAL_SLOTS }, (_, index) => {
+    const begin = (index * 1.5).toFixed(2);
+    const end = (index * 1.5 + 1.45).toFixed(2);
+    return `<p begin="${begin}s" end="${end}s">${selfHealLine(kind, index)}</p>`;
+  }).join("");
+  return `<tt xml:lang="en"><body><div>${lines}</div></body></tt>`;
+}
+
+/**
+ * A playing video (canvas capture stream, so currentTime really advances)
+ * whose Netflix-style native caption follows the playback position. The
+ * first manifest provides `firstTrack`.
+ */
+async function openSelfHealFixture(
+  watchId: number,
+  native: "right" | "han",
+  firstTrack: "right" | "wrong",
+): Promise<{
+  page: Page;
+  pageUrl: string;
+  provideTrack(kind: "right" | "wrong"): Promise<void>;
+  cleanup(): Promise<void>;
+}> {
+  const pageUrl = `https://www.netflix.com/watch/${String(watchId)}`;
+  const trackUrl = (kind: string): string =>
+    `https://ipv4-c001.nflxvideo.net/?o=self-heal-${String(watchId)}-${kind}&v=2&e=3&t=manifest`;
+  const routes = (["right", "wrong"] as const).map((kind) => ({
+    url: trackUrl(kind),
+    handler: async (route: Route): Promise<void> => {
+      await route.fulfill({
+        contentType: "application/ttml+xml",
+        headers: { "access-control-allow-origin": "*" },
+        body: selfHealTtml(kind),
+      });
+    },
+  }));
+  for (const { url, handler } of routes) await context.route(url, handler);
+  const nativeLines = Array.from({ length: SELF_HEAL_SLOTS }, (_, index) =>
+    selfHealLine(native, index),
+  );
+  const manifest = (kind: string): string =>
+    JSON.stringify(
+      netflixEpisodeManifest(watchId, `en-self-heal-${kind}`, trackUrl(kind)),
+    );
+  await context.route(pageUrl, async (route) => {
+    await route.fulfill({
+      contentType: "text/html",
+      body: `<!doctype html><video muted></video><div class="player-timedtext"></div><script>
+const video = document.querySelector("video");
+const canvas = document.createElement("canvas");
+canvas.width = 64;
+canvas.height = 36;
+const context2d = canvas.getContext("2d");
+let frame = 0;
+setInterval(() => {
+  context2d.fillStyle = frame++ % 2 ? "#123456" : "#654321";
+  context2d.fillRect(0, 0, 64, 36);
+}, 100);
+video.srcObject = canvas.captureStream(10);
+void video.play();
+const lines = ${JSON.stringify(nativeLines)};
+const caption = document.querySelector(".player-timedtext");
+setInterval(() => {
+  const words = (lines[Math.floor(video.currentTime / 1.5)] ?? "").split(" ");
+  const half = Math.ceil(words.length / 2);
+  const html = words.length > 1
+    ? '<div class="player-timedtext-text-container"><span>' + words.slice(0, half).join(" ") + "</span><br><span>" + words.slice(half).join(" ") + "</span></div>"
+    : "";
+  if (caption.innerHTML !== html) caption.innerHTML = html;
+}, 100);
+setTimeout(() => JSON.parse(${JSON.stringify(manifest(firstTrack))}), 500);
+</script>`,
+    });
+  });
+  const page = await context.newPage();
+  await page.goto(pageUrl);
+  return {
+    page,
+    pageUrl,
+    async provideTrack(kind) {
+      await page.evaluate((value) => {
+        JSON.parse(value);
+      }, manifest(kind));
+    },
+    async cleanup() {
+      await page.close();
+      await context.unroute(pageUrl);
+      for (const { url, handler } of routes)
+        await context.unroute(url, handler);
+    },
+  };
+}
+
+test("drops a Netflix full track that never matches the native captions", async () => {
+  test.setTimeout(90_000);
+  const fixture = await openSelfHealFixture(445, "right", "wrong");
+  const overlay = fixture.page.locator(
+    '[data-noritrans-ui="subtitle-overlay"]',
+  );
+  try {
+    await waitForReadyTrack(fixture.pageUrl, {
+      source: "netflix-manifest",
+      completeness: "full",
+    });
+    await expect(overlay).toContainText(/Copper kettle/u);
+    // Warmup (5 s) plus three distinct mismatching samples (1.5 s apart).
+    await expect
+      .poll(
+        async () => {
+          const status = await subtitleStatus(fixture.pageUrl);
+          return status?.completeness === "full" &&
+            status.source === "netflix-manifest"
+            ? "full-manifest"
+            : "rediscovering";
+        },
+        { timeout: 15_000 },
+      )
+      .toBe("rediscovering");
+    await fixture.provideTrack("right");
+    await waitForReadyTrack(fixture.pageUrl, {
+      source: "netflix-manifest",
+      completeness: "full",
+    });
+    await expect(overlay).toContainText(/Harbor lantern note/u);
+    // The correct track keeps matching and is not dropped again.
+    await fixture.page.waitForTimeout(9_000);
+    expect(await subtitleStatus(fixture.pageUrl)).toMatchObject({
+      source: "netflix-manifest",
+      completeness: "full",
+    });
+    await expect(overlay).toContainText(/Harbor lantern note/u);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+for (const [label, watchId, native, firstTrack] of [
+  ["matches the native captions", 446, "right", "right"],
+  ["is compared with native captions in another script", 447, "han", "wrong"],
+] as const) {
+  test(`keeps a Netflix full track that ${label}`, async () => {
+    test.setTimeout(60_000);
+    const fixture = await openSelfHealFixture(watchId, native, firstTrack);
+    try {
+      await waitForReadyTrack(fixture.pageUrl, {
+        source: "netflix-manifest",
+        completeness: "full",
+      });
+      await fixture.page.waitForTimeout(13_000);
+      expect(await subtitleStatus(fixture.pageUrl)).toMatchObject({
+        state: "ready",
+        source: "netflix-manifest",
+        completeness: "full",
+      });
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+}
+
 test("does not download a missing OCR model during the local self-test", async () => {
   test.setTimeout(120_000);
   const requests: string[] = [];

@@ -38,4 +38,17 @@ export interface SubtitleAdapter {
    */
   skippedSourceLanguage?(): string | undefined;
   setPreferredVideo?(video: HTMLVideoElement | null): void;
+  /**
+   * Text of the caption the website itself currently shows for the active
+   * video, or an empty string. Must ignore the extension's own hiding of
+   * native captions. Lets the controller verify that a selected full track
+   * really belongs to the playing media.
+   */
+  nativeCaptionText?(): string;
+  /**
+   * Drops the captured track the controller proved wrong for the current
+   * media and allows rediscovery; the same document must not be accepted
+   * again for this media session. Must not broadcast an invalidation.
+   */
+  discardCapturedTrack?(): void;
 }

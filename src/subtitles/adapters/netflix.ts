@@ -262,6 +262,30 @@ function parsePayload(
   );
 }
 
+const CAPTION_LINE_BREAK_TAGS = new Set(["BR", "DIV", "P"]);
+
+/**
+ * Caption text with line breaks kept as separators. `innerText` is empty
+ * while the extension hides native captions with `visibility: hidden`, and
+ * `textContent` would glue the last word of one line to the first word of
+ * the next, which breaks word-level comparison.
+ */
+function captionTextWithLineBreaks(element: HTMLElement): string {
+  const parts: string[] = [];
+  const walker = document.createTreeWalker(
+    element,
+    NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+  );
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      parts.push(node.nodeValue ?? "");
+    } else if (CAPTION_LINE_BREAK_TAGS.has((node as Element).tagName)) {
+      parts.push("\n");
+    }
+  }
+  return parts.join("").trim();
+}
+
 export class NetflixSubtitleAdapter implements SubtitleAdapter {
   readonly id = "netflix";
   readonly priority = 3;
@@ -272,6 +296,12 @@ export class NetflixSubtitleAdapter implements SubtitleAdapter {
   private capturedManifestFull = false;
   /** Keep one verified variant stable for the lifetime of the player session. */
   private capturedFullTrackSignature = "";
+  /**
+   * Full tracks the controller proved wrong for this player session (their
+   * text never matched the website's own captions). Never accepted again
+   * until the media session changes.
+   */
+  private readonly discardedFullTrackSignatures = new Set<string>();
   private readonly previousCapturedTracks = new Map<string, SubtitleTrack>();
   private readonly growingCapturedTrackIdentities = new Set<string>();
   private readonly stableCapturedDocuments = new Map<
@@ -328,28 +358,89 @@ export class NetflixSubtitleAdapter implements SubtitleAdapter {
     }
     if (nextKey === this.sessionKey) return;
     this.sessionKey = nextKey;
+    this.discardedFullTrackSignatures.clear();
     this.resetStream();
   }
 
-  private resetStream(): void {
-    const invalidated = this.latestTrack !== null || this.streamCues.length > 0;
+  private clearSelectedTrack(): void {
     this.latestTrack = null;
     this.capturedTrackIdentity = "";
     this.capturedStreamTrack = null;
     this.capturedManifestFull = false;
     this.capturedFullTrackSignature = "";
-    this.previousCapturedTracks.clear();
-    this.growingCapturedTrackIdentities.clear();
-    this.stableCapturedDocuments.clear();
     this.streamCues = [];
     this.previousStreamCue = null;
     this.lastVisibleText = "";
     this.pendingSeekReset = false;
     this.lastDomDiagnosticCount = 0;
+  }
+
+  private resetStream(): void {
+    const invalidated = this.latestTrack !== null || this.streamCues.length > 0;
+    this.clearSelectedTrack();
+    this.previousCapturedTracks.clear();
+    this.growingCapturedTrackIdentities.clear();
+    this.stableCapturedDocuments.clear();
     this.skippedLanguage = undefined;
     if (invalidated) {
       for (const listener of this.invalidationListeners) listener();
     }
+  }
+
+  /** Text of the caption Netflix itself currently shows for the active video. */
+  private readVisibleCaptionText(video: HTMLVideoElement | null): string {
+    return captionsForVideo(
+      Array.from(
+        document.querySelectorAll<HTMLElement>(
+          profileCaptionSelector(this.profile),
+        ),
+      ),
+      video,
+      this.profile.selectors.video,
+    )
+      .map(visibleCaptionText)
+      .filter(Boolean)
+      .join("\n")
+      .trim();
+  }
+
+  nativeCaptionText(): string {
+    const video = selectActiveVideo(
+      this.profile.selectors.video,
+      this.preferredVideo,
+    );
+    return captionsForVideo(
+      Array.from(
+        document.querySelectorAll<HTMLElement>(
+          profileCaptionSelector(this.profile),
+        ),
+      ),
+      video,
+      this.profile.selectors.video,
+    )
+      .filter((element) => visibleCaptionText(element) !== "")
+      .map(captionTextWithLineBreaks)
+      .filter(Boolean)
+      .join("\n")
+      .trim();
+  }
+
+  /**
+   * Drops the selected track after the controller proved it does not match
+   * the captions on screen. The rejected full document is remembered so the
+   * "keep the first verified track stable" rule cannot pin it again, while
+   * stable-document evidence for other documents is kept for rediscovery.
+   * The controller resets itself, so no invalidation is broadcast.
+   */
+  discardCapturedTrack(): void {
+    if (this.capturedFullTrackSignature) {
+      this.discardedFullTrackSignatures.add(this.capturedFullTrackSignature);
+    }
+    netflixDiagnostic("captured-track-discarded", {
+      hadFullTrack: this.capturedManifestFull,
+      rejectedTracks: this.discardedFullTrackSignatures.size,
+    });
+    this.clearSelectedTrack();
   }
 
   matches(location: Location): boolean {
@@ -387,6 +478,14 @@ export class NetflixSubtitleAdapter implements SubtitleAdapter {
         pendingStableTimer = undefined;
       }
       const candidate = pendingStableDocument;
+      if (
+        this.discardedFullTrackSignatures.has(
+          capturedTrackSignature(candidate.track),
+        )
+      ) {
+        clearPendingStableDocument();
+        return;
+      }
       const currentPageKey = location.href.split("#", 1)[0] ?? location.href;
       if (candidate.pageKey !== currentPageKey) {
         clearPendingStableDocument();
@@ -497,6 +596,14 @@ export class NetflixSubtitleAdapter implements SubtitleAdapter {
       const responseEvidence = capturedResponseEvidence(payload);
       const stableDocumentKey = `${payload.url}|${parsedTrack.language}`;
       const signature = capturedTrackSignature(parsedTrack);
+      if (this.discardedFullTrackSignatures.has(signature)) {
+        netflixDiagnostic("discarded-track-ignored", {
+          resource: diagnosticUrl(payload.url),
+          language: parsedTrack.language,
+          cues: parsedTrack.cues.length,
+        });
+        return;
+      }
       const previousStableDocument =
         this.stableCapturedDocuments.get(stableDocumentKey);
       const stableMatches =
@@ -660,15 +767,7 @@ export class NetflixSubtitleAdapter implements SubtitleAdapter {
       );
       this.refreshSession();
       if (this.latestTrack?.completeness === "full") return;
-      const originalText = captionsForVideo(
-        Array.from(document.querySelectorAll<HTMLElement>(captionSelector)),
-        video,
-        this.profile.selectors.video,
-      )
-        .map(visibleCaptionText)
-        .filter(Boolean)
-        .join("\n")
-        .trim();
+      const originalText = this.readVisibleCaptionText(video);
       const startMs = Math.max(
         0,
         Math.round((video?.currentTime ?? 0) * 1_000),

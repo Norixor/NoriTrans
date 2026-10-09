@@ -1466,6 +1466,74 @@ describe("video subtitle adapters", () => {
     }
   });
 
+  it("forgets a Netflix full track the controller proved wrong", async () => {
+    const video = document.createElement("video");
+    document.body.append(video);
+    const adapter = new NetflixSubtitleAdapter();
+    const listener = vi.fn();
+    const unsubscribe = adapter.subscribe(listener);
+    const dispatch = (resource: string, text: string): void => {
+      window.dispatchEvent(
+        new CustomEvent(SUBTITLE_CAPTURE_EVENT, {
+          detail: {
+            site: "netflix",
+            pageUrl: location.href,
+            url: `https://ipv4-c001.nflxvideo.net/?o=${resource}&v=2&e=3`,
+            ...captureIdentity(),
+            ...COMPLETE_RESPONSE_EVIDENCE,
+            manifestCandidate: true,
+            language: "en",
+            contentType: "application/ttml+xml",
+            body: `<tt xml:lang="en"><body><div><p begin="0s" end="1s">${text}</p></div></body></tt>`,
+          },
+        }),
+      );
+    };
+    try {
+      dispatch("stale", "Stale document line");
+      expect(listener).toHaveBeenLastCalledWith(
+        expect.objectContaining({ completeness: "full" }),
+      );
+      // The first verified document is normally kept stable.
+      dispatch("fresh", "Fresh document line");
+      expect(listener).toHaveBeenCalledTimes(1);
+
+      adapter.discardCapturedTrack();
+      await expect(adapter.collect()).resolves.toBeNull();
+      dispatch("stale", "Stale document line");
+      expect(listener).toHaveBeenCalledTimes(1);
+      dispatch("fresh", "Fresh document line");
+      expect(listener).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          completeness: "full",
+          cues: [
+            expect.objectContaining({ originalText: "Fresh document line" }),
+          ],
+        }),
+      );
+    } finally {
+      unsubscribe();
+      document.body.replaceChildren();
+    }
+  });
+
+  it("reads Netflix native caption text with line breaks as separators", () => {
+    const video = document.createElement("video");
+    const caption = document.createElement("div");
+    caption.className = "player-timedtext";
+    caption.innerHTML =
+      '<div class="player-timedtext-text-container"><span>First half</span><br><span>second half</span></div>';
+    document.body.append(video, caption);
+    const adapter = new NetflixSubtitleAdapter();
+    try {
+      expect(adapter.nativeCaptionText()).toBe("First half\nsecond half");
+      caption.style.display = "none";
+      expect(adapter.nativeCaptionText()).toBe("");
+    } finally {
+      document.body.replaceChildren();
+    }
+  });
+
   it("uses Netflix manifest language metadata when the signed URL has no language", () => {
     const video = document.createElement("video");
     document.body.append(video);

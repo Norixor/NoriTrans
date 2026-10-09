@@ -33,6 +33,11 @@ import {
   normalizeSubtitleTrack,
   subtitleTrackFingerprint,
 } from "@/src/subtitles/timeline";
+import {
+  TRACK_VERIFY_SAMPLE_INTERVAL_MS,
+  TrackVerifier,
+  type TrackVerifyOutcome,
+} from "@/src/subtitles/track-verifier";
 import type { SubtitleCue, SubtitleTrack } from "@/src/subtitles/types";
 import {
   selectActiveVideo,
@@ -761,6 +766,10 @@ export class SubtitleController {
   private scanTimer: number | undefined;
   private discoveryTimeout: number | undefined;
   private trackResetTimer: number | undefined;
+  /** Self-healing check of the selected full track against native captions. */
+  private readonly trackVerifier = new TrackVerifier();
+  private trackVerifyTimer: number | undefined;
+  private lastTrackVerifyDiagnostic = "";
   private translationFailureMessage: string | undefined;
   private translationFailureDetails: string | undefined;
   /** Machine-readable reason paired with `translationFailureMessage`. */
@@ -967,6 +976,7 @@ export class SubtitleController {
     this.scanTimer = undefined;
     this.clearSubtitleDiscoveryTimeout();
     this.clearTrackResetTimer();
+    this.stopTrackVerification();
     this.clearStreamDeferTimer();
     for (const adapter of [...this.adapterUnsubscribers.keys()]) {
       this.unsubscribeAdapter(adapter);
@@ -1515,6 +1525,20 @@ export class SubtitleController {
       identity === this.currentTrackIdentity
     )
       return;
+    if (
+      normalizedTrack.completeness === "full" &&
+      this.trackVerifier.isHealed(
+        this.cacheScope(),
+        subtitleTrackFingerprint(normalizedTrack),
+      )
+    ) {
+      // This exact document was proven not to match the captions on screen.
+      netflixDiagnostic("track-verify-skipped", {
+        reason: "healed-track",
+        cues: normalizedTrack.cues.length,
+      });
+      return;
+    }
 
     if (
       this.translationSuspended &&
@@ -1540,6 +1564,7 @@ export class SubtitleController {
     });
     this.translationTrack = this.translationTrackFor(normalizedTrack);
     this.currentTrackIdentity = identity;
+    this.beginTrackVerification(normalizedTrack);
     this.onTrackSelected?.(normalizedTrack);
     if (
       normalizedTrack.completeness === "stream" &&
@@ -2657,6 +2682,7 @@ export class SubtitleController {
       cues: this.currentTrack?.cues.length ?? 0,
     });
     this.clearTrackResetTimer();
+    this.stopTrackVerification();
     this.beginSession();
     this.currentTrack = null;
     this.translationTrack = null;
@@ -2810,6 +2836,125 @@ export class SubtitleController {
       this.streamDeferTimer = undefined;
     }
     this.deferredStreamCueSince.clear();
+  }
+
+  private nativeCaptionReader(): SubtitleAdapter | undefined {
+    return this.adapters.find(
+      (adapter) => adapter.nativeCaptionText !== undefined,
+    );
+  }
+
+  /**
+   * Starts verifying a newly selected full track when a site adapter can read
+   * the website's own captions. Adapters without that ability are unaffected.
+   */
+  private beginTrackVerification(track: SubtitleTrack): void {
+    this.lastTrackVerifyDiagnostic = "";
+    if (
+      track.completeness !== "full" ||
+      track.source === "ocr" ||
+      !this.nativeCaptionReader()
+    ) {
+      this.stopTrackVerification();
+      return;
+    }
+    this.trackVerifier.beginTrack(
+      this.cacheScope(),
+      subtitleTrackFingerprint(track),
+      track.cues,
+      Date.now(),
+    );
+    if (this.trackVerifyTimer === undefined) {
+      this.trackVerifyTimer = window.setInterval(
+        this.verifyCurrentTrack,
+        TRACK_VERIFY_SAMPLE_INTERVAL_MS,
+      );
+    }
+  }
+
+  private stopTrackVerification(): void {
+    this.trackVerifier.endTrack();
+    if (this.trackVerifyTimer === undefined) return;
+    window.clearInterval(this.trackVerifyTimer);
+    this.trackVerifyTimer = undefined;
+  }
+
+  private readonly verifyCurrentTrack = (): void => {
+    const track = this.currentTrack;
+    const reader = this.nativeCaptionReader();
+    if (
+      !this.active ||
+      !reader?.nativeCaptionText ||
+      track?.completeness !== "full" ||
+      track.source === "ocr"
+    ) {
+      this.stopTrackVerification();
+      return;
+    }
+    const video = this.video;
+    if (!video || video.paused || video.seeking || video.ended) {
+      this.trackVerifier.interrupt();
+      return;
+    }
+    const outcome = this.trackVerifier.sample({
+      nativeText: reader.nativeCaptionText(),
+      currentTimeMs: video.currentTime * 1_000,
+      now: Date.now(),
+      playbackRate: video.playbackRate || 1,
+    });
+    this.reportTrackVerification(outcome, track);
+    if (outcome.kind === "invalid") this.healCurrentTrack(track);
+  };
+
+  private reportTrackVerification(
+    outcome: TrackVerifyOutcome,
+    track: SubtitleTrack,
+  ): void {
+    if (outcome.kind === "mismatch") {
+      netflixDiagnostic("track-verify-mismatch", {
+        streak: outcome.streak,
+        cues: track.cues.length,
+      });
+      return;
+    }
+    if (outcome.kind !== "skipped") return;
+    // Skips repeat every sample; report each reason once per selected track.
+    if (outcome.reason === this.lastTrackVerifyDiagnostic) return;
+    this.lastTrackVerifyDiagnostic = outcome.reason;
+    netflixDiagnostic("track-verify-skipped", {
+      reason: outcome.reason,
+      heals: this.trackVerifier.healCount,
+    });
+  }
+
+  /**
+   * The selected full track does not match the captions the website shows,
+   * e.g. a stale or mismatched episode document. Forget it for this media
+   * only, and rediscover: live DOM captions bridge until a correct full track
+   * arrives. Translation caches are keyed by source text and media, so they
+   * stay valid; settings and other media are untouched.
+   */
+  private healCurrentTrack(track: SubtitleTrack): void {
+    const key = this.persistedTrackKey();
+    this.trackVerifier.recordHeal(Date.now());
+    netflixDiagnostic("track-verify-healed", {
+      heals: this.trackVerifier.healCount,
+      cues: track.cues.length,
+      source: track.source,
+    });
+    for (const adapter of this.adapters) adapter.discardCapturedTrack?.();
+    this.resetMediaState();
+    // Do not let the scan restore the rejected document before deletion.
+    this.lastRestoredTrackKey = key;
+    if (this.taskStore) {
+      this.persistedTrackMutation = this.persistedTrackMutation
+        .then(() => this.taskStore?.deleteTrack(key))
+        .then(
+          () => undefined,
+          () => undefined,
+        );
+    }
+    void this.scan();
   }
 
   private clearTrackResetTimer(): void {
