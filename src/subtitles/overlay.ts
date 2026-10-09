@@ -9,6 +9,10 @@ import { message } from "@/src/shared/i18n";
 import { cleanTranslatedText } from "@/src/translation/output";
 import { NT_THEME_WRAPPER_CLASS } from "@/src/ui/tokens/tokens";
 import { createStatusGlyph } from "@/src/ui/dom/status-glyph";
+import {
+  createFullscreenPortal,
+  type FullscreenPortal,
+} from "@/src/ui/inject/fullscreen";
 import { SUBTITLE_OVERLAY_STYLE } from "@/src/subtitles/overlay-style";
 import {
   LIVE_TAG_DURATION_MS,
@@ -117,7 +121,7 @@ export function subtitleCueVisibility(
 
 export class SubtitleOverlay {
   private readonly host = document.createElement("div");
-  private readonly fullscreenPortal = document.createElement("div");
+  private fullscreenPortal: FullscreenPortal | undefined;
   private readonly container: HTMLDivElement;
   private readonly original: HTMLDivElement;
   private readonly translated: HTMLDivElement;
@@ -190,37 +194,6 @@ export class SubtitleOverlay {
     options: SubtitleOverlayOptions = {},
   ) {
     this.host.dataset.noritransUi = "subtitle-overlay";
-    this.fullscreenPortal.dataset.noritransUi = "subtitle-fullscreen-portal";
-    this.fullscreenPortal.setAttribute("popover", "manual");
-    // The portal lives in the page's light DOM, so page rules such as
-    // `div { border: … !important }` or `[popover] { display: none }` would
-    // otherwise reach it. Important inline declarations win over both. The
-    // portal is only connected while open, so forcing `display` is safe.
-    for (const [property, value] of Object.entries({
-      display: "block",
-      position: "fixed",
-      inset: "0",
-      width: "100vw",
-      height: "100vh",
-      "max-width": "none",
-      "max-height": "none",
-      margin: "0",
-      padding: "0",
-      border: "0",
-      background: "transparent",
-      opacity: "1",
-      "pointer-events": "none",
-      overflow: "visible",
-    })) {
-      this.fullscreenPortal.style.setProperty(property, value, "important");
-    }
-    // Same shape as src/ui/inject/fullscreen.ts: a slot-only shadow root
-    // whose inner important rule removes page-generated ::before/::after.
-    const portalRoot = this.fullscreenPortal.attachShadow({ mode: "open" });
-    const portalStyle = document.createElement("style");
-    portalStyle.textContent =
-      ":host::before, :host::after { content: none !important; display: none !important; }";
-    portalRoot.append(portalStyle, document.createElement("slot"));
     const root = this.host.attachShadow({ mode: "open" });
     const style = document.createElement("style");
     style.textContent = SUBTITLE_OVERLAY_STYLE;
@@ -303,6 +276,18 @@ export class SubtitleOverlay {
     this.customPosition = settings.customPosition;
     this.updateSettings(settings);
     this.mount();
+    // Registered before the portal's own listener so a stale drag ends before
+    // the portal reparents the host (reparenting can drop pointer capture).
+    document.addEventListener("fullscreenchange", this.cancelActiveDrag);
+    // In a fullscreen container the portal sits inside the fullscreen element,
+    // which is the only place Chromium keeps pointer input (and so dragging)
+    // alive; a root-level popover is painted but inert.
+    this.fullscreenPortal = createFullscreenPortal({
+      host: this.host,
+      surface: "subtitle-fullscreen-portal",
+      onChange: this.updateAnchor,
+    });
+    this.fullscreenPortal.sync();
     this.cueCard.addEventListener("pointerdown", this.startDrag);
     this.cueCard.addEventListener("pointerup", this.finishDrag);
     this.cueCard.addEventListener("pointercancel", this.cancelDrag);
@@ -311,7 +296,6 @@ export class SubtitleOverlay {
       this.cancelLostPointerCapture,
     );
     this.cueCard.addEventListener("keydown", this.moveWithKeyboard);
-    document.addEventListener("fullscreenchange", this.mount);
     window.addEventListener("resize", this.updateAnchor);
     window.addEventListener("scroll", this.updateAnchor, true);
     window.addEventListener("blur", this.cancelActiveDrag);
@@ -326,34 +310,17 @@ export class SubtitleOverlay {
   }
 
   private readonly mount = (): void => {
-    // Reparenting during fullscreen can implicitly drop pointer capture. End
-    // the gesture first so a stale drag cannot keep following the cursor.
+    // Reparenting can implicitly drop pointer capture. End the gesture first
+    // so a stale drag cannot keep following the cursor.
     this.cancelActiveDrag();
-    const fullscreen = document.fullscreenElement;
-    const portal = this.fullscreenPortal as HTMLElement & {
-      hidePopover?: () => void;
-      showPopover?: () => void;
-    };
+    // While the fullscreen portal presents the host it must stay where the
+    // portal put it; only the ordinary placement is managed here.
     if (
-      fullscreen instanceof HTMLElement &&
-      typeof portal.showPopover === "function"
+      !this.fullscreenPortal ||
+      this.fullscreenPortal.presentation === "inline"
     ) {
-      if (!portal.isConnected) document.documentElement.append(portal);
-      if (this.host.parentElement !== portal) portal.append(this.host);
-      try {
-        portal.showPopover();
-      } catch {
-        // Repeated fullscreen notifications can arrive while it is already open.
-      }
-    } else {
-      try {
-        portal.hidePopover?.();
-      } catch {
-        // Ignore a portal that was not open.
-      }
-      const target = fullscreen ?? document.documentElement;
+      const target = document.documentElement;
       if (this.host.parentElement !== target) target.append(this.host);
-      portal.remove();
     }
     this.updateAnchor();
   };
@@ -686,7 +653,7 @@ export class SubtitleOverlay {
     this.cueResizeObserver?.disconnect();
     this.reducedMotion?.removeEventListener("change", this.scheduleCueScroll);
     this.clearNotice();
-    document.removeEventListener("fullscreenchange", this.mount);
+    document.removeEventListener("fullscreenchange", this.cancelActiveDrag);
     window.removeEventListener("resize", this.updateAnchor);
     window.removeEventListener("scroll", this.updateAnchor, true);
     window.removeEventListener("blur", this.cancelActiveDrag);
@@ -719,14 +686,8 @@ export class SubtitleOverlay {
       this.cancelLostPointerCapture,
     );
     this.cueCard.removeEventListener("keydown", this.moveWithKeyboard);
-    try {
-      (
-        this.fullscreenPortal as HTMLElement & { hidePopover?: () => void }
-      ).hidePopover?.();
-    } catch {
-      // Ignore a portal that was not open.
-    }
-    this.fullscreenPortal.remove();
+    this.fullscreenPortal?.dispose();
+    this.fullscreenPortal = undefined;
     this.host.remove();
   }
 

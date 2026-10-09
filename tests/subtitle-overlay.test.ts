@@ -622,6 +622,54 @@ describe("subtitle overlay display modes", () => {
     }
   });
 
+  it("places the subtitle portal inside a fullscreen container so dragging keeps working", () => {
+    const fullscreenDescriptor = Object.getOwnPropertyDescriptor(
+      document,
+      "fullscreenElement",
+    );
+    const showPopover = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "showPopover", {
+      configurable: true,
+      value: showPopover,
+    });
+    Object.defineProperty(HTMLElement.prototype, "hidePopover", {
+      configurable: true,
+      value: vi.fn(),
+    });
+    const stage = document.createElement("div");
+    stage.getBoundingClientRect = () => new DOMRect(0, 0, 800, 450);
+    document.body.append(stage);
+    Object.defineProperty(document, "fullscreenElement", {
+      configurable: true,
+      value: stage,
+    });
+
+    try {
+      const overlay = new SubtitleOverlay(DEFAULT_SETTINGS.subtitles);
+      const host = document.querySelector<HTMLElement>(
+        '[data-noritrans-ui="subtitle-overlay"]',
+      );
+      const portal = host?.parentElement;
+      expect(portal?.dataset.noritransUi).toBe("subtitle-fullscreen-portal");
+      // Chromium keeps pointer input only inside the fullscreen element's
+      // subtree, so the portal must not live at the document root.
+      expect(portal?.parentElement).toBe(stage);
+      overlay.destroy();
+    } finally {
+      if (fullscreenDescriptor) {
+        Object.defineProperty(
+          document,
+          "fullscreenElement",
+          fullscreenDescriptor,
+        );
+      } else {
+        Reflect.deleteProperty(document, "fullscreenElement");
+      }
+      Reflect.deleteProperty(HTMLElement.prototype, "showPopover");
+      Reflect.deleteProperty(HTMLElement.prototype, "hidePopover");
+    }
+  });
+
   it("supports keyboard position adjustment and persists custom coordinates", () => {
     const onPositionChange =
       vi.fn<(position: SubtitleCustomPosition) => void>();

@@ -4965,6 +4965,84 @@ test("applies native caption visibility and overlay position at runtime", async 
   }
 });
 
+test("keeps the subtitle overlay draggable inside a fullscreen container", async () => {
+  const pageUrl =
+    "https://www.youtube.com/watch?v=subtitle-fullscreen-drag-e2e";
+  const previous = await updateSubtitlePreferences({
+    displayMode: "translated",
+    hideNativeSubtitles: false,
+    position: "bottom",
+  });
+  await context.route(pageUrl, (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: '<!doctype html><style>#stage{position:fixed;left:120px;top:80px;width:640px;height:360px;background:#000}video{display:block;width:100%;height:100%}</style><button id="fullscreen" onclick="document.querySelector(\'#stage\').requestFullscreen()">Fullscreen</button><div id="stage"><video></video></div><div class="ytp-caption-window-container"><div class="ytp-caption-segment">Native caption</div></div>',
+    }),
+  );
+  const page = await context.newPage();
+  try {
+    await page.goto(pageUrl);
+    await waitForReadyTrack(pageUrl, {
+      source: "dom",
+      completeness: "stream",
+    });
+    const overlay = page.locator('[data-noritrans-ui="subtitle-overlay"]');
+    const card = overlay.locator(".cue-card");
+    await expect(card).toBeVisible();
+
+    await page.locator("#fullscreen").click();
+    await expect
+      .poll(() => page.evaluate(() => document.fullscreenElement?.id))
+      .toBe("stage");
+    // Chromium keeps pointer input only inside the fullscreen element's
+    // subtree, so the overlay's portal has to live inside the container; a
+    // root-level popover is painted but cannot be dragged.
+    await expect
+      .poll(() =>
+        overlay.evaluate(
+          (host: HTMLElement) => host.parentElement?.parentElement?.id,
+        ),
+      )
+      .toBe("stage");
+    await expect(card).toBeVisible();
+
+    const before = await card.boundingBox();
+    if (!before) throw new Error("Missing subtitle card geometry");
+    await page.mouse.move(
+      before.x + before.width / 2,
+      before.y + before.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+      before.x + before.width / 2 + 60,
+      before.y + before.height / 2 - 80,
+      { steps: 5 },
+    );
+    await page.mouse.up();
+    await expect(overlay).toHaveAttribute("data-position", "custom");
+    const after = await card.boundingBox();
+    if (!after) throw new Error("Missing moved subtitle card geometry");
+    expect(after.y).toBeLessThan(before.y - 20);
+
+    await page.evaluate(() => document.exitFullscreen());
+    await expect
+      .poll(() => page.evaluate(() => document.fullscreenElement === null))
+      .toBe(true);
+    await expect
+      .poll(() =>
+        overlay.evaluate(
+          (host: HTMLElement) =>
+            host.parentElement === document.documentElement,
+        ),
+      )
+      .toBe(true);
+  } finally {
+    await updateSubtitlePreferences(previous);
+    await page.close();
+    await context.unroute(pageUrl);
+  }
+});
+
 test("keeps the floating control interactive inside a fullscreen container", async () => {
   const pageUrl = "https://www.youtube.com/fullscreen-container-control-e2e";
   await context.route(pageUrl, (route) =>
