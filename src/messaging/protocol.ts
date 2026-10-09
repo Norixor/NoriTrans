@@ -557,6 +557,7 @@ function isAppSettings(value: unknown): value is AppSettings {
       subtitles.displayMode === "bilingual") &&
     typeof subtitles.hideNativeSubtitles === "boolean" &&
     typeof subtitles.sentenceSmoothing === "boolean" &&
+    typeof subtitles.ignoreSoundCues === "boolean" &&
     (subtitles.position === "top" ||
       subtitles.position === "center" ||
       subtitles.position === "bottom" ||

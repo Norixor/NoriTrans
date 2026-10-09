@@ -28,6 +28,7 @@ import {
 } from "@/src/subtitles/overlay";
 import { fragmentAwareSegments } from "@/src/subtitles/fragment-context";
 import { isPersistedFullTrack } from "@/src/subtitles/persisted-track";
+import { isSoundCue } from "@/src/subtitles/sound-cues";
 import {
   normalizeSubtitleTrack,
   subtitleTrackFingerprint,
@@ -1043,10 +1044,12 @@ export class SubtitleController {
       settings.mode !== this.settings.mode ||
       settings.aiResponseMode !== this.settings.aiResponseMode ||
       settings.sentenceSmoothing !== this.settings.sentenceSmoothing ||
+      settings.ignoreSoundCues !== this.settings.ignoreSoundCues ||
       providerChanged;
     const smoothingBefore = this.currentTrack
       ? this.sentenceSmoothingActive(this.currentTrack)
       : false;
+    const ignoreSoundCuesBefore = this.ignoreSoundCuesActive();
     this.settings = settings;
     for (const adapter of this.adapters)
       adapter.setSourceLanguage?.(settings.sourceLanguage);
@@ -1095,7 +1098,12 @@ export class SubtitleController {
       // Smoothing switches the translation and display unit between sentence
       // groups and individual cues, so rebuild the translation track only when
       // that state actually flips; every other change keeps the same track.
-      if (smoothingBefore !== this.sentenceSmoothingActive(this.currentTrack)) {
+      // Skipping sound cues removes them from the translation track, so it is
+      // rebuilt when that flips as well.
+      if (
+        smoothingBefore !== this.sentenceSmoothingActive(this.currentTrack) ||
+        ignoreSoundCuesBefore !== this.ignoreSoundCuesActive()
+      ) {
         this.translationTrack = this.translationTrackFor(this.currentTrack);
       }
       const translationTrack = this.translationTrack ?? this.currentTrack;
@@ -1167,13 +1175,31 @@ export class SubtitleController {
    * spoken) and other full tracks are merged into sentence groups.
    */
   private translationTrackFor(track: SubtitleTrack): SubtitleTrack {
+    // Sound cues are dropped before grouping and context building, so they are
+    // never translated and never leak into the context of real dialogue.
+    const dialogue = this.withoutIgnoredSoundCues(track);
     if (
-      track.source === "netflix-manifest" ||
-      this.sentenceSmoothingActive(track)
+      dialogue.source === "netflix-manifest" ||
+      this.sentenceSmoothingActive(dialogue)
     ) {
-      return track;
+      return dialogue;
     }
-    return groupFullSubtitleTrack(track);
+    return groupFullSubtitleTrack(dialogue);
+  }
+
+  /** OCR text is never filtered; every other track source honors the setting. */
+  private ignoreSoundCuesActive(track = this.currentTrack): boolean {
+    return this.settings.ignoreSoundCues && track?.source !== "ocr";
+  }
+
+  private isIgnoredSoundCue(track: SubtitleTrack, cue: SubtitleCue): boolean {
+    return this.ignoreSoundCuesActive(track) && isSoundCue(cue.originalText);
+  }
+
+  private withoutIgnoredSoundCues(track: SubtitleTrack): SubtitleTrack {
+    if (!this.ignoreSoundCuesActive(track)) return track;
+    const cues = track.cues.filter((cue) => !isSoundCue(cue.originalText));
+    return cues.length === track.cues.length ? track : { ...track, cues };
   }
 
   refreshLocale(): void {
@@ -3029,9 +3055,11 @@ export class SubtitleController {
     const directTranslationCue = translationTrack.cues.find(
       (candidate) => candidate.id === cue.id,
     );
+    const ignoredSoundCue =
+      !directTranslationCue && this.isIgnoredSoundCue(track, cue);
     const translationCue =
       directTranslationCue ??
-      (translationTrack.completeness === "full"
+      (translationTrack.completeness === "full" && !ignoredSoundCue
         ? groupForCue(translationTrack.cues as SubtitleSentenceGroup[], cue.id)
         : undefined);
     if (translationCue && !this.translated.has(translationCue.id)) {
@@ -3041,9 +3069,12 @@ export class SubtitleController {
       ? (this.translated.get(translationCue.id) ??
         this.fallbackTranslated.get(translationCue.id))
       : undefined;
+    // An ignored sound cue has no translation unit: show its original text
+    // alone in every display mode instead of an empty or duplicated line.
     const showOcrOriginalFallback =
-      track.source === "ocr" &&
-      Boolean(translationCue && this.failed.has(translationCue.id));
+      (track.source === "ocr" &&
+        Boolean(translationCue && this.failed.has(translationCue.id))) ||
+      (!translationCue && ignoredSoundCue);
     const hasTranslatedText = Boolean(translatedText?.trim());
     if (
       this.settings.displayMode === "bilingual" &&

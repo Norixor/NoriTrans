@@ -133,6 +133,18 @@ function subtitleGroup(context: SectionContext): TemplateResult {
           ></nt-switch>`,
         )
       : nothing,
+    switchRow(
+      html`<nt-switch
+        id="subtitle-ignore-sound-cues"
+        label=${message("optSubtitleIgnoreSoundCues")}
+        description=${message("optSubtitleIgnoreSoundCuesHelp")}
+        ?checked=${subtitles.ignoreSoundCues}
+        @change=${(event: Event) =>
+          context.update({
+            subtitles: { ignoreSoundCues: detailChecked(event) },
+          })}
+      ></nt-switch>`,
+    ),
   ]);
 }
 

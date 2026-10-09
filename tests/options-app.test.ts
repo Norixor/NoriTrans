@@ -189,6 +189,22 @@ describe("options app autosave", () => {
     ).toBe("saved");
   });
 
+  it("autosaves the skip sound cues switch, off by default", async () => {
+    const h = await mount();
+    const toggle = (): HTMLButtonElement =>
+      inner<HTMLButtonElement>(
+        document.querySelector("#subtitle-ignore-sound-cues"),
+        "button",
+      );
+    expect(toggle().getAttribute("aria-checked")).toBe("false");
+    toggle().click();
+    await h.store.flush();
+    await settle();
+    expect(h.patches.at(-1)).toEqual({ subtitles: { ignoreSoundCues: true } });
+    expect(h.store.storedValue.subtitles.ignoreSoundCues).toBe(true);
+    expect(toggle().getAttribute("aria-checked")).toBe("true");
+  });
+
   it("restores the stored value and reports a failed save", async () => {
     const h = await mount();
     h.failPatches("settings_patch_save_failed");

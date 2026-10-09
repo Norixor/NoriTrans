@@ -1570,6 +1570,10 @@
   "optSubtitleSentenceSmoothingHelp": {
     "message": "When a sentence is split across several subtitle lines, AI sees the whole sentence so each line is translated to read naturally together. Each line keeps its own timing. Applies to complete subtitle tracks only."
   },
+  "optSubtitleIgnoreSoundCues": { "message": "Skip sound and music cues" },
+  "optSubtitleIgnoreSoundCuesHelp": {
+    "message": "When on, cues that are only a sound or music note, such as (🎵 siren) or [Music], are not translated and keep their original text. Lines with lyrics are not affected."
+  },
   "optSubtitlePositionCustom": { "message": "Custom" },
   "optSubtitleHideNativeHelp": {
     "message": "Site profiles can override this per site."

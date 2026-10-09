@@ -132,6 +132,7 @@ const SETTINGS: SubtitleSettings = {
   // These tests pin the sentence-group and per-cue behavior that sentence
   // smoothing replaces; smoothing has its own suite.
   sentenceSmoothing: false,
+  ignoreSoundCues: false,
   position: "bottom",
   customPosition: { x: 0.5, y: 0.82 },
   fontScale: 1,

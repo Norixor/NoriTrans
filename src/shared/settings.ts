@@ -99,6 +99,11 @@ export interface SubtitleSettings {
    * as one sentence. Off keeps the previous grouping behavior.
    */
   sentenceSmoothing: boolean;
+  /**
+   * Cues that are only a sound or music annotation, such as "(🎵 siren)", are
+   * not sent to any translation Provider and keep their original text.
+   */
+  ignoreSoundCues: boolean;
   position: SubtitlePosition;
   customPosition: SubtitleCustomPosition;
   fontScale: number;
@@ -222,6 +227,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     displayMode: "bilingual",
     hideNativeSubtitles: false,
     sentenceSmoothing: true,
+    ignoreSoundCues: false,
     position: "bottom",
     customPosition: { x: 0.5, y: 0.82 },
     fontScale: 1.2,
@@ -489,6 +495,10 @@ export function mergeSettings(value: unknown): AppSettings {
         typeof subtitles.sentenceSmoothing === "boolean"
           ? subtitles.sentenceSmoothing
           : DEFAULT_SETTINGS.subtitles.sentenceSmoothing,
+      ignoreSoundCues:
+        typeof subtitles.ignoreSoundCues === "boolean"
+          ? subtitles.ignoreSoundCues
+          : DEFAULT_SETTINGS.subtitles.ignoreSoundCues,
       position: subtitlePosition,
       customPosition: {
         x:
