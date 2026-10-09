@@ -96,9 +96,6 @@ export const NT_LIGHT_TOKENS: TokenMap = {
     "0 1px 2px rgba(24, 21, 48, 0.05), 0 4px 16px rgba(24, 21, 48, 0.06)",
   "fab-bg": "linear-gradient(145deg, #7b5cff, #5a3de6)",
   "fab-fg": "#ffffff",
-  "fab-ring": "#ffffff",
-  "fab-ring-track": "rgba(255, 255, 255, 0.28)",
-  "badge-border": "#ffffff",
   "sub-bg": "rgba(12, 10, 26, 0.74)",
   "sub-fg": "#ffffff",
 };
@@ -136,9 +133,6 @@ export const NT_DARK_TOKENS: TokenMap = {
   "shadow-card": "0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 20px rgba(0, 0, 0, 0.25)",
   "fab-bg": "linear-gradient(145deg, #a08cff, #7b5cff)",
   "fab-fg": "#120f2a",
-  "fab-ring": "#120f2a",
-  "fab-ring-track": "rgba(18, 15, 42, 0.28)",
-  "badge-border": "#181630",
   "sub-bg": "rgba(12, 10, 26, 0.74)",
   "sub-fg": "#ffffff",
 };

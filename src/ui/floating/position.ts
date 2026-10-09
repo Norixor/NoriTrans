@@ -61,13 +61,13 @@ interface DragState {
 /**
  * Owns the launcher position: dragging (with pointer capture plus window
  * fallbacks for players and iframes that swallow events), keyboard moves,
- * edge docking with a tucked-away state that keeps a 20px reveal strip,
- * viewport resizes and persistence (sessionStorage per page, plus the
+ * edge docking with a tucked-away state that keeps half the launcher (a half
+ * circle) visible, viewport resizes and persistence (sessionStorage per page, plus the
  * caller's normalized `loadPosition`/`onPositionChange` store).
  *
  * Behaviour mirrors the previous control: a press on a tucked launcher does
  * not reveal it until it actually moves (moving the hit target before
- * `pointerup` would cancel the click on the reveal strip); a click right
+ * `pointerup` would cancel the click on the visible half); a click right
  * after a drag is swallowed; Escape-free cancellation (`pointercancel`)
  * restores the position from before the drag.
  */

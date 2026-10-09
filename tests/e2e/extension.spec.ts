@@ -23,6 +23,7 @@ import {
   floatingSwitch,
   floatingTab,
   floatingTabBody,
+  launcherRing,
   openFloatingEditor,
   openFloatingPanel,
   openFloatingSection,
@@ -1823,12 +1824,16 @@ test("automatically mounts one unified page and video control", async () => {
     });
     await expect
       .poll(() => control.evaluate((host) => getComputedStyle(host).transform))
-      .toContain("-38");
+      .toContain("-34");
     const hiddenLauncherBox = await launcher.boundingBox();
     if (!hiddenLauncherBox) throw new Error("Missing docked launcher geometry");
-    const visibleWakeStrip = hiddenLauncherBox.x + hiddenLauncherBox.width;
-    expect(visibleWakeStrip).toBeGreaterThanOrEqual(19);
-    expect(visibleWakeStrip).toBeLessThanOrEqual(20.5);
+    // Exactly half of the 48px launcher (a half circle) stays visible.
+    const visibleHalf = hiddenLauncherBox.x + hiddenLauncherBox.width;
+    expect(visibleHalf).toBeGreaterThanOrEqual(23.5);
+    expect(visibleHalf).toBeLessThanOrEqual(24.5);
+    await expect
+      .poll(() => launcherRing(control))
+      .toMatchObject({ edge: "left" });
     await page.mouse.move(
       2,
       hiddenLauncherBox.y + hiddenLauncherBox.height / 2,
@@ -1838,6 +1843,9 @@ test("automatically mounts one unified page and video control", async () => {
     await page.mouse.up();
     await expect(control).toHaveAttribute("data-edge-hidden", "false");
     await expect(floatingPanel(control)).toBeVisible();
+    await expect
+      .poll(() => launcherRing(control))
+      .toMatchObject({ edge: null });
     const reopenedPanel = await floatingPanel(control).boundingBox();
     expect(reopenedPanel?.width).toBeGreaterThanOrEqual(280);
     await expect
@@ -5184,6 +5192,11 @@ test("keeps the floating control interactive inside a fullscreen container", asy
       .toBe("stage");
     await control.locator(".hd nt-icon-button.close").click();
     await expect(floatingPanel(control)).toBeHidden();
+    // The finished state is a solid status arc that lies fully inside the
+    // button: the pill clips its overflow for the announcement animation.
+    await expect
+      .poll(() => launcherRing(control), { timeout: 10_000 })
+      .toEqual({ ring: "solid", edge: null, inside: true });
 
     await page.evaluate(() => document.exitFullscreen());
     await expect

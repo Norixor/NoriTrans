@@ -1,6 +1,9 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   defineNtComponents,
+  fabArcPath,
+  fabArcSpec,
+  fabRingKind,
   type NtButton,
   type NtMenu,
   type NtPillFab,
@@ -116,36 +119,135 @@ describe("nt-status-card", () => {
 
 describe("nt-fab", () => {
   it.each([
-    ["ready", "ready"],
-    ["partial", "partial"],
-    ["error", "error"],
-    ["cancelled", "cancelled"],
-    ["idle", null],
-    ["translating", null],
-  ] as const)("state %s renders badge %s", async (state, kind) => {
+    ["ready", "solid"],
+    ["partial", "dashed"],
+    ["error", "dotted"],
+    ["cancelled", "dashdot"],
+    ["idle", "none"],
+    ["disabled", "none"],
+    ["translating", "progress"],
+    ["scanning", "progress"],
+  ] as const)("state %s draws a %s ring", async (state, ring) => {
     const fab = await mount("nt-fab", (el) => {
       el.state = state;
       el.label = "NoriTrans";
     });
-    const badge = shadow(fab).querySelector(".badge");
-    expect(badge?.getAttribute("data-kind") ?? null).toBe(kind);
+    expect(fab.getAttribute("data-ring")).toBe(ring);
+    expect(fabRingKind(state)).toBe(ring);
+    const arc = shadow(fab).querySelector(".dial .arc");
+    expect(arc === null).toBe(ring === "none");
+    expect(shadow(fab).querySelector(".badge")).toBeNull();
     expect(
       shadow(fab).querySelector("button")?.getAttribute("aria-label"),
     ).toBe("NoriTrans");
   });
 
-  it("draws a progress ring only while busy, indeterminate without progress", async () => {
+  it("gives every finished state a distinct stroke pattern", async () => {
+    const patterns = new Set<string>();
+    for (const state of ["ready", "partial", "error", "cancelled"] as const) {
+      const fab = await mount("nt-fab", (el) => {
+        el.state = state;
+      });
+      const arc = shadow(fab).querySelector(".dial .arc");
+      patterns.add(
+        `${arc?.getAttribute("stroke-dasharray") ?? "solid"}|${arc?.getAttribute("stroke-linecap")}`,
+      );
+    }
+    expect(patterns.size).toBe(4);
+  });
+
+  it("draws a progress arc while busy, indeterminate without progress", async () => {
     const fab = await mount("nt-fab", (el) => {
       el.state = "translating";
       el.progress = 0.5;
     });
-    expect(shadow(fab).querySelector(".ring:not(.indet)")).not.toBeNull();
+    const arc = () => shadow(fab).querySelector(".dial .arc");
+    expect(arc()?.getAttribute("stroke-dasharray")).toBe("60 120");
+    expect(shadow(fab).querySelector(".dial .track")).not.toBeNull();
     fab.progress = null;
     await fab.updateComplete;
-    expect(shadow(fab).querySelector(".ring.indet")).not.toBeNull();
+    expect(arc()?.classList.contains("indet")).toBe(true);
     fab.state = "ready";
     await fab.updateComplete;
-    expect(shadow(fab).querySelector(".ring")).toBeNull();
+    expect(shadow(fab).querySelector(".dial .track")).toBeNull();
+    expect(arc()?.hasAttribute("stroke-dasharray")).toBe(false);
+  });
+
+  it("draws only the visible half while tucked into an edge", async () => {
+    const fab = await mount("nt-fab", (el) => {
+      el.state = "translating";
+      el.progress = 0.3;
+      el.edge = "left";
+    });
+    const arc = () => shadow(fab).querySelector(".dial .arc");
+    expect(fab.getAttribute("edge")).toBe("left");
+    expect(arc()?.getAttribute("pathLength")).toBe("60");
+    expect(arc()?.getAttribute("d")).toBe(fabArcPath("left").d);
+    expect(arc()?.getAttribute("stroke-dasharray")).toBe("18 60");
+    fab.edge = "middle" as never;
+    await fab.updateComplete;
+    expect(fab.edge).toBeUndefined();
+    expect(fab.hasAttribute("edge")).toBe(false);
+    expect(arc()?.getAttribute("pathLength")).toBe("120");
+  });
+});
+
+describe("fab arc geometry", () => {
+  it("runs the full circle clockwise from the top", () => {
+    expect(fabArcPath(undefined, 24, 21)).toEqual({
+      d: "M 24 3 A 21 21 0 0 1 24 45 A 21 21 0 0 1 24 3",
+      length: 120,
+    });
+  });
+
+  it.each([
+    // Left edge: right half visible, top to bottom clockwise.
+    ["left", "M 24 3 A 21 21 0 0 1 24 45"],
+    // Right edge: left half visible, top to bottom anticlockwise.
+    ["right", "M 24 3 A 21 21 0 0 0 24 45"],
+    // Top edge: bottom half visible, left to right through the bottom.
+    ["top", "M 3 24 A 21 21 0 0 0 45 24"],
+    // Bottom edge: top half visible, left to right through the top.
+    ["bottom", "M 3 24 A 21 21 0 0 1 45 24"],
+  ] as const)("draws the visible half for the %s edge", (edge, d) => {
+    expect(fabArcPath(edge, 24, 21)).toEqual({ d, length: 60 });
+  });
+
+  it.each([
+    [undefined, 0, "0 120", "butt"],
+    [undefined, 0.3, "36 120", "round"],
+    [undefined, 0.7, "84 120", "round"],
+    [undefined, 1, "120 120", "round"],
+    ["left", 0, "0 60", "butt"],
+    ["right", 0.3, "18 60", "round"],
+    ["top", 0.7, "42 60", "round"],
+    ["bottom", 1, "60 60", "round"],
+  ] as const)(
+    "maps progress onto the visible arc (edge %s, %s)",
+    (edge, progress, dasharray, linecap) => {
+      expect(fabArcSpec("progress", edge, progress)).toMatchObject({
+        dasharray,
+        linecap,
+        indeterminate: false,
+      });
+    },
+  );
+
+  it("keeps patterns whole on a half arc and travels when indeterminate", () => {
+    for (const kind of ["dashed", "dotted", "dashdot"] as const) {
+      const spec = fabArcSpec(kind, "right", null)!;
+      const period = spec
+        .dasharray!.split(" ")
+        .reduce((sum, part) => sum + Number(part), 0);
+      expect(spec.length % period).toBe(0);
+    }
+    expect(fabArcSpec("solid", "top", null)?.dasharray).toBeNull();
+    expect(fabArcSpec("dotted", undefined, null)?.linecap).toBe("round");
+    expect(fabArcSpec("none", "left", 0.5)).toBeNull();
+    expect(fabArcSpec("progress", "left", null)).toMatchObject({
+      dasharray: "15 165",
+      indeterminate: true,
+    });
   });
 });
 

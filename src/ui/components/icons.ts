@@ -26,26 +26,6 @@ export function statusGlyph(state: NtVisualState): TemplateResult {
   </svg>`;
 }
 
-/**
- * Compact badge glyphs drawn in `--nt-on-status` on a status-coloured disc.
- * Shapes: check (ready), half disc (partial), triangle (error), square
- * (cancelled).
- */
-export type NtBadgeKind = "ready" | "partial" | "error" | "cancelled";
-
-const badgeGlyphs: Record<NtBadgeKind, SVGTemplateResult> = {
-  ready: svg`<path d="M3.2 6.3l1.9 1.9 3.8-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>`,
-  partial: svg`<circle cx="6" cy="6" r="3.6" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 2.4a3.6 3.6 0 0 1 0 7.2z" fill="currentColor"/>`,
-  error: svg`<path d="M6 2.2l3.9 7H2.1z" fill="currentColor" stroke="currentColor" stroke-width=".8" stroke-linejoin="round"/>`,
-  cancelled: svg`<rect x="3.3" y="3.3" width="5.4" height="5.4" rx=".8" fill="currentColor"/>`,
-};
-
-export function badgeGlyph(kind: NtBadgeKind): TemplateResult {
-  return html`<svg viewBox="0 0 12 12" aria-hidden="true" focusable="false">
-    ${badgeGlyphs[kind]}
-  </svg>`;
-}
-
 /** Generic UI icons (24px grid). */
 export type NtIconName =
   | "translate"

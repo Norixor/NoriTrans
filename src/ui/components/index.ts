@@ -19,6 +19,13 @@ import { NtTextField } from "./text-field";
 export { NtButton, type NtButtonSize, type NtButtonVariant } from "./button";
 export { NtChip, type NtChipTone } from "./chip";
 export { NtFab, NtPillFab } from "./fab";
+export {
+  fabArcPath,
+  fabArcSpec,
+  fabRingKind,
+  type NtFabEdge,
+  type NtFabRing,
+} from "./fab-ring";
 export { NtIconButton } from "./icon-button";
 export type { NtIconName } from "./icons";
 export { NtMenu, type NtMenuCloseReason, type NtMenuItem } from "./menu";

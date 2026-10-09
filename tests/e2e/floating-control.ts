@@ -98,6 +98,48 @@ export async function openFloatingSection(
   return container;
 }
 
+/**
+ * The launcher's status arc: its style (`data-ring`), the edge it is tucked
+ * into, and whether the stroked arc lies fully inside the button box (the
+ * pill clips its overflow, so anything outside would be cut off; null when
+ * no arc is drawn).
+ */
+export function launcherRing(control: Locator): Promise<{
+  ring: string | null;
+  edge: string | null;
+  inside: boolean | null;
+}> {
+  return control.locator("nt-pill-fab").evaluate((fab) => {
+    const root = fab.shadowRoot;
+    const button = root?.querySelector("button");
+    const arc = root?.querySelector<SVGGeometryElement>(".dial .arc");
+    // Null when no arc is drawn (idle).
+    let inside: boolean | null = arc ? false : null;
+    const matrix = arc?.getScreenCTM();
+    if (button && arc && matrix) {
+      const box = arc.getBBox();
+      const half = Number(arc.getAttribute("stroke-width") ?? "0") / 2;
+      const corners = [
+        new DOMPoint(box.x - half, box.y - half),
+        new DOMPoint(box.x + box.width + half, box.y + box.height + half),
+      ].map((point) => point.matrixTransform(matrix));
+      const rect = button.getBoundingClientRect();
+      inside = corners.every(
+        (point) =>
+          point.x >= rect.left - 0.01 &&
+          point.x <= rect.right + 0.01 &&
+          point.y >= rect.top - 0.01 &&
+          point.y <= rect.bottom + 0.01,
+      );
+    }
+    return {
+      ring: fab.getAttribute("data-ring"),
+      edge: fab.getAttribute("edge"),
+      inside,
+    };
+  });
+}
+
 /** `data-noritrans-ui` of the host's parent (portal marker or empty). */
 export function floatingParentSurface(control: Locator): Promise<string> {
   return control.evaluate(

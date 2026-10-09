@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  EDGE_REVEAL_SIZE,
   LAUNCHER_SIZE,
   PANEL_MAX_WIDTH,
   VIEWPORT_PADDING,
@@ -75,9 +76,12 @@ describe("floating geometry", () => {
     expect(isNormalizedPosition(undefined)).toBe(false);
   });
 
-  it("keeps a 20px reveal strip when tucked", () => {
-    expect(edgeHiddenTransform("right")).toBe("translateX(38px)");
-    expect(edgeHiddenTransform("top")).toBe("translateY(-38px)");
+  it("keeps half the launcher visible when tucked", () => {
+    expect(EDGE_REVEAL_SIZE).toBe(LAUNCHER_SIZE / 2);
+    expect(edgeHiddenTransform("left")).toBe("translateX(-34px)");
+    expect(edgeHiddenTransform("right")).toBe("translateX(34px)");
+    expect(edgeHiddenTransform("top")).toBe("translateY(-34px)");
+    expect(edgeHiddenTransform("bottom")).toBe("translateY(34px)");
   });
 
   it("places the panel inside the viewport and flips near the bottom", () => {

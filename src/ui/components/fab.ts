@@ -1,6 +1,12 @@
 import { LitElement, css, html, nothing, type PropertyValues } from "lit";
-import { badgeGlyph, icon, statusGlyph, type NtBadgeKind } from "./icons";
-import { progressRing, progressRingStyles } from "./progress-ring";
+import {
+  fabRing,
+  fabRingKind,
+  fabRingStyles,
+  isFabEdge,
+  type NtFabEdge,
+} from "./fab-ring";
+import { icon, statusGlyph } from "./icons";
 import {
   baseStyles,
   emit,
@@ -10,24 +16,22 @@ import {
   type NtVisualState,
 } from "./shared";
 
-function badgeKind(state: NtVisualState): NtBadgeKind | null {
-  switch (state) {
-    case "ready":
-    case "partial":
-    case "error":
-    case "cancelled":
-      return state;
-    default:
-      return null;
-  }
-}
-
 const fabStyles = css`
   :host {
     display: inline-flex;
     flex: 0 0 auto;
-    --nt-ring-color: var(--nt-fab-ring);
-    --nt-ring-track: var(--nt-fab-ring-track);
+  }
+  :host([data-ring="solid"]) {
+    --nt-fab-arc: var(--nt-s-ok);
+  }
+  :host([data-ring="dashed"]) {
+    --nt-fab-arc: var(--nt-s-warn);
+  }
+  :host([data-ring="dotted"]) {
+    --nt-fab-arc: var(--nt-s-err);
+  }
+  :host([data-ring="dashdot"]) {
+    --nt-fab-arc: var(--nt-s-neutral);
   }
   button {
     position: relative;
@@ -48,65 +52,53 @@ const fabStyles = css`
   button:focus-visible {
     outline-offset: 1px;
   }
+  /* 44px slot centred in the 48px box (2px padding in both the plain and the
+     pill button). The surface plate behind the arc keeps every arc style
+     legible on any page; the 36px disc carries the brand gradient. */
   .core {
     position: relative;
     flex: 0 0 auto;
     width: 44px;
     height: 44px;
-    border-radius: 50%;
-    background: var(--nt-fab-bg);
-    color: var(--nt-fab-fg);
     display: grid;
     place-items: center;
+    color: var(--nt-fab-fg);
+  }
+  .core::before {
+    content: "";
+    position: absolute;
+    inset: -1.25px;
+    border-radius: 50%;
+    background: var(--nt-surface);
     box-shadow: var(--nt-shadow-float);
   }
-  .core > svg {
-    width: 22px;
-    height: 22px;
-  }
-  .core > .ring {
-    position: absolute;
-    inset: 2px;
-    width: 40px;
-    height: 40px;
-  }
-  .badge {
-    position: absolute;
-    top: -1px;
-    left: 31px;
-    width: 18px;
-    height: 18px;
+  .disc {
+    position: relative;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
-    border: 2px solid var(--nt-badge-border);
+    background: var(--nt-fab-bg);
     display: grid;
     place-items: center;
-    color: var(--nt-on-status);
-    background: var(--nt-s-neutral);
   }
-  .badge > svg {
-    width: 12px;
-    height: 12px;
-    display: block;
-  }
-  .badge[data-kind="ready"] {
-    background: var(--nt-s-ok);
-  }
-  .badge[data-kind="partial"] {
-    background: var(--nt-s-warn);
-  }
-  .badge[data-kind="error"] {
-    background: var(--nt-s-err);
+  .disc > svg {
+    width: 20px;
+    height: 20px;
   }
 `;
 
 /**
  * `<nt-fab state="translating" .progress=${0.38} label="NoriTrans: translating 38%">`
  *
- * Collapsed floating button: 44px gradient core inside a 48px target, a real
- * progress ring while busy, and a shape-coded badge for ready (check),
- * partial (half disc), error (triangle) and cancelled (square). It never
- * blinks. `label` is the accessible name and should include the state.
- * Dragging and positioning stay with the host (stage 3).
+ * Collapsed floating button: a 36px gradient disc on a surface plate inside a
+ * 48px target, ringed by a status arc whose stroke style carries the state
+ * (see `fab-ring.ts`): a real progress arc while busy, solid when ready,
+ * dashed when partial, dotted when failed, dash-dot when cancelled, none
+ * otherwise. The style is reflected as `data-ring` on the host. With `edge`
+ * set (the host tucked the button into that viewport edge) only the visible
+ * half of the arc is drawn and progress fills that half. It never blinks.
+ * `label` is the accessible name and should include the state. Dragging and
+ * positioning stay with the host.
  */
 export class NtFab extends LitElement {
   static override shadowRootOptions: ShadowRootInit = {
@@ -120,9 +112,10 @@ export class NtFab extends LitElement {
     label: { type: String },
     expanded: { type: String },
     controls: { type: String },
+    edge: { type: String, reflect: true },
   };
 
-  static override styles = [baseStyles, progressRingStyles, fabStyles];
+  static override styles = [baseStyles, fabRingStyles, fabStyles];
 
   declare state: NtVisualState;
   /** 0..1 while translating; null for indeterminate. */
@@ -136,6 +129,11 @@ export class NtFab extends LitElement {
    * attribute on the inner button cannot reach it). Empty when none.
    */
   declare controls: string;
+  /**
+   * Viewport edge the button is tucked into, so only the half facing the
+   * page shows; undefined while fully visible.
+   */
+  declare edge: NtFabEdge | undefined;
 
   constructor() {
     super();
@@ -172,23 +170,19 @@ export class NtFab extends LitElement {
 
   protected override willUpdate(changed: PropertyValues<this>): void {
     if (changed.has("state") && !isVisualState(this.state)) this.state = "idle";
+    if (changed.has("edge") && this.edge !== undefined && !isFabEdge(this.edge))
+      this.edge = undefined;
+    this.setAttribute("data-ring", fabRingKind(this.state));
   }
 
   protected renderCore() {
-    const busy = isBusyState(this.state);
     const value =
       this.state === "translating" ? normalizeProgress(this.progress) : null;
-    const kind = badgeKind(this.state);
-    return html`<span class="core" part="core">
-        ${busy ? progressRing(value, 40, 3) : nothing} ${icon("translate")}
-      </span>
-      ${
-        kind
-          ? html`<span class="badge" part="badge" data-kind=${kind}
-              >${badgeGlyph(kind)}</span
-            >`
-          : nothing
-      }`;
+    return html`<span class="core" part="core"
+      >${fabRing(fabRingKind(this.state), this.edge, value)}<span class="disc"
+        >${icon("translate")}</span
+      ></span
+    >`;
   }
 
   protected override render() {
@@ -220,7 +214,7 @@ const ATTENTION_STATES: ReadonlySet<NtVisualState> = new Set([
  * The floating button with direction B's one-shot "pill announcement": when
  * `message` or `state` changes after the first render, the button stretches
  * into a pill showing the message for `duration` ms (default 3000), then
- * collapses back to the circle and keeps its badge. `partial`/`error` stay
+ * collapses back to the circle and keeps its status arc. `partial`/`error` stay
  * expanded until the next change or activation. `silent` turns the visual
  * stretch off (for users who opt out); the message is still announced to
  * assistive tech through a polite live region. Reduced motion removes the
@@ -301,9 +295,6 @@ export class NtPillFab extends NtFab {
       }
       :host([state="error"]) .msg svg {
         color: var(--nt-s-err);
-      }
-      :host([announcing]) .badge {
-        display: none;
       }
     `,
   ];

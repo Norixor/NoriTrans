@@ -744,6 +744,12 @@ export class FloatingControl {
       ? pillDirection(point.left, readViewport())
       : "start";
     const statusOnly = this.statusOnly();
+    // Only the half facing the page shows while tucked, so the launcher
+    // draws just that half of its status arc.
+    const tuckedEdge =
+      !statusOnly && this.positioner?.tucked
+        ? this.positioner.docked
+        : undefined;
     const tabItems: NtTabItem[] = this.tabs.map((tab) => ({
       id: tab.id,
       label: tab.label(),
@@ -762,6 +768,7 @@ export class FloatingControl {
           message=${fab.message}
           ?silent=${!this.announcementsEnabled}
           direction=${direction}
+          .edge=${tuckedEdge}
           expanded=${statusOnly ? "" : String(this.expanded)}
           controls=${!statusOnly && this.expanded ? PANEL_ID : ""}
         ></nt-pill-fab>

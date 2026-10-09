@@ -411,13 +411,21 @@ describe("FloatingControl position", () => {
       `noritrans:unified-control:${location.origin}${location.pathname}`,
       JSON.stringify({ left: 20, top: 300 }),
     );
-    const { host } = create();
+    const { host, fab } = create();
     await tick();
     expect(host.style.getPropertyValue("left")).toBe("10px");
     expect(host.style.getPropertyValue("top")).toBe("300px");
     expect(host.dataset.dockedEdge).toBe("left");
     expect(host.dataset.edgeHidden).toBe("true");
-    expect(host.style.getPropertyValue("transform")).toBe("translateX(-38px)");
+    expect(host.style.getPropertyValue("transform")).toBe("translateX(-34px)");
+    // The tucked launcher draws only its visible half arc.
+    expect(fab.edge).toBe("left");
+    fab.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
+    );
+    await tick();
+    expect(host.dataset.edgeHidden).toBe("false");
+    expect(fab.edge).toBeUndefined();
   });
 
   it("applies the persisted normalized position", async () => {

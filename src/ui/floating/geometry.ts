@@ -11,8 +11,11 @@
 export const VIEWPORT_PADDING = 10;
 /** Launcher hit box (the 44px visual core sits inside it). */
 export const LAUNCHER_SIZE = 48;
-/** Part of the launcher that stays visible while it is tucked into an edge. */
-export const EDGE_REVEAL_SIZE = 20;
+/**
+ * Part of the launcher that stays visible while it is tucked into an edge:
+ * exactly half, so the visible half circle can still show the status arc.
+ */
+export const EDGE_REVEAL_SIZE = LAUNCHER_SIZE / 2;
 /** Release within this distance of an edge docks the launcher to it. */
 export const EDGE_DOCK_THRESHOLD = 28;
 /** Pointer travel before a press turns into a drag. */

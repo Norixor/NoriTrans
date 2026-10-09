@@ -234,7 +234,7 @@ describe("FloatingControl launcher dragging", () => {
       const sign = edge === "left" || edge === "top" ? "-" : "";
       const axis = edge === "left" || edge === "right" ? "X" : "Y";
       expect(host.style.getPropertyValue("transform")).toBe(
-        `translate${axis}(${sign}38px)`,
+        `translate${axis}(${sign}34px)`,
       );
     },
   );
